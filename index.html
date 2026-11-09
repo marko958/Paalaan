@@ -290,6 +290,8 @@ function monthTick() {
     if (C(car.c).fl.includes('T')) car.svc = Infinity; // Teslalla ei ole määräaikaishuoltoa
     if (car === drivenCar()) car.tire--;
     if (S.m >= car.svc && !car.broken) Q.push(()=>serviceEvent(car)); // huoltoväli täyttyy ajalla, myös seisonnassa
+    else if (car.svc - S.m === 3 && car.svcWarned !== car.svc) { car.svcWarned = car.svc; const k = C(car.c);
+      Q.push(()=>say('HUOLTO LÄHESTYY', [`${k.name}: huolto on edessä 3 kuukauden päästä. Perushuolto noin ${eur(svcCost(k))}.`, '!Joka kolmannessa huollossa löytyy lisäksi jotain korjattavaa. Nyt ehtii vielä vaihtaa auton ennen huoltoa.'])); }
     else if (car.tire <= 0 && !car.broken && car === drivenCar()) Q.push(()=>tireEvent(car));
   });
   if (((S.m-1)%12 === 3 || (S.m-1)%12 === 9) && drivenCar()) Q.push(tireSwap);
@@ -538,9 +540,25 @@ function serviceEvent(car) {
   const k = C(car.c), c = svcCost(k);
   car.svc = S.m + (k.type==='e' ? 24 : 12);
   scr('MÄÄRÄAIKAISHUOLTO', [`${k.name}: ${k.type==='e'?'määräaikaishuolto (2 vuoden välein)':'vuosihuolto'} on ajankohtainen${car===drivenCar()?'':' (huoltoväli täyttyy ajalla, vaikka auto seisoo)'}.`, 'Huoltohistoria näkyy myyntihinnassa, ja huoltamaton auto hajoaa herkemmin.'], [
-    [`Merkkihuolto ${eur(c)}`, ()=>{ payOrVippi(c); car.skip = 0; say('HUOLTO', ['Leima huoltokirjaan. Kahvi oli hyvää.']); }],
-    [`Pikahuolto ${eur(c/2)} (arvo −3 %)`, ()=>{ payOrVippi(c/2); car.skip = 0; car.base *= 0.97; say('HUOLTO', ['Öljyt vaihdettiin, muusta ei kysytty.']); }],
+    [`Merkkihuolto ${eur(c)}`, ()=>{ payOrVippi(c); car.skip = 0; svcExtra(car, 'Leima huoltokirjaan. Kahvi oli hyvää.'); }],
+    [`Pikahuolto ${eur(c/2)} (arvo −3 %)`, ()=>{ payOrVippi(c/2); car.skip = 0; car.base *= 0.97; svcExtra(car, 'Öljyt vaihdettiin, muusta ei kysytty.'); }],
     ['Ohita (arvo −8 %, vikariski kasvaa)', ()=>{ car.skip = 1; car.base *= 0.92; say('HUOLTO', ['!Huoltokirjaan jäi aukko. Ostajat huomaavat sen.']); }],
+  ]);
+}
+const SVC_EXTRA = {
+  all: [['Jarrunesteen vaihto',120],['Jarrulevyt ja -palat',600],['Raidetangon päät',450],['Ilmastoinnin huolto',180],['Pyöränlaakeri',550],['Kallistuksenvakaajan nivelet',300],['Tuulilasinpyyhkijät ja valot',90]],
+  b: [['Jakohihna ja vesipumppu',950],['Pakosarja vuotaa',700],['Öljyvuoto venttiilikopasta',400],['Hehkutulpat',350]],
+  h: [['Invertterin jäähdytysneste',250],['Jakohihna',800]],
+  e: [['Siitepölysuodatin ja lämpöpumpun huolto',250],['Akun jäähdytysnesteen vaihto',380],['Jarrusatulat jumissa',650]],
+};
+function svcExtra(car, okText) {
+  if (RND() >= 1/3) return say('HUOLTO', [okText]);
+  const k = C(car.c);
+  const it = pick(SVC_EXTRA.all.concat(SVC_EXTRA[k.type]));
+  const cost = Math.round(it[1] * tierMult(k) * rnd(0.85, 1.3) / 10) * 10;
+  scr('HUOLLOSSA LÖYTYI', [okText, `!Huoltomies soitti: "${it[0]} pitäisi hoitaa." Lisälasku ${eur(cost)}.`], [
+    [`Korjaa samalla (${eur(cost)})`, ()=>{ payOrVippi(cost); say('HUOLTO', ['Korjattu samalla käynnillä.']); }],
+    ['Jätä korjaamatta (näkyy myyntihinnassa ja katsastuksessa)', ()=>{ car.minor = (car.minor||0) + cost; say('HUOLTO', ['Kuitattu huoltokirjaan: "Asiakas ei halunnut korjausta."']); }],
   ]);
 }
 function tireEvent(car) {
