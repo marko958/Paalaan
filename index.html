@@ -150,7 +150,10 @@ function newState(t) {
     target: t, stock: null, auctionDone: false, log: [], over: false,
   };
 }
-const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:1) * (k.fl.includes('T')?S.M.tesla:1); };
+const sohF = car => (C(car.c).type==='e' && car.soh!==undefined) ? Math.min(1, Math.max(0.35, (car.soh-50)/40)) : 1;
+const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:1) * (k.fl.includes('T')?S.M.tesla:1) * sohF(car); };
+function genSoh(i) { const k = C(i); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/20\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
+const sohTxt = car => car.soh!==undefined ? ` · akku ${Math.round(car.soh)} %` : '';
 const val = car => Math.max(150, car.base * mult(car) - car.broken*0.8);
 const working = () => S.cars.filter(c => !c.broken);
 const slots = () => S.cars.length + (S.tsa ? 1 : 0);
@@ -158,7 +161,7 @@ const totalVal = () => S.cars.reduce((s,c)=>s+val(c),0);
 const totalLoan = () => S.cars.reduce((s,c)=>s+(c.loan?c.loan.bal:0),0) + S.vippi + S.residual;
 const ownsTarget = () => S.cars.some(c => TARGETS[S.target].ids.includes(c.c));
 
-const shortR = car => C(car.c).fl.includes('S');
+const shortR = car => C(car.c).fl.includes('S') || (C(car.c).type==='e' && car.soh!==undefined && car.soh < 80);
 // ajettava auto: toimintamatkaltaan riittävä ensin, sitten halvin
 const driveOrder = () => working().slice().sort((a,b)=>(shortR(a)-shortR(b)) || (C(a.c).run-C(b.c).run));
 const shortCommute = () => { if (S.tsa) return false; const d = driveOrder()[0]; return d && shortR(d); };
@@ -223,6 +226,18 @@ function monthTick() {
     const k = C(car.c);
     car.base *= (1 - k.dep/12) * (car.broken ? 0.99 : 1);
     car.base = Math.max(car.base, 300 / Math.max(0.3, mult(car)));
+  });
+  // akun heikkeneminen
+  S.cars.forEach(car => {
+    const k = C(car.c);
+    if (k.type !== 'e') return;
+    if (car.soh === undefined) { car.soh = 100; car.held = 0; }
+    if (car.battFail && !car.broken) { car.soh = 100; car.held = 0; car.battFail = false; car.w85 = car.w80 = false; }
+    car.held++;
+    car.soh -= (0.05 + 0.006*car.held) * (k.fl.includes('S') ? 1.6 : 1);
+    if (car.soh < 85 && !car.w85) { car.w85 = true; Q.push(()=>say('AKKU HEIKKENEE', [`${k.name}: akun kunto ${Math.round(car.soh)} %.`, '!Talviaamuna toimintamatka näytti huolestuttavan pientä. Heikkeneminen kiihtyy, mitä pidempään autoa pitää.', 'Nyt olisi hyvä hetki miettiä myyntiä, kun arvo vielä pysyy.'])); }
+    if (car.soh < 80 && !car.w80) { car.w80 = true; Q.push(()=>say('AKKU ROMAHTAA', [`${k.name}: akun kunto ${Math.round(car.soh)} %.`, '!Työmatka vaatii nyt latausstopin. Myöhästelyt nostavat lomautusriskiä, ja auton arvo laskee jyrkästi.', '!Alle 72 %:ssa akku menee vikatilaan: remontti noin 10 000 €.'])); }
+    if (car.soh < 72 && !car.battFail && !car.broken) Q.push(()=>batteryFail(car));
   });
   S.cars.slice().forEach(car => { if (car.sale>0) { car.sale--; if (car.sale===0) Q.push(()=>privateSaleDone(car)); }});
   // markkinat
@@ -335,7 +350,7 @@ function info() {
     lines.push(`${k.name}${car.mb?' [MB×'+car.mb+']':''}${car.broken?' [RIKKI '+eur(car.broken)+']':''}${car.sale?' [myynnissä]':''}`);
     lines.push(`  Arvo ${eur(val(car))}, laina ${car.loan?eur(car.loan.bal):'0 €'}`);
     if (car.loan) lines.push(`  Erä ${eur(car.loan.pay)}/kk, ${car.loan.n} kk jäljellä, korko ${pct(car.loan.r*1200)}${car.loan.B?', jämäri '+eur(car.loan.B):''}`);
-    lines.push(`  Kulut ${eur(k.run)}/kk, arvonlasku ~${Math.round(k.dep*100)} %/v`);
+    lines.push(`  Kulut ${eur(k.run)}/kk, arvonlasku ~${Math.round(k.dep*100)} %/v${sohTxt(car)}`);
   });
   if (S.tsa) { const T = S.tsa; lines.push(`TYÖSUHDEAUTO: ${C(T.c).name}${T.mb?' [MB×'+T.mb+']':''}`, `  ${T.kind}etu ${eur(T.cost)}/kk, sopimusta jäljellä ${T.left} kk`, `  Palautuksessa laskutettavia vaurioita ${eur(T.dmg)}${T.mb?' + mikrobetonipaikat':''}`); }
   if (!S.cars.length && !S.tsa) lines.push('Ei autoja.');
@@ -353,7 +368,7 @@ function randomEvent() {
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
     ['korotus',4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)],['kampanja',S.camp?0:8],['sakko',3],['kivenisku',S.cars.length?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
-    ['kolhu',slots()?(S.parking?0.75:3)+(S.slip?3:0):0],['peura',slots()?(month>=8&&month<=11?8:3):0],
+    ['kolhu',slots()?(S.parking?0.75:3)+(S.slip?3:0):0],['peura',slots()?(month>=8&&month<=11?4:1.5):0],
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0):0],
   ];
   const tot = ev.reduce((s,e)=>s+e[1],0); let x = RND()*tot, e;
@@ -447,6 +462,20 @@ function tireSwap() {
   scr('RENKAANVAIHTO', [winter ? 'Lokakuu: talvirenkaat alle ennen ensilunta.' : 'Huhtikuu: kesärenkaat alle.'], [
     ['Rengashotelli 90 €', ()=>{ payOrVippi(90); say('RENKAANVAIHTO', ['Hoidettu, renkaat pestään ja säilötään.']); }],
     ['Vaihda itse (0 €)', ()=>{ if (RND()<0.15) { const car = working()[0]; if (car) car.broken = 300; say('RENKAANVAIHTO', ['!Yksi mutteri jäi löysäksi, ja pyörä alkoi heilua. Korjaus 300 €.']); } else say('RENKAANVAIHTO', ['Pihalla tunkin kanssa säästit 90 €. Selkä on eri mieltä.']); }],
+  ]);
+}
+function batteryFail(car) {
+  if (!S.cars.includes(car) || car.battFail) return next();
+  const k = C(car.c), cost = k.price > 50000 ? 18000 : 10000;
+  car.battFail = true; car.broken = cost;
+  scr('AKKU VIKATILASSA', [`${k.name}: akun kunto ${Math.round(car.soh)} %. Auto ei suostu lataamaan, ja mittaristossa palaa punainen kilpikonna.`, `Akkuremontti maksaa ${eur(cost)}.`], [
+    [`Uusi akku ${eur(cost)}`, ()=>{ payOrVippi(cost); car.broken = 0; car.battFail = false; car.soh = 100; car.held = 0; car.w85 = car.w80 = false; say('AKKU', ['+Uusi akku, uusi toimintamatka. Kassa ei ole samaa mieltä.', S.vippi?'!Remontti meni osin pikavipillä.':'']); }],
+    [`Akkuremontti osamaksulla 24 kk (9,9 %)`, ()=>{ const L = car.loan || {bal:0, r:0.099/12, n:24, B:0, pay:0};
+        L.bal += cost; L.r = Math.max(L.r, 0.099/12); L.n = Math.max(L.n, 24); L.pay = annuity(L.bal, L.r, L.n, L.B||0); car.loan = L;
+        car.broken = 0; car.battFail = false; car.soh = 100; car.held = 0; car.w85 = car.w80 = false;
+        say('AKKU', ['Korjaamon rahoitusyhtiö lisäsi remontin auton lainaan.', `!Erä on nyt ${eur(L.pay)}/kk. Laina kasvoi ${eur(cost)}, mutta auton arvo ei.`]); }],
+    ['Myy romuna Autovexille', ()=>settle(car, r100(val(car)*0.5), 'Autovex')],
+    ['Jätä seisomaan (korjaamolla myöhemmin)', ()=>say('AKKU', ['!Auto seisoo pihassa. Arvo valuu, ja laina juoksee.'])],
   ]);
 }
 function faultEvent(car) {
@@ -551,11 +580,11 @@ function tsaDamage(k) {
 }
 
 // ---------- AUTOLIIKE ----------
-function listPrice(i) {
+function listPrice(i, soh) {
   const k = C(i);
   if (k.fl.includes('N')) return k.price;
   const age = Math.pow(1-k.dep, (S.m-1)/12);
-  const fake = {c:i};
+  const fake = {c:i, soh};
   return Math.max(500, r100(k.price * age * mult(fake) * rnd(0.92,1.08)));
 }
 function genStock() {
@@ -565,14 +594,14 @@ function genStock() {
   if (RND() < 0.15) ids.add(pick(TARGETS[S.target].ids));
   if (RND() < 0.5) ids.add(pick(CARS.map((_,i)=>i).filter(i=>C(i).fl.includes('N'))));
   if (S.camp) ids.add(S.camp.id);
-  S.stock = [...ids].map(i => ({c:i, price:listPrice(i)})).sort((a,b)=>a.price-b.price);
+  S.stock = [...ids].map(i => { const soh = genSoh(i); return {c:i, soh, price:listPrice(i, soh)}; }).sort((a,b)=>a.price-b.price);
 }
 function dealer() {
   if (!S.stock) genStock();
   const ch = S.stock.map(s => {
     const k = C(s.c), camp = S.camp && S.camp.id===s.c;
     const tgt = TARGETS[S.target].ids.includes(s.c);
-    return [`${k.name}: ${eur(s.price)}${camp?' · KAMPANJA':''}${tgt?' ★':''}`, ()=>carDetail(s)];
+    return [`${k.name}: ${eur(s.price)}${s.soh!==undefined&&s.soh<100?' · akku '+s.soh+' %':''}${camp?' · KAMPANJA':''}${tgt?' ★':''}`, ()=>carDetail(s)];
   });
   ch.push(['Takaisin', menu]);
   scr('AUTOLIIKE', ['Liikkeen tarjonta tässä kuussa. Rahoitus järjestyy aina, melkein.'], ch);
@@ -580,7 +609,7 @@ function dealer() {
 function newValue(s) {
   const k = C(s.c);
   if (k.fl.includes('N')) { const camp = S.camp && S.camp.id===s.c ? S.camp.amt : 0; return Math.min(s.price*0.85, (s.price - camp)*0.95); }
-  return s.price * 0.9;
+  return s.price * 0.93;
 }
 function carDetail(s) {
   const k = C(s.c);
@@ -590,11 +619,12 @@ function carDetail(s) {
     `Arvonlasku noin ${Math.round(k.dep*100)} % vuodessa`,
     `Tunnettu vika: ${k.fault}`,
   ];
+  if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${s.soh<80?': toimintamatka on jo heikko':''}`);
   if (k.fl.includes('S')) lines.push('!Lyhyt toimintamatka: et ehdi työmatkoille latauksilta, ja lomautusriski moninkertaistuu.');
   const ch = [];
   S.cars.forEach(car => {
     const camp = S.camp && S.camp.id===s.c ? S.camp.amt : 0;
-    const h = r100(val(car)*0.85) + camp;
+    const h = r100(val(car)*0.88) + camp;
     ch.push([`Osta, vaihtoon ${C(car.c).name} (hyvitys ${eur(h)}, laina ${eur(car.loan?car.loan.bal:0)})`, ()=>finance(s, car, h)]);
   });
   ch.push([`Osta ilman vaihtoa${slots()>=2?' (max 2 autoa)':''}`, ()=>finance(s, null, 0), slots()>=2]);
@@ -673,7 +703,7 @@ function doBuy(s, trade, loan, paid) {
   if (trade) S.cars.splice(S.cars.indexOf(trade), 1);
   if (!loan) S.cash -= paid; else S.cash -= paid;   // käteinen tai käsiraha (negatiivinen = väliraha)
   const nv = newValue(s);
-  const car = {c:s.c, base:0, loan, broken:0, mb:0, sale:0};
+  const car = {c:s.c, base:0, loan, broken:0, mb:0, sale:0, soh:s.soh, held:0};
   car.base = nv / mult(car);
   S.cars.push(car);
   S.stock = S.stock.filter(x=>x!==s);
@@ -689,10 +719,11 @@ function auction() {
   S.auctionDone = true;
   const used = CARS.map((_,i)=>i).filter(i=>!C(i).fl.includes('N') && C(i).price<=85000);
   const id = pick(used);
-  const V = listPrice(id) * 0.95;
+  const soh = genSoh(id);
+  const V = listPrice(id, soh) * 0.95;
   const crazy = RND()<0.12;
-  const A = {id, V, est: r100(V*rnd(0.9,1.1)), bid: Math.max(100, r100(V*0.35)), lead:'opp', max: crazy ? V*rnd(1.05,1.2) : V*rnd(0.6,0.95), hidden: RND()<0.35};
-  auctionRound(A, [`Kohde: ${C(id).name}`, `Myyjän arvio ${eur(A.est)}. Ei takuuta, ei koeajoa.`]);
+  const A = {id, V, soh, est: r100(V*rnd(0.9,1.1)), bid: Math.max(100, r100(V*0.35)), lead:'opp', max: crazy ? V*rnd(1.05,1.2) : V*rnd(0.6,0.95), hidden: RND()<0.35};
+  auctionRound(A, [`Kohde: ${C(id).name}`, `Myyjän arvio ${eur(A.est)}. Ei takuuta, ei koeajoa.`].concat(soh!==undefined ? [`Myyjän ilmoittama akun kunto ${soh} % (ei tarkistettu)`] : []));
 }
 function auctionRound(A, pre) {
   const lines = (pre||[]).concat([`Korkein tarjous ${eur(A.bid)} (${A.lead==='me'?'SINÄ':'muu huutaja'})`]);
@@ -727,7 +758,7 @@ function auctionWin(A) {
 }
 function auctionPay(A, total, loan) {
   if (!loan) S.cash -= total;
-  const car = {c:A.id, base:0, loan, broken:0, mb:0, sale:0};
+  const car = {c:A.id, base:0, loan, broken:0, mb:0, sale:0, soh:A.soh, held:0};
   car.base = A.V / mult(car);
   S.cars.push(car);
   const lines = [`+${C(A.id).name} on sinun.`];
@@ -740,7 +771,7 @@ function auctionPay(A, total, loan) {
 
 // ---------- MYYNTI ----------
 function sellMenu() {
-  const ch = S.cars.map(car => [`${C(car.c).name}: arvo ${eur(val(car))}, laina ${eur(car.loan?car.loan.bal:0)}${car.sale?' (myynnissä)':''}`, ()=>sellCar(car), !!car.sale]);
+  const ch = S.cars.map(car => [`${C(car.c).name}${sohTxt(car)}: arvo ${eur(val(car))}, laina ${eur(car.loan?car.loan.bal:0)}${car.sale?' (myynnissä)':''}`, ()=>sellCar(car), !!car.sale]);
   ch.push(['Takaisin', menu]);
   scr('MYY AUTO', ['Mikä auto myydään?'], ch);
 }
@@ -815,7 +846,7 @@ function status() {
   const ratio = v>0 ? l/v : (l>0?9:0);
   return {month: S.m, cash: S.cash, income: S.layoff?Math.round(S.income/2):S.income, vippi: S.vippi, v, l, ratio,
     pay: S.cars.reduce((s,c)=>s+(c.loan?c.loan.pay:0),0), target: TARGETS[S.target].name, own: ownsTarget(),
-    cars: S.cars.map(c=>({name:C(c.c).name, v:val(c), l:c.loan?c.loan.bal:0, broken:!!c.broken, mb:c.mb})).concat(S.tsa?[{name:C(S.tsa.c).name+' (TSA)', v:0, l:0, broken:false, mb:S.tsa.mb}]:[])};
+    cars: S.cars.map(c=>({name:C(c.c).name + (c.soh!==undefined?` (akku ${Math.round(c.soh)} %)`:''), v:val(c), l:c.loan?c.loan.bal:0, broken:!!c.broken, mb:c.mb})).concat(S.tsa?[{name:C(S.tsa.c).name+' (TSA)', v:0, l:0, broken:false, mb:S.tsa.mb}]:[])};
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { start, setUI:u=>{UI=u;}, setRnd:f=>{RND=f;}, getS:()=>S, status, eur };
