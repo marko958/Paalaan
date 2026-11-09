@@ -231,7 +231,8 @@ function monthTick() {
   }
   if (S.vippi>0) { const k = S.vippi*0.20; S.vippi += k; R.push(['-','Pikavipin korko 20 %/kk (lisätty vippiin)', k]); }
   if (cash>0 && S.vippi>0) { const p = Math.min(cash, S.vippi); cash -= p; S.vippi -= p; R.push(['-','Pakkolyhennys pikavippiin', p]); }
-  if (cash<0) { const v = -cash + 60; S.vippi += v; cash = 0; S.mark = 12; R.push(['!','PIKAVIPPI MYÖNNETTY (sis. avausmaksu 60 €)', v]); }
+  if (cash<0 && invTotal()>0) R.push(['!','KASSA MIINUKSELLA: päätä seuraavaksi, realisoidaanko sijoituksia', -cash]);
+  else if (cash<0) { const v = -cash + 60; S.vippi += v; cash = 0; S.mark = 12; R.push(['!','PIKAVIPPI MYÖNNETTY (sis. avausmaksu 60 €)', v]); }
   S.cash = cash;
   if (S.mark>0) S.mark--;
   if (S.tsa) { S.tsa.left--; if (S.tsa.left<=0) Q.push(()=>tsaReturn('SOPIMUS PÄÄTTYI', 'Työsuhdeauton sopimus päättyi.', true)); }
@@ -316,7 +317,7 @@ function monthTick() {
 // ---------- RUUDUT ----------
 let UI = { show(){} };
 function scr(title, lines, choices) { UI.show({title, lines, choices: choices.map(c=>({t:c[0], f:c[1], dis:!!c[2]}))}); }
-function next() { if (S.over) return; const f = Q.shift(); if (f) f(); else menu(); }
+function next() { if (S.over) return; if (S.cash < 0 && invTotal() > 0) return deficitPrompt(); const f = Q.shift(); if (f) f(); else menu(); }
 function say(title, lines) { scr(title, lines, [['Jatka', next]]); }
 
 function start() {
@@ -341,6 +342,8 @@ function beginMonth() {
 function monthName() { const y = 2027 + Math.floor((S.m-1)/12); return `KK ${S.m}/${LAST} · ${KK[(S.m-1)%12].toUpperCase()}KUU ${y}`; }
 
 function menu() {
+  if (S.cash < 0 && invTotal() > 0) return deficitPrompt();
+  if (S.cash < 0) { fixNeg(); if (S.vippi > 3000) return repossess(); }
   const ch = [];
   ch.push(['Autoliike (osta tai vaihda)', dealer]);
   ch.push([S.auctionDone ? 'Huutokaupat.com (käyty tässä kuussa)' : 'Huutokaupat.com', auction, S.auctionDone]);
@@ -628,8 +631,20 @@ function mbWarn(car) {
   return '!Arvo putosi, ja autoon jäi MB-merkintä. Jokainen paikka lisää vikariskiä.';
 }
 function addVippi(v) { if (v<=0) return; S.vippi += v + 60; S.mark = 12; }
-function payOrVippi(a) { if (S.cash >= a) S.cash -= a; else { addVippi(a - S.cash); S.cash = 0; } }
-function fixNeg() { if (S.cash < 0) { addVippi(-S.cash); S.cash = 0; } }
+const invTotal = () => S.inv.tsla + S.inv.doge;
+// jos sijoituksia on, kassa saa hetkeksi mennä miinukselle, ja pelaajalta kysytään ennen pikavippiä
+function payOrVippi(a) { if (S.cash >= a || invTotal() > 0) S.cash -= a; else { addVippi(a - S.cash); S.cash = 0; } }
+function fixNeg() { if (S.cash < 0 && invTotal() <= 0) { addVippi(-S.cash); S.cash = 0; } }
+function deficitPrompt() {
+  const gap = -S.cash, ch = [];
+  const sell = (k, n) => { const a = Math.min(S.inv[k], gap); S.inv[k] -= a; S.cash += a;
+    if (S.cash < 0) return deficitPrompt();
+    say('REALISOINTI', [`${n}: myytiin ${eur(a)}. Kassa on taas plussalla.`, `Salkkuun jäi TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)}.`]); };
+  if (S.inv.tsla > 0) ch.push([`Myy Tesla-osakkeita (salkussa ${eur(S.inv.tsla)})`, ()=>sell('tsla','Tesla-osakkeet')]);
+  if (S.inv.doge > 0) ch.push([`Myy Dogecoinia (salkussa ${eur(S.inv.doge)})`, ()=>sell('doge','Dogecoin')]);
+  ch.push([`Ota pikavippi ${eur(gap)} (20 %/kk) ja pidä sijoitukset`, ()=>{ addVippi(gap); S.cash = 0; if (S.vippi > 3000) return repossess(); say('PIKAVIPPI', ['!Pikavippi myönnetty. Toivottavasti salkku tuottaa yli 20 % kuussa.']); }]);
+  scr('KASSA LOPPUI', [`!Kassassa on vajetta ${eur(gap)}.`, 'Realisoidaanko sijoituksia, vai otetaanko pikavippi?'], ch);
+}
 
 function repossess() {
   S.over = true;
