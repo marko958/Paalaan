@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v26 (10.11. klo 00.07) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -378,6 +378,7 @@ let UI = { show(){} };
 function scr(title, lines, choices) { UI.show({title, lines, choices: choices.map(c=>({t:c[0], f:c[1], dis:!!c[2]}))}); }
 function next() { if (S.over) return; if (S.cash < 0 && invTotal() > 0) return deficitPrompt(); const f = Q.shift(); if (f) f(); else menu(); }
 function say(title, lines) { scr(title, lines, [['Jatka', next]]); }
+function sayTo(title, lines, back) { scr(title, lines, [['Jatka', back]]); }
 
 function start() {
   scr('PAALAAN!', [
@@ -430,13 +431,13 @@ const taxiOK = car => car && C(car.c).type==='e' && !C(car.c).fl.includes('S') &
 function sideMenu() {
   const d = drivenCar(), ch = [];
   ch.push([S.wolt ? 'Lopeta Wolt-keikat' : 'Wolt- ja Foodora-kuskiksi iltaisin (+150–400 €/kk)', ()=>{ S.wolt = !S.wolt; if (S.wolt) S.taxi = false;
-    say('RUOKALÄHETTI', [S.wolt ? '+Iltaisin ruokaa kuljettamaan. Tulot ovat verotettuja, joten verottaja ei kiinnostu.' : 'Lopetit illat Woltilla.', S.wolt ? '!Auto, renkaat ja akku kuluvat. Väsyneenä tulee kolhuja ja sakkoja.' : '']); }, !S.wolt && !d]);
+    sayTo('RUOKALÄHETTI', [S.wolt ? '+Iltaisin ruokaa kuljettamaan. Tulot ovat verotettuja, joten verottaja ei kiinnostu.' : 'Lopetit illat Woltilla.', S.wolt ? '!Auto, renkaat ja akku kuluvat. Väsyneenä tulee kolhuja ja sakkoja.' : ''], sideMenu); }, !S.wolt && !d]);
   ch.push([S.taxi ? 'Lopeta taksin ajo' : S.taxiLic ? 'Aja taksia (+500–1 100 €/kk)' : 'Hanki taksilupa (800 €) ja aja taksia', ()=>{
     if (!S.taxi && !S.taxiLic) { payOrVippi(800); S.taxiLic = true; }
     S.taxi = !S.taxi; if (S.taxi) S.wolt = false;
-    say('TAKSI', [S.taxi ? '+Taksivalo katolle. Tulot ovat hyvät, mutta kilometrejä kertyy hurjasti.' : 'Taksivalo talliin.', S.taxi ? '!Akku ja renkaat kuluvat moninkertaisesti, ja vikoja tulee useammin.' : '']); }, !S.taxi && !taxiOK(d)]);
+    sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Tulot ovat hyvät, mutta kilometrejä kertyy hurjasti.' : 'Taksivalo talliin.', S.taxi ? '!Akku ja renkaat kuluvat moninkertaisesti, ja vikoja tulee useammin.' : ''], sideMenu); }, !S.taxi && !taxiOK(d)]);
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
-  if (vanOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : 'Pimeät muuttokeikat pakulla (+200–700 €/kk)', ()=>{ S.gigs = !S.gigs; say('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '']); }]);
+  if (vanOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : 'Pimeät muuttokeikat pakulla (+200–700 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
   ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
   ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
@@ -448,13 +449,13 @@ function flipStart() {
   const id = pick(pool), V = listPrice(id, genSoh(id));
   const price = r100(V * rnd(0.45, 0.75));
   const hidden = RND() < 0.3;
-  const go = (fix) => { if (S.cash < price + fix) return say('FLIPPAUS', ['!Kassa ei riitä. Flippaus tehdään käteisellä.']);
+  const go = (fix) => { if (S.cash < price + fix) return sayTo('FLIPPAUS', ['!Kassa ei riitä. Flippaus tehdään käteisellä.'], sideMenu);
     S.cash -= price + fix;
     let sale = V * (fix ? rnd(0.95, 1.18) : rnd(0.7, 1.0));
     const lines = [`+${C(id).name} ostettu ${eur(price)}${fix?`, korjattu ${eur(fix)}`:''}. Ilmoitus nettiin.`];
     if (hidden) { sale *= 0.55; lines.push('!Pesussa paljastui ruostereikä, jota kuvissa ei näkynyt. Myyntihinta romahtaa.'); }
     S.flip = {name: C(id).name, sale: r100(sale), left: ri(1,3), cost: price+fix};
-    say('FLIPPAUS', lines); };
+    sayTo('FLIPPAUS', lines, sideMenu); };
   scr('FLIPPAUS', [`Huutokaupassa: ${C(id).name}. Markkina-arvo noin ${eur(V)}.`, `Saisit sen noin hintaan ${eur(price)}. Käteiskauppa, ei mahdu autopaikkoihin: seisoo naapurin pihassa.`], [
     [`Osta ja kunnosta (300 €)`, ()=>go(300), S.cash < price+300],
     ['Osta ja myy sellaisenaan', ()=>go(0), S.cash < price],
@@ -464,8 +465,8 @@ function flipStart() {
 function invest() {
   const ch = [];
   [['tsla','Tesla-osakkeet'],['doge','Dogecoin']].forEach(([k,n]) => {
-    [500,2000].forEach(a => ch.push([`Osta ${n} ${eur(a)}`, ()=>{ S.cash -= a; S.inv[k] += a; say('SIJOITUS', [`${n}: sijoitit ${eur(a)}. Salkussa nyt ${eur(S.inv[k])}.`]); }, S.cash < a]));
-    ch.push([`Myy kaikki ${n} (${eur(S.inv[k])})`, ()=>{ S.cash += S.inv[k]; const v = S.inv[k]; S.inv[k] = 0; say('SIJOITUS', [`+${n} myyty, kassaan ${eur(v)}.`]); }, S.inv[k] <= 0]);
+    [500,2000].forEach(a => ch.push([`Osta ${n} ${eur(a)}`, ()=>{ S.cash -= a; S.inv[k] += a; sayTo('SIJOITUS', [`${n}: sijoitit ${eur(a)}. Salkussa nyt ${eur(S.inv[k])}.`], invest); }, S.cash < a]));
+    ch.push([`Myy kaikki ${n} (${eur(S.inv[k])})`, ()=>{ S.cash += S.inv[k]; const v = S.inv[k]; S.inv[k] = 0; sayTo('SIJOITUS', [`+${n} myyty, kassaan ${eur(v)}.`], invest); }, S.inv[k] <= 0]);
   });
   ch.push(['Takaisin', sideMenu]);
   scr('SIJOITUKSET', ['Tesla-osake heiluu, Dogecoin heiluu enemmän. Elonin twiitit liikuttavat kumpaakin.', `Salkku: TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)}`], ch);
@@ -474,7 +475,7 @@ function paalaan() { if (S.m>=LAST) return endGame(); S.m++; beginMonth(); }
 
 function toggleKimppa() {
   S.kimppa = !S.kimppa;
-  say('KIMPPA', [S.kimppa ? 'Olet mukana Sähköautomiesten kimpassa. Tällä kertaa se osuu.' : 'Erosit kimpasta. Juuri tällä viikolla se varmaan osuu.']);
+  sayTo('KIMPPA', [S.kimppa ? 'Olet mukana Sähköautomiesten kimpassa. Tällä kertaa se osuu.' : 'Erosit kimpasta. Juuri tällä viikolla se varmaan osuu.'], sideMenu);
 }
 
 function toggleParking() {
