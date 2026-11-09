@@ -44,7 +44,7 @@
 
 // ---------- DATA ----------
 // [nimi, hinta, tyyppi(b=polttomoottori,h=hybridi,e=sähkö), kulut €/kk, arvonlasku %/v, liput, vika, vian hinta]
-// liput: D=diesel (käyttövoimavero), N=uusi liikkeestä, T=Tesla, K=latausluukku (mikrobetoni käy), S=lyhyt toimintamatka (lomautusriski)
+// liput: F=ilmaiset superit (halpa ajaa, hajoaa usein), D=diesel (käyttövoimavero), N=uusi liikkeestä, T=Tesla, K=latausluukku (mikrobetoni käy), S=lyhyt toimintamatka (lomautusriski)
 const CARS = [
  ['Ford Mondeo 2006',1000,'b',900,.10,'','Katsastus hylkäsi: jarruputket poikki',700],
  ['Opel Astra 2009',1800,'b',780,.08,'','Ruoste puhkesi kynnyksiin',900],
@@ -99,12 +99,14 @@ const CARS = [
  ['Polestar 3 2024',65000,'e',380,.18,'','Ohjelmisto kaatuu',1200],
  ['Rolls-Royce Spectre 2024',380000,'e',1200,.15,'','Tähtitaivas sammui',15000],
  ['Tesla Cybertruck (harmaatuonti)',150000,'e',600,.25,'T','Rekisteröinti evätty, auto seisoo',3000],
+ ['Tesla Model S 85 2014 (650 000 km)',11000,'e',70,.10,'TF','Vetoyksikkö (drive unit) jumissa',4000],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
   h: [['Näätä söi johtosarjan',700],['Akku kuoli pakkasella',180],['Invertterin jäähdytys vuotaa',900],['Moottorin vikavalo palaa',300]],
   e: [['12V-akku tyhjä pakkasella',200],['Näätä söi johtosarjan',700],['Latauspistoke suli',450],['Jarrut ruostuivat kiinni (regeneraatio hoiti jarrutukset)',600],['Ohjelmistopäivitys jumitti auton',300],['Peruutuskameran linssi rikki',250],['Lämpöpumppu vinkuu',800]],
 };
+const FFAULTS = [['MCU-näyttö pimeni, auto ei käynnisty',1500],['Ovenkahvat eivät tule ulos',400],['Ilmajousitus laski auton maahan',2500],['Latausportin lukko jumissa',300],['Vetoyksikkö ulvoo',4000],['12V-akku kuoli',250]];
 const tierMult = k => k.price > 50000 ? 2.5 : k.price > 25000 ? 1.5 : 1;
 const C = i => { const a = CARS[i]; return {name:a[0],price:a[1],type:a[2],run:a[3],dep:a[4],fl:a[5],fault:a[6],fcost:a[7]}; };
 
@@ -152,7 +154,7 @@ function newState(t) {
 }
 const sohF = car => (C(car.c).type==='e' && car.soh!==undefined) ? Math.min(1, Math.max(0.35, (car.soh-50)/40)) : 1;
 const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:1) * (k.fl.includes('T')?S.M.tesla:1) * sohF(car); };
-function genSoh(i) { const k = C(i); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/20\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
+function genSoh(i) { const k = C(i); if (k.fl.includes('F')) return ri(80,86); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/20\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
 const sohTxt = car => car.soh!==undefined ? ` · akku ${Math.round(car.soh)} %` : '';
 const val = car => Math.max(150, car.base * mult(car) - car.broken*0.8);
 const working = () => S.cars.filter(c => !c.broken);
@@ -176,7 +178,7 @@ function runCosts() {
   S.cars.forEach(car => {
     const k = C(car.c);
     if (car === w[0]) {
-      let r = k.run + (k.type==='e' && S.spike>0 ? (S.spikeAmt||80) : 0);
+      let r = k.run + (k.type==='e' && S.spike>0 && !k.fl.includes('F') ? (S.spikeAmt||80) : 0);
       sum += r; lines.push([`Käyttökulut: ${k.name}`, r]);
     } else { sum += 40; lines.push([`Vakuutus (seisoo): ${k.name}`, 40]); }
   });
@@ -235,7 +237,7 @@ function monthTick() {
     if (car.soh === undefined) { car.soh = 100; car.held = 0; }
     if (car.battFail && !car.broken) { car.soh = 100; car.held = 0; car.battFail = false; car.w85 = car.w80 = false; }
     car.held++;
-    car.soh -= (0.05 + 0.006*car.held) * (k.fl.includes('S') ? 1.6 : 1);
+    car.soh -= (0.05 + 0.006*car.held) * (k.fl.includes('S') ? 1.6 : k.fl.includes('F') ? 1.3 : 1);
     if (car.soh < 85 && !car.w85) { car.w85 = true; Q.push(()=>say('AKKU HEIKKENEE', [`${k.name}: akun kunto ${Math.round(car.soh)} %.`, '!Talviaamuna toimintamatka näytti huolestuttavan pientä. Heikkeneminen kiihtyy, mitä pidempään autoa pitää.', 'Nyt olisi hyvä hetki miettiä myyntiä, kun arvo vielä pysyy.'])); }
     if (car.soh < 80 && !car.w80) { car.w80 = true; Q.push(()=>say('AKKU ROMAHTAA', [`${k.name}: akun kunto ${Math.round(car.soh)} %.`, '!Työmatka vaatii nyt latausstopin. Myöhästelyt nostavat lomautusriskiä, ja auton arvo laskee jyrkästi.', '!Alle 72 %:ssa akku menee vikatilaan: remontti noin 10 000 €.'])); }
     if (car.soh < 72 && !car.battFail && !car.broken) Q.push(()=>batteryFail(car));
@@ -269,7 +271,7 @@ function monthTick() {
   // viat
   working().forEach(car => {
     const k = C(car.c);
-    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb + (car.skip ? 0.03 : 0);
+    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb + (car.skip ? 0.03 : 0) + (k.fl.includes('F') ? 0.08 : 0);
     if (RND() < p) Q.push(()=>faultEvent(car));
   });
   // ennakoidut tapahtumat
@@ -485,7 +487,8 @@ function faultEvent(car) {
   if (!S.cars.includes(car) || car.broken) return next();
   const k = C(car.c);
   let fault = k.fault, cost = k.fcost;
-  if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
+  if (k.fl.includes('F') && RND() < 0.6) { const g = pick(FFAULTS); fault = g[0]; cost = g[1]; }
+  else if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
   car.broken = Math.round(cost*rnd(0.9,1.3)/10)*10;
   let txt = `${k.name}: ${fault}. Korjausarvio ${eur(car.broken)}.`;
   if (car.mb && RND() < 0.4) { car.broken *= 2; txt = `${k.name}: mikrobetonipaikka lohkesi ja vei mukanaan muutakin. Korjausarvio ${eur(car.broken)} (tuplana).`; }
@@ -631,6 +634,7 @@ function carDetail(s) {
     `Tunnettu vika: ${k.fault}`,
   ];
   if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${s.soh<80?': toimintamatka on jo heikko':''}`);
+  if (k.fl.includes('F')) lines.push('+Ilmaiset superit siirtyvät autolle: käyttökulut vain vakuutus, sähkön hintapiikit eivät koske.', '!650 000 km: vikoja tulee moninkertaisesti, ja ne ovat kalliita. Akku on vaihdettu kerran.');
   if (k.fl.includes('S')) lines.push('!Lyhyt toimintamatka: et ehdi työmatkoille latauksilta, ja lomautusriski moninkertaistuu.');
   const ch = [];
   S.cars.forEach(car => {
