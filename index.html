@@ -44,16 +44,16 @@
 
 // ---------- DATA ----------
 // [nimi, hinta, tyyppi(b=polttomoottori,h=hybridi,e=sähkö), kulut €/kk, arvonlasku %/v, liput, vika, vian hinta]
-// liput: N=uusi liikkeestä, T=Tesla, K=latausluukku (mikrobetoni käy), S=lyhyt toimintamatka (lomautusriski)
+// liput: D=diesel (käyttövoimavero), N=uusi liikkeestä, T=Tesla, K=latausluukku (mikrobetoni käy), S=lyhyt toimintamatka (lomautusriski)
 const CARS = [
  ['Ford Mondeo 2006',1000,'b',900,.10,'','Katsastus hylkäsi: jarruputket poikki',700],
  ['Opel Astra 2009',1800,'b',780,.08,'','Ruoste puhkesi kynnyksiin',900],
  ['Toyota Avensis 2010',3500,'b',650,.06,'','Jarrulevyt loppu',400],
  ['Toyota Prius 2012',6000,'h',480,.08,'','Hybridiakku väsyi',1800],
- ['Volvo V70 D5 2011',5500,'b',700,.08,'','Turbo hajosi',1600],
- ['VW Passat TDI 2014',8000,'b',620,.09,'','DSG-vaihteisto nykii',2200],
+ ['Volvo V70 D5 2011',5500,'b',700,.08,'D','Turbo hajosi',1600],
+ ['VW Passat TDI 2014',8000,'b',620,.09,'D','DSG-vaihteisto nykii',2200],
  ['Audi A6 quattro 2012',6000,'b',780,.09,'','Vaihdelaatikko hajosi',3000],
- ['BMW 530d 2015',12000,'b',720,.10,'','Ruiskut vuotavat',2500],
+ ['BMW 530d 2015',12000,'b',720,.10,'D','Ruiskut vuotavat',2500],
  ['Mitsubishi Outlander PHEV 2016',9000,'h',430,.10,'','Latausakku hiipuu',1500],
  ['Nissan Leaf 2015',5000,'e',160,.12,'S','Akku heikkeni, toimintamatka romahti',1200],
  ['Renault Zoe 2017',4000,'e',250,.12,'S','Laturi hajosi (akkuvuokra juoksee silti)',900],
@@ -100,6 +100,12 @@ const CARS = [
  ['Rolls-Royce Spectre 2024',380000,'e',1200,.15,'','Tähtitaivas sammui',15000],
  ['Tesla Cybertruck (harmaatuonti)',150000,'e',600,.25,'T','Rekisteröinti evätty, auto seisoo',3000],
 ];
+const GENFAULTS = {
+  b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
+  h: [['Näätä söi johtosarjan',700],['Akku kuoli pakkasella',180],['Invertterin jäähdytys vuotaa',900],['Moottorin vikavalo palaa',300]],
+  e: [['12V-akku tyhjä pakkasella',200],['Näätä söi johtosarjan',700],['Latauspistoke suli',450],['Jarrut ruostuivat kiinni (regeneraatio hoiti jarrutukset)',600],['Ohjelmistopäivitys jumitti auton',300],['Peruutuskameran linssi rikki',250],['Lämpöpumppu vinkuu',800]],
+};
+const tierMult = k => k.price > 50000 ? 2.5 : k.price > 25000 ? 1.5 : 1;
 const C = i => { const a = CARS[i]; return {name:a[0],price:a[1],type:a[2],run:a[3],dep:a[4],fl:a[5],fault:a[6],fcost:a[7]}; };
 
 const TARGETS = [
@@ -225,12 +231,28 @@ function monthTick() {
   S.M.ev += (1-S.M.ev)*0.08; S.M.tesla += (1-S.M.tesla)*0.06;
   if (S.spike>0) S.spike--;
   if (S.elon>0) S.elon--;
+  if (S.slip>0) S.slip--;
   if (S.camp && S.m > S.camp.until) S.camp = null;
   S.stock = null; S.auctionDone = false;
+  // ajoneuvovero helmikuussa
+  if ((S.m-1)%12 === 1 && S.cars.length) {
+    let tax = 0;
+    S.cars.forEach(car => { const k = C(car.c); tax += k.type==='e' ? (k.price>50000?450:200) : k.type==='h' ? 150 : 300 + (k.fl.includes('D')?450:0); });
+    S.cash -= tax; fixNeg(); R.push(['-', 'Ajoneuvovero (vuosi)', tax]);
+  }
+  if (S.insPlus) { S.cash -= S.insPlus*S.cars.length; fixNeg(); if (S.cars.length) R.push(['-', 'Vakuutusmaksujen korotukset', S.insPlus*S.cars.length]); }
+  // huollot ja renkaat
+  S.cars.forEach(car => {
+    if (car.svc === undefined) { car.svc = S.m + ri(2,10); car.tire = ri(6,30); }
+    car.tire--;
+    if (S.m >= car.svc && !car.broken) Q.push(()=>serviceEvent(car));
+    else if (car.tire <= 0 && !car.broken) Q.push(()=>tireEvent(car));
+  });
+  if (((S.m-1)%12 === 3 || (S.m-1)%12 === 9) && working().length) Q.push(tireSwap);
   // viat
   working().forEach(car => {
     const k = C(car.c);
-    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb;
+    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb + (car.skip ? 0.03 : 0);
     if (RND() < p) Q.push(()=>faultEvent(car));
   });
   // ennakoidut tapahtumat
@@ -330,8 +352,8 @@ function randomEvent() {
   const month = (S.m-1)%12;
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
-    ['korotus',4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)],['kampanja',S.camp?0:8],['tsa',(!S.tsa && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
-    ['kolhu',slots()?(S.parking?1.5:6):0],['peura',slots()?(month>=8&&month<=11?8:3):0],
+    ['korotus',4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)],['kampanja',S.camp?0:8],['sakko',3],['kivenisku',S.cars.length?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
+    ['kolhu',slots()?(S.parking?0.75:3)+(S.slip?3:0):0],['peura',slots()?(month>=8&&month<=11?8:3):0],
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0):0],
   ];
   const tot = ev.reduce((s,e)=>s+e[1],0); let x = RND()*tot, e;
@@ -341,6 +363,16 @@ function randomEvent() {
   return fire(k);
 }
 function fire(k) {
+  if (k==='sakko') { const p = pick([['Nopeuskamera: 7 km/h ylinopeutta Kehä III:lla. Rikesakko', 140],['Pysäköintivirhemaksu kauppakeskuksessa', 80],['Latauspaikalla pysäköinnistä lappu (lataus oli jo valmis)', 60],['Yksityinen pysäköintivalvonta: "valvontamaksu"', 90]]);
+    payOrVippi(p[1]); return say('SAKKO', [`!${p[0]}: ${eur(p[1])}.`]); }
+  if (k==='kivenisku') { const car = pick(S.cars);
+    return scr('KIVENISKU', [`${C(car.c).name}: rekka heitti kiven tuulilasiin.`], [
+      ['Lasivakuutus: omavastuu 150 €', ()=>{ payOrVippi(150); say('KIVENISKU', ['Uusi tuulilasi. Kalibroinnit päälle.']); }],
+      ['Paikkaus 60 € (pieni jälki jää)', ()=>{ payOrVippi(60); car.base *= 0.99; say('KIVENISKU', ['Hartsi täytti kolon. Melkein näkymätön.']); }],
+      ['Jätä (halkeama voi kasvaa)', ()=>{ car.base *= 0.97; if (RND()<0.4) { car.broken = 600; say('KIVENISKU', ['!Pakkasyönä halkeama juoksi koko lasin poikki. Katsastuskelvoton, korjaus 600 €.']); } else say('KIVENISKU', ['Halkeama pysyi pienenä. Toistaiseksi.']); }],
+    ]); }
+  if (k==='vakuutus') { S.insPlus = (S.insPlus||0) + 10; return say('VAKUUTUSYHTIÖN KIRJE', ['!Vakuutusmaksut nousevat indeksikorotuksella 10 €/kk autoa kohden.', 'Kilpailutus olisi pitänyt tehdä viime vuonna.']); }
+  if (k==='varkaus') { payOrVippi(320); return say('LATAUSKAAPELI VIETIIN', ['!Joku katkaisi latauskaapelin julkisella laturilla ja vei kuparit. Uusi kaapeli 320 €.']); }
   if (k==='tsa') return tsaOffer();
   if (k==='tyopaikka') { S.income += 100; return tsaReturn('UUSI TYÖPAIKKA', '+Sait paremman työpaikan (+100 €/kk), mutta työsuhdeauto jää vanhalle firmalle.', false); }
   if (k==='elon') { S.elon = 12; S.M.ev *= 0.88; S.M.tesla *= 0.78;
@@ -389,11 +421,41 @@ function damageEvent(k) {
   scr(t, [txt], ch);
 }
 
+function svcCost(k) { return Math.round((k.type==='b' ? 450 : k.type==='h' ? 350 : 250) * tierMult(k) / 10) * 10; }
+function serviceEvent(car) {
+  if (!S.cars.includes(car) || car.broken) return next();
+  const k = C(car.c), c = svcCost(k);
+  car.svc = S.m + 12;
+  scr('MÄÄRÄAIKAISHUOLTO', [`${k.name}: vuosihuolto on ajankohtainen.`, 'Huoltohistoria näkyy myyntihinnassa, ja huoltamaton auto hajoaa herkemmin.'], [
+    [`Merkkihuolto ${eur(c)}`, ()=>{ payOrVippi(c); car.skip = 0; say('HUOLTO', ['Leima huoltokirjaan. Kahvi oli hyvää.']); }],
+    [`Pikahuolto ${eur(c/2)} (arvo −3 %)`, ()=>{ payOrVippi(c/2); car.skip = 0; car.base *= 0.97; say('HUOLTO', ['Öljyt vaihdettiin, muusta ei kysytty.']); }],
+    ['Ohita (arvo −8 %, vikariski kasvaa)', ()=>{ car.skip = 1; car.base *= 0.92; say('HUOLTO', ['!Huoltokirjaan jäi aukko. Ostajat huomaavat sen.']); }],
+  ]);
+}
+function tireEvent(car) {
+  if (!S.cars.includes(car)) return next();
+  const k = C(car.c);
+  const c = Math.round((k.type==='e' ? 700 : 500) * tierMult(k) * (k.name.includes('GT')||k.name.includes('M60')||k.name.includes('Plaid')||k.name.includes('Turbo') ? 1.6 : 1) / 10) * 10;
+  scr('RENKAAT LOPPU', [`${k.name}: urat ovat kuluneet loppuun.${k.type==='e'?' Sähköauton paino ja vääntö syövät kumia.':''}`], [
+    [`Laaturenkaat ${eur(c)}`, ()=>{ payOrVippi(c); car.tire = 36; say('RENKAAT', ['Uudet kumit alle.']); }],
+    [`Halvat nettirenkaat ${eur(c*0.5)} (pito heikompi)`, ()=>{ payOrVippi(c*0.5); car.tire = 24; S.slip = (S.slip||0) + 3; say('RENKAAT', ['Merkki on joku, josta kukaan ei ole kuullut. Pito tuntuu siltä.']); }],
+    ['Ajetaan loppuun', ()=>{ car.tire = 4; S.slip = (S.slip||0) + 4; say('RENKAAT', ['!Kaljuilla kumeilla liukastumisen ja kolhujen riski kasvaa.']); }],
+  ]);
+}
+function tireSwap() {
+  const winter = (S.m-1)%12 === 9;
+  scr('RENKAANVAIHTO', [winter ? 'Lokakuu: talvirenkaat alle ennen ensilunta.' : 'Huhtikuu: kesärenkaat alle.'], [
+    ['Rengashotelli 90 €', ()=>{ payOrVippi(90); say('RENKAANVAIHTO', ['Hoidettu, renkaat pestään ja säilötään.']); }],
+    ['Vaihda itse (0 €)', ()=>{ if (RND()<0.15) { const car = working()[0]; if (car) car.broken = 300; say('RENKAANVAIHTO', ['!Yksi mutteri jäi löysäksi, ja pyörä alkoi heilua. Korjaus 300 €.']); } else say('RENKAANVAIHTO', ['Pihalla tunkin kanssa säästit 90 €. Selkä on eri mieltä.']); }],
+  ]);
+}
 function faultEvent(car) {
   if (!S.cars.includes(car) || car.broken) return next();
   const k = C(car.c);
-  car.broken = Math.round(k.fcost*rnd(0.9,1.3)/10)*10;
-  let txt = `${k.name}: ${k.fault}. Korjausarvio ${eur(car.broken)}.`;
+  let fault = k.fault, cost = k.fcost;
+  if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
+  car.broken = Math.round(cost*rnd(0.9,1.3)/10)*10;
+  let txt = `${k.name}: ${fault}. Korjausarvio ${eur(car.broken)}.`;
   if (car.mb && RND() < 0.4) { car.broken *= 2; txt = `${k.name}: mikrobetonipaikka lohkesi ja vei mukanaan muutakin. Korjausarvio ${eur(car.broken)} (tuplana).`; }
   repairChoice(car, 'AUTO HAJOSI', txt);
 }
