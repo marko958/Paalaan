@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v26 (10.11. klo 00.07) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v27 (10.11. klo 00.12) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -250,7 +250,7 @@ function runCosts() {
     if (car === w[0]) {
       let r = k.run + (k.type==='e' && S.spike>0 && !k.fl.includes('F') ? (S.spikeAmt||80) : 0);
       sum += r; lines.push([`Käyttökulut: ${k.name}`, r]);
-    } else { sum += 40; lines.push([`Vakuutus (seisoo): ${k.name}`, 40]); }
+    } else { sum += 20; lines.push([`Seisonnassa (vakuutus puolitettu, ei veroa): ${k.name}`, 20]); }
   });
   S.cars.forEach(car => { if (car.ext) { sum += car.ext; lines.push([`Jatkotakuu: ${C(car.c).name}`, car.ext]); } });
   if (S.parking) { sum += 105; lines.push(['Kolme autopaikkaa (pysäköit keskimmäiseen)', 105]); }
@@ -310,7 +310,7 @@ function monthTick() {
   // arvonlasku ja myynnit
   S.cars.forEach(car => {
     const k = C(car.c);
-    car.base *= (1 - k.dep/12) * (car.broken ? 0.99 : 1);
+    car.base *= (1 - k.dep/12 * (car === drivenCar() ? 1 : 0.6)) * (car.broken ? 0.99 : 1); // seisonnassa ei kerry kilometrejä
     car.base = Math.max(car.base, 300 / Math.max(0.3, mult(car)));
   });
   // akun heikkeneminen
@@ -338,12 +338,10 @@ function monthTick() {
   if (S.camp && S.m > S.camp.until) S.camp = null;
   S.stock = null; S.auctionDone = false;
   // ajoneuvovero helmikuussa
-  if ((S.m-1)%12 === 1 && S.cars.length) {
-    let tax = 0;
-    S.cars.forEach(car => { const k = C(car.c); tax += k.type==='e' ? (k.price>50000?450:200) : k.type==='h' ? 150 : 300 + (k.fl.includes('D')?450:0); });
-    S.cash -= tax; fixNeg(); R.push(['-', 'Ajoneuvovero (vuosi)', tax]);
-  }
-  if (S.insPlus) { S.cash -= S.insPlus*S.cars.length; fixNeg(); if (S.cars.length) R.push(['-', 'Vakuutusmaksujen korotukset', S.insPlus*S.cars.length]); }
+  // ajoneuvovero kuukausittain vain ajossa olevasta autosta (seisonta pysäyttää veron)
+  { const d = drivenCar(); if (d) { const k = C(d.c); const tax = Math.round((k.type==='e' ? (k.price>50000?450:200) : k.type==='h' ? 150 : 300 + (k.fl.includes('D')?450:0)) / 12);
+    S.cash -= tax; fixNeg(); R.push(['-', `Ajoneuvovero: ${k.name}`, tax]); } }
+  if (S.insPlus && S.cars.length) { const d = drivenCar(); const ip = S.cars.reduce((s,c)=>s + (c===d ? S.insPlus : S.insPlus/2), 0); S.cash -= ip; fixNeg(); R.push(['-', 'Vakuutusmaksujen korotukset', ip]); }
   // huollot ja renkaat
   S.cars.forEach(car => {
     if (car.svc === undefined) { car.svc = S.m + ri(2,10); car.tire = ri(6,30); }
@@ -758,7 +756,7 @@ function tsaTerms(i) {
   [['vapaa',12],['käyttö',12]].forEach(([kind,n]) => {
     ch.push([`${kind==='vapaa'?'Vapaa autoetu':'Käyttöetu'}, ${n} kk · ${eur(tsaCost(i,kind))}/kk${kind==='käyttö'?(k.type==='e'?' (sis. omat lataukset)':' (sis. omat tankkaukset)'):''}`,
       ()=>{ S.tsa = {c:i, kind, cost:tsaCost(i,kind), left:n, dmg:[], mb:0, ev:k.type==='e'};
-        say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, `Luontoisetu ${eur(S.tsa.cost)}/kk vähennetään autobudjetista. Omat autosi seisovat, ja niistä menee vain vakuutus.`, 'Työsuhdeautolla et voi myöhästellä latausten takia, joten lomautusriski on normaali.']); }]);
+        say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, `Luontoisetu ${eur(S.tsa.cost)}/kk vähennetään autobudjetista. Omat autosi ovat seisonnassa: vakuutus puolittuu, vero pysähtyy ja arvonlasku hidastuu.`, 'Työsuhdeautolla et voi myöhästellä latausten takia, joten lomautusriski on normaali.']); }]);
   });
   ch.push(['Takaisin', tsaOffer]);
   scr('TYÖSUHDEAUTO', [`${k.name}`, 'Vapaassa autoedussa työnantaja maksaa kaiken: huollot, renkaat, rengasvaihdot ja omavastuut. Käyttöedussa etu on pienempi, mutta maksat polttoaineen tai sähkön sekä omavastuut itse.'], ch);
