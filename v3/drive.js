@@ -1026,6 +1026,6 @@ const Drive = (() => {
     // näkymä lukee simulaation tilan tästä; se ei muuta mitään
     sim: { st, segs, SEG, ROAD, PZ, KMH, DRAW, RAMP_W, RAMP_LEN, MONTH_S, STOP_WIN, CAR_HW, HIT,
       seg: i => { ensure(i); return segs[i]; }, season, weather, limitOf, limTxt, autobahn, towing, eSpec, energy, rampHides,
-      game: () => S, carOf: id => C(id), modelSpec },
+      game: () => S, carOf: id => C(id), modelSpec, MODELS },
   };
 })();

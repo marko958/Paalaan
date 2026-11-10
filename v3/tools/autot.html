@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fi"><head><meta charset="utf-8"><title>PAALAAN! 3.0 – autogalleria (kehitystyökalu)</title>
+<style>html,body{margin:0;background:#111;color:#ddd;font:14px sans-serif} canvas{display:block;width:100vw;height:100vh} #t{position:fixed;left:8px;top:6px}</style></head>
+<body><canvas id="c"></canvas><div id="t"></div>
+<script type="importmap">{ "imports": { "three": "../lib/three.module.min.js", "three/addons/": "../lib/jsm/" } }</script>
+<script type="module">
+// Käyttö: autot.html?m=Ford%20Mondeo&az=0.6&el=0.25&d=7  (m = mallin nimen alku tai korityyppi, sky = taivas, lod = 0/1)
+import * as THREE from 'three';
+import { loadManifest, initSky, sky, tex, busy } from '../gfx/assets.js';
+import { buildCar } from '../gfx/cars.js';
+import { MODELS } from './models.js';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(+(q.get('fov') || 32), 1, 0.1, 500);
+initSky(renderer);
+await loadManifest();
+const s = sky(q.get('sky') || 'kesa', 1.1);
+const sun = new THREE.DirectionalLight(0xfff2e0, 3.2); sun.position.set(6, 9, 5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -0.0003; sun.shadow.normalBias = 0.02; scene.add(sun);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ map: tex('asfaltti', 'diff', 60), normalMap: tex('asfaltti', 'nor', 60), roughness: 0.9 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+const name = q.get('m') || 'Ford Mondeo';
+const names = name.split('|');
+window.cars = [];
+names.forEach((nm, i) => {
+  const m = MODELS.find(([n]) => n.startsWith(nm));
+  const spec = m ? m[1] : { b: nm, c: q.get('c') ? '#' + q.get('c') : '#8a9199', tl: q.get('tl') || 'wide' };
+  const car = buildCar(spec, { name: m ? m[0] : nm, lod: +(q.get('lod') || 0), ev: q.get('ev') === '1' || undefined, type: q.get('type') || undefined, mb: +(q.get('mb') || 0), dent: +(q.get('dent') || 0), box: q.get('box') === '1', tow: q.get('tow') || '' });
+  car.group.position.x = (i - (names.length - 1) / 2) * 2.6;
+  scene.add(car.group); window.cars.push(car);
+});
+window.scene = scene; window.THREE = THREE;
+function size() { const w = innerWidth, h = innerHeight; renderer.setPixelRatio(devicePixelRatio); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', size); size();
+let az = +(q.get('az') || 0.6), el = +(q.get('el') || 0.22), d = +(q.get('d') || 8), t = 0;
+window.ready = false;
+function loop() {
+  requestAnimationFrame(loop);
+  if (s.ready && !scene.environment) { scene.environment = s.env; scene.background = s.env; scene.backgroundBlurriness = 0.35; }
+  camera.position.set(Math.sin(az) * Math.cos(el) * d, 0.75 + Math.sin(el) * d, Math.cos(az) * Math.cos(el) * d); camera.lookAt(0, +(q.get('h') || 0.7), 0);
+  t += 0.016;
+  for (const c of window.cars) c.update({ dt: 0.016, speed: +(q.get('v') || 0), brake: q.get('brake') === '1', steer: +(q.get('steer') || 0), night: +(q.get('night') || 0), wet: +(q.get('wet') || 0), dirt: +(q.get('dirt') || 0), charge: q.get('chg') === '1', gig: q.get('gig') || '' });
+  renderer.render(scene, camera);
+  window.ready = !!scene.environment && !busy();
+}
+loop();
+addEventListener('pointermove', e => { if (e.buttons) { az -= e.movementX * 0.01; el = Math.max(0.02, Math.min(1.4, el + e.movementY * 0.01)); } });
+addEventListener('wheel', e => { d *= 1 + Math.sign(e.deltaY) * 0.08; });
+document.getElementById('t').textContent = name;
+</script></body></html>

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { loadManifest, initSky, busy, setTextureQuality, tex } from './assets.js';
 import { Track, SEGM, HALF, CH, groundY, roadMaterial, rampMaterial, terrainMaterial, buildRoad, buildTerrain, buildRamp } from './world.js';
 import { Env } from './env.js';
-import { buildCar } from './cars.js';
+import { buildCar, setCarWeather } from './cars.js';
 import { makeTrees } from './trees.js';
 import { makeProps } from './props.js';
 import { buildScenery, setLod, disposeScenery, footprints, signature } from './scenery.js';
@@ -32,7 +32,8 @@ let T = null, PR = null, backdrop = null, floor = null, fps = [], roadKind = '';
 const origin = new THREE.Vector3();
 const chunks = new Map();
 const P = { x: 0, y: 0, z: 0, th: 0, slope: 0 }, P2 = { x: 0, y: 0, z: 0, th: 0, slope: 0 };
-const car = { obj: null, name: '', yaw: 0, prevX: 0.5, pos: new THREE.Vector3() };
+const car = { obj: null, name: '', key: '', yaw: 0, prevX: 0.5, pos: new THREE.Vector3(), v: 0 };
+const lamps = { group: new THREE.Group(), spot: null };
 const cam = { th: 0, init: false, roll: 0, override: null };
 let rampMesh = null, rampKey = '';
 const stats = { fps: 0, acc: 0, n: 0, ms: 0 };
@@ -50,6 +51,10 @@ function init() {
   camera = new THREE.PerspectiveCamera(58, 16 / 10, 0.3, 1400);
   scene.add(camera);
   env = new Env(scene, camera);
+  // ajovalojen keila: yksi leveä kohdevalo keulassa (pimeinä kuukausina)
+  lamps.spot = new THREE.SpotLight(0xfff1dc, 0, 120, 0.5, 0.8, 1.35);
+  lamps.spot.position.set(0, 0, 0); lamps.spot.target.position.set(0, -0.62, -30);
+  lamps.group.add(lamps.spot, lamps.spot.target);
   track = new Track(sim);
   initSky(renderer);
   loadManifest().then(() => {
@@ -111,6 +116,8 @@ function applySeason() {
   else if (m === 3 || m === 4) { g.setRGB(1.05, 1.08, 0.75); f.setRGB(0.9, 1.0, 0.6); U.fieldMap.value = tex('nurmi', 'diff'); }
   else { g.setRGB(0.85, 1.12, 0.7); f.setRGB(1.25, 1.35, 0.62); U.fieldMap.value = tex('nurmi', 'diff'); }
   U.forestTint.value.setRGB(0.8, 0.85, 0.7);
+  // autojen lika: talvella suolaa ja kuraa helmoissa, marraskuussa kuraa, sateella pisarat ja kiilto
+  setCarWeather(sea.snow ? 0.85 : sea.bare ? 0.6 : wx.kind === 'sade' ? 0.3 : sea.autumn ? 0.2 : 0.06, sea.snow ? [0.62, 0.6, 0.57] : [0.26, 0.22, 0.17], wx.kind === 'sade' ? 1 : 0);
   T.applySeason(sea, roadKind);
   env.nightWant = sea.dark > 0.6 ? 1 : sea.dark > 0 ? 0.45 : 0;
   PR.applySeason(sea, env.nightWant);
@@ -202,14 +209,22 @@ function rebase(x, z) {
 
 // ---------- pelaajan auto ----------
 function playerCar() {
-  const v = st.veh;
+  const v = st.veh, S = sim.game();
   const name = v.bus ? 'Bussi' : v.name;
-  if (car.obj && car.name === name) return;
-  if (car.obj) scene.remove(car.obj.group);
-  car.obj = buildCar(v.bus ? { b: 'bus', c: '#C8C24A' } : v.spec, { name, lod: Q.carLod });
-  car.name = name;
+  const src = v.car || (v.tsa ? S.tsa : null);
+  const type = v.bus || v.rental ? 'b' : src ? sim.carOf(src.c).type : 'b';
+  // peräkärry: autotraileri romukeikoilla, muuten laatikkokärry (kuten 2.0:ssa: näkyy, kun kärry on käytössä)
+  const tow = !v.bus && !v.tsa && sim.towing() ? ((typeof TT === 'function' && typeof TRAILERS !== 'undefined' && S.trailer && TT() === TRAILERS.auto) ? 'romu' : 'muutto') : '';
+  const key = [name, v.mb || 0, (v.car && v.car.dent) || 0, v.box ? 1 : 0, tow, Q.carLod].join('|');
+  if (car.obj && car.key === key) return;
+  if (car.obj) { scene.remove(car.obj.group); disposeCar(car.obj); }
+  car.obj = buildCar(v.bus ? { b: 'bus', c: '#C8C24A', tl: 'wide' } : v.spec, { name, lod: 0, detail: true, type, mb: v.mb || 0, dent: (v.car && v.car.dent) || 0, box: !!v.box, tow });
+  car.key = key; car.name = name;
+  car.obj.group.add(lamps.group);
+  lamps.group.position.set(0, 0.72, car.obj.mid - car.obj.S.L + 0.3);
   scene.add(car.obj.group);
 }
+function disposeCar(o) { o.group.traverse(m => { if (m.isMesh && m.geometry && !m.geometry.userData.shared) m.geometry.dispose(); }); }
 // pelaajan sijainti maailmassa: f = segmentti, x = sivusuunta
 function onRamp(f, x) { const r = st.ramp; return r && f >= r.start && f <= r.end + 2 && x > 0.84; }
 function surfaceY(f, x) { return onRamp(f, x) ? (track.at(f, x, P2), P2.y - 0.02 * HALF + 0.015) : groundY(track, f, x); }
@@ -229,20 +244,23 @@ function frame(dt) {
   const vlat = dt > 0 ? (st.x - car.prevX) * HALF / dt : 0; car.prevX = st.x;
   const yawT = Math.max(-0.3, Math.min(0.3, Math.atan2(vlat, Math.max(6, speed))));
   car.yaw += (yawT - car.yaw) * Math.min(1, dt * 9);
-  const y = surfaceY(f, st.x);
+  const y = surfaceY(f, st.x), seg0 = sim.seg(Math.floor(f));
   car.pos.set(P.x - origin.x, y, P.z - origin.z);
   const g = car.obj.group;
   g.position.copy(car.pos);
   g.rotation.set(0, 0, 0); g.rotation.order = 'YXZ';
   g.rotation.y = -(P.th + car.yaw); g.rotation.x = Math.atan(P.slope);
-  car.obj.update({ dt, speed, st, sim, yaw: car.yaw });
+  { const G = st.gig, cargo = !!((G && G.phase === 'deliver' && (G.kind === 'romu' || G.kind === 'muutto')) || (st.trip && st.trip.trailer));
+    const lat = seg0.curve * 0.0014 * speed * speed * 0.6 + vlat * 1.5;
+    car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: (st.keys.right ? 1 : 0) - (st.keys.left ? 1 : 0), lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
+  if (lamps.spot) lamps.spot.intensity = (env.nightWant || 0) > 0.3 ? 420 * (env.nightWant > 0.6 ? 1 : 0.6) : 0;
 
   // kamera: takaa ja yläviistosta, pehmeä seuranta, pieni kallistus mutkassa, tärähdys törmäyksessä
-  const seg = sim.seg(Math.floor(f));
+  const seg = seg0;
   const sp = Math.min(1, speed / 45);
   if (!cam.init) { cam.th = P.th; cam.init = true; cam.roll = 0; }
   cam.th += (P.th + car.yaw * 0.35 - cam.th) * Math.min(1, dt * 3.2 + (dt ? 0 : 1));
-  const dist = 6.6 + sp * 1.2, h = 2.25 + sp * 0.25;
+  const dist = 5.5 + sp * 1.0, h = 1.95 + sp * 0.2;
   const fx = Math.sin(cam.th), fz = -Math.cos(cam.th);
   let cx = car.pos.x - fx * dist, cz = car.pos.z - fz * dist, cy = car.pos.y + h - P.slope * dist * 0.6;
   const fb = f - dist / SEGM;
