@@ -612,7 +612,7 @@ function randomEvent() {
     // alpha 17
     ['romutus', !S.scrap && S.cars.some(isOldIce) ? 3 : 0], ['vienti', S.cars.some(c=>C(c.c).type!=='e') ? 1.5 : 0], ['kayttovoima', S.cars.some(c=>C(c.c).type!=='e') ? 1.5 : 0],
     ['reissu', drivenCar() && !S.trip && !S.tsa ? 2 : 0], ['lappi', [0,1].includes(month) && S.lappiY !== Math.floor((S.m-1)/12) && !S.trip ? 8 : 0],
-    ['saksa', slots() < 2 && !S.trip && S.m > 6 ? 1.5 : 0], ['dpfpoliisi', drivenCar() && drivenCar().dpfDel ? 2 : 0],
+    ['saksa', slots() < 2 && !S.trip && S.m > 6 ? 1.5 : 0], ['kuusamo', (S.tsa || drivenCar()) && !S.trip && S.kuusamoY !== Math.floor((S.m-1)/12) ? 2 : 0], ['dpfpoliisi', drivenCar() && drivenCar().dpfDel ? 2 : 0],
   ];
   const tot = ev.reduce((s,e)=>s+e[1],0); let x = RND()*tot, e;
   for (e of ev) { x -= e[1]; if (x<0) break; }
@@ -665,6 +665,7 @@ function fire(k) {
   if (k==='kayttovoima') { S.M.ice = (S.M.ice||1) * 0.85; return say('KÄYTTÖVOIMAVERO NOUSEE', ['!Hallitus nostaa dieselin käyttövoimaveroa ja polttoaineveroa.', 'Polttomoottoriautojen käytettyjen hinnat laskivat noin 15 %. Ostajat kysyvät ensimmäiseksi, onko se sähköauto.']); }
   if (k==='reissu') return tripOffer();
   if (k==='lappi') return lappiOffer();
+  if (k==='kuusamo') return kuusamoOffer();
   if (k==='saksa') return saksaOffer();
   if (k==='dpfpoliisi') { payOrVippi(400); return say('TIENVARSITARKASTUS', ['!Poliisi pysäytti: pakoputkesta tuli mustaa savua, ja liikkuva katsastusasema löysi tyhjän DPF-kotelon.', 'Rikesakko ja korjauskehotus: 400 €. Seuraavassa katsastuksessa auto hylätään varmasti.']); }
 }
@@ -823,6 +824,20 @@ function tripOffer() {
     r ? `${k.name}: toimintamatka ${r}. Kovempi vauhti ja kuorma syövät sitä. Latausasemia on tien varressa.` : `${k.name}: tankki riittää, mutta polttoaine maksaa.`,
     'Ajoissa saat koko palkkion, myöhässä puolet. Jos kolaroit kuorman kanssa, tavarat menevät rikki ja korvaat 200 €.'], ch);
 }
+function kuusamoOffer() {
+  S.kuusamoY = Math.floor((S.m-1)/12);
+  const car = S.tsa ? null : drivenCar(), winter = coldSeason(), base = {kind:'kuusamo', name:'KUUSAMO', km:500, hours:7, road:'kuusamo'};
+  const ch = [];
+  if (car) ch.push([`Omalla autolla (${C(car.c).name})`, ()=>startTrip(Object.assign({}, base))]);
+  else if (S.tsa) ch.push([`Työsuhdeautolla (${C(S.tsa.c).name})`, ()=>startTrip(Object.assign({}, base, {tsa:true}))]);
+  ch.push(['Vuokra-autolla 300 € (oma auto ei kulu)', ()=>{ payOrVippi(300); startTrip(Object.assign({}, base, {rental:{name:'Vuokra-auto (diesel)', type:'b', range:800, vmax:170}})); }]);
+  ch.push(['Ei tällä kertaa', ()=>say('ESAN PALJU', ['Esa lämmitti paljun yksin. Kuvista päätellen se oli hyvä.'])]);
+  const r = car && rangeTxt(car);
+  scr('ESAN PALJU KUUSAMOSSA', ['+Esa soitti: "Palju lämpiää Kuusamossa. Tuu käymään!"', '500 km pohjoiseen, ja palju on kuuma 7 tunnin päästä. Jos myöhästyt, Esa on ehtinyt jo lisätä puita kahdesti eikä lisää kolmatta kertaa.',
+    `!Tiellä on poroja, ja latausasemia on harvassa.${winter ? ' Pakkanen syö akkua.' : ''}`,
+    r ? `${C(car.c).name}: toimintamatka ${r}.` : '',
+    'Ajoissa perillä: palju lepuuttaa, ja lomautusriski pienenee puoleksi vuodeksi.'].filter(Boolean), ch);
+}
 function lappiOffer() {
   S.lappiY = Math.floor((S.m-1)/12);
   const car = S.tsa ? null : drivenCar(), base = {kind:'lappi', name:'LEVI', km:600, hours:10, road:'lappi'};
@@ -874,6 +889,13 @@ function tripDone(T, res) {
     if (res.broken) { payOrVippi(200); lines.push('!Kolarissa pakastin ja nojatuoli menivät rikki. Korvasit anopille 200 €, eikä palkkiota tullut.'); }
     else { const p = res.late ? 250 : 500; S.cash += p; lines.push(res.late ? `!Olit myöhässä: muuttofirma laskutti odottelusta, ja anoppi maksoi puolet (${eur(p)}).` : `+Ajoissa perillä! Anoppi maksoi ${eur(p)} ja keitti kahvit.`); }
     return say('KUOPIO', lines);
+  }
+  if (T.kind === 'kuusamo') {
+    if (res.towed) lines.push('!Esa haki sinut traktorilla viimeiset kilometrit. Paljuun pääsit, mutta selitettävää riittää.');
+    if (res.late) lines.push('!Myöhästyit: palju oli ehtinyt jäähtyä haaleaksi, ja Esa oli jo saunassa.');
+    else { S.rested = Math.max(S.rested || 0, S.m + 6); lines.push('+Esan palju oli 39-asteinen, ja tähdet näkyivät. Lepo näkyy töissä: lomautusriski pienenee puoleksi vuodeksi.'); }
+    if (!res.late && !T.rental && ((S.tsa && C(S.tsa.c).type==='e') || (drivenCar() && C(drivenCar().c).type==='e'))) lines.push('+Esa kysyi, miten sähköauto pärjäsi. Kerroit pitkään.');
+    return say('KUUSAMO', lines);
   }
   if (T.kind === 'lappi') {
     if (res.late) lines.push('!Vuokraamo oli jo kiinni. Ensimmäinen yö meni auton takapenkillä, ja hotelli Levillä maksoi 180 €.'), payOrVippi(180);

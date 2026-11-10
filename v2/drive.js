@@ -98,15 +98,15 @@ const Drive = (() => {
   // ---------- vuodenaika ----------
   function season() {
     const m = (S.m - 1) % 12; // 0 = tammikuu
-    const lap = !!(st.trip && st.trip.road === 'lappi');
+    const lap = !!(st.trip && st.trip.road === 'lappi'), north = lap || !!(st.trip && st.trip.road === 'kuusamo');
     return {
       m, lap,
       snow: lap || (!autobahn() && [11, 0, 1, 2].includes(m)),
       autumn: [8, 9].includes(m),
       bare: m === 10, // marraskuu: ruskea maa, lehdettömät koivut
       dark: [10, 11, 0].includes(m) ? 0.72 : [1, 9].includes(m) ? 0.35 : 0,
-      deerPerMonth: lap ? 0 : m >= 8 && m <= 11 ? 4 : 2,
-      poroPerMonth: lap ? 7 : 0,
+      deerPerMonth: north ? 0 : m >= 8 && m <= 11 ? 4 : 2,
+      poroPerMonth: lap ? 7 : north ? 5 : 0,
       holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
     };
   }
@@ -202,14 +202,14 @@ const Drive = (() => {
   function rangeOf(car, cold, kmh) { const E = eSpecFor(C(car.c), car, null); return Math.round(E.range / consF(E, kmh || 100, cold === 'cold', false, false, false) / 10) * 10; }
   const energy = E => (E.obj.energy === undefined ? 1 : E.obj.energy);
   function scheduleStation() {
-    const r = st.trip && st.trip.road, [a, b] = r === 'lappi' ? [110, 190] : r ? [50, 90] : [35, 70];
+    const r = st.trip && st.trip.road, [a, b] = r === 'lappi' || r === 'kuusamo' ? [110, 190] : r ? [50, 90] : [35, 70];
     st.nextSt = st.kmTot + a + Math.random() * (b - a);
   }
   function spawnStation() {
     const at = Math.floor((st.pos + PZ) / SEG) + 110, r = st.trip && st.trip.road;
     if (st.ramp && at > st.ramp.start - 25 && at < st.ramp.end + 15) { st.nextSt = st.kmTot + 3; return; }
-    const kw = r === 'autobahn' ? (Math.random() < 0.8 ? 300 : 150) : r === 'lappi' ? (Math.random() < 0.5 ? 50 : 150) : (Math.random() < 0.6 ? 150 : 50);
-    st.dyn.push({ k:'asema', station:true, z:at * SEG, x:1.9, at, kw, broken: Math.random() < (r === 'lappi' ? 0.3 : 0.08), queue: Math.random() < (r === 'autobahn' ? 0.35 : 0.2) ? 2 + Math.random() * 4 : 0 });
+    const kw = r === 'autobahn' ? (Math.random() < 0.8 ? 300 : 150) : r === 'lappi' || r === 'kuusamo' ? (Math.random() < 0.5 ? 50 : 150) : (Math.random() < 0.6 ? 150 : 50);
+    st.dyn.push({ k:'asema', station:true, z:at * SEG, x:1.9, at, kw, broken: Math.random() < (r === 'lappi' ? 0.3 : r === 'kuusamo' ? 0.2 : 0.08), queue: Math.random() < (r === 'autobahn' ? 0.35 : 0.2) ? 2 + Math.random() * 4 : 0 });
     st.nextSt = Infinity;
   }
   function stationUpdate(dt, z1) {
@@ -250,10 +250,10 @@ const Drive = (() => {
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
   function outOfEnergy(E) {
-    const lap = !!(st.trip && st.trip.road === 'lappi');
+    const lap = !!(st.trip && (st.trip.road === 'lappi' || st.trip.road === 'kuusamo')), city = st.trip && st.trip.road === 'kuusamo' ? 'Kuusamoon' : 'Rovaniemelle';
     E.obj.energy = E.ev ? 0.35 : 0.4;
     towTo(E.ev ? 'AKKU LOPPUI' : 'TANKKI LOPPUI', [E.ev ? `!${st.veh.name} pysähtyi tien varteen: akku 0 %.${coldNow() ? ' Pakkanen söi viimeiset kilometrit.' : ''}` : `!${st.veh.name} yski ja sammui: tankki tyhjä.`,
-      E.ev ? `Hinausauto vei auton ${lap ? 'Rovaniemelle' : 'lähimmälle laturille'} ja latasi sen 35 %:iin.` : 'Hinausauto toi kanisterin ja vei lähimmälle asemalle.'], lap ? 600 : 250);
+      E.ev ? `Hinausauto vei auton ${lap ? city : 'lähimmälle laturille'} ja latasi sen 35 %:iin.` : 'Hinausauto toi kanisterin ja vei lähimmälle asemalle.'], lap ? 600 : 250);
   }
 
   // ---------- matkat (alpha 17) ----------
