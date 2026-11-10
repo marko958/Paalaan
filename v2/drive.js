@@ -43,8 +43,21 @@ const Drive = (() => {
   let zone = { kind:'metsä', left:0 };
   function addSeg(curve, y) {
     const n = segs.length;
-    if (zone.left-- <= 0) { const r = rr(n, 1); zone = { kind: r < 0.55 ? 'metsä' : r < 0.8 ? 'pelto' : 'kylä', left: 60 + Math.floor(rr(n, 2) * 140) }; }
-    segs.push({ i:n, p1:pt(lastY(), n * SEG), p2:pt(y, (n + 1) * SEG), curve, sprites:scenery(n, zone.kind), clip:H });
+    let start = false;
+    if (zone.left-- <= 0) {
+      const r = rr(n, 1), kind = r < 0.55 ? 'metsä' : r < 0.8 ? 'pelto' : 'kylä';
+      // nopeusrajoitus: H = 100 kesällä, 80 talvella
+      zone = { kind, left: 80 + Math.floor(rr(n, 2) * 160), lim: kind === 'kylä' ? (rr(n, 25) < 0.5 ? 50 : 60) : kind === 'pelto' ? 80 : 'H', cam: rr(n, 26) < 0.5, len:0 };
+      start = true;
+    }
+    zone.len++;
+    const sp = scenery(n, zone.kind);
+    const clearView = side => { // merkin eteen ei puita, jotta se näkyy
+      for (let k = 0; k <= 10 && n - k >= 0; k++) { const arr = k ? segs[n - k].sprites : sp; for (let j = arr.length - 1; j >= 0; j--) if (Math.sign(arr[j].x) === side && ['kuusi', 'koivu', 'mökki', 'lato'].includes(arr[j].k)) arr.splice(j, 1); }
+    };
+    if (start) { sp.push({ k:'raja', x:1.3, lim:zone.lim }); clearView(1); if (zone.cam) { sp.push({ k:'valvonta', x:-1.3 }); clearView(-1); } }
+    else if (zone.cam && zone.len % 120 === 60 && zone.left > 10) { sp.push({ k:'kamera', x:1.3 }); clearView(1); }
+    segs.push({ i:n, p1:pt(lastY(), n * SEG), p2:pt(y, (n + 1) * SEG), curve, sprites:sp, clip:H, lim:zone.lim });
   }
   function addRoad(enter, hold, leave, curve, hill) {
     const y0 = lastY(), y1 = y0 + hill * SEG, tot = enter + hold + leave;
@@ -91,6 +104,26 @@ const Drive = (() => {
       deerPerMonth: m >= 8 && m <= 11 ? 4 : 2,
       holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
     };
+  }
+
+  const winterLimits = () => [9, 10, 11, 0, 1, 2].includes((S.m - 1) % 12); // talvinopeusrajoitukset loka–maalis
+  const limitOf = lim => lim === 'H' ? (winterLimits() ? 80 : 100) : lim;
+
+  // ---------- nopeuskamerat ----------
+  function camFine(over) {
+    if (over <= 10) return [140, 'rikesakko'];
+    if (over <= 20) return [200, 'rikesakko'];
+    if (over <= 30) return [420, 'päiväsakot 14 × 30 €'];
+    if (over <= 40) return [600, 'päiväsakot 20 × 30 €'];
+    return [900, 'päiväsakot 30 × 30 €, ja ajokieltoa harkitaan'];
+  }
+  function camera(seg) {
+    const kmh = Math.round(st.speed / KMH), lim = limitOf(seg.lim);
+    if (kmh <= lim + 7) return; // kamera sallii pienen toleranssin
+    const [f, kind] = camFine(kmh - lim);
+    st.flash = 0.8;
+    (S.post = S.post || []).push([`Nopeuskamera: ${kmh} km/h, rajoitus ${lim} (${kind})`, f]);
+    toast(`!SALAMA! ${kmh} km/h alueella ${lim}. Sakko ${eur(f)} tulee postissa.`, 5);
   }
 
   // ---------- ajoneuvo ----------
@@ -192,8 +225,8 @@ const Drive = (() => {
   // ---------- törmäykset tienvarteen ----------
   // puolikas leveys tien puolikkaina; kyltillä kaksi tolppaa
   // runkojen ja seinien puolikkaat leveydet piirretyn kuvan mukaan (1 = tien puolikas = 2000 yksikköä)
-  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8 };
-  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin' };
+  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09 };
+  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan' };
   const CAR_HW = 0.11; // auto on 72 px leveä, tien puolikas pelaajan kohdalla 320 px
   function hits(o) {
     if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.03 + CAR_HW);
@@ -359,6 +392,7 @@ const Drive = (() => {
     }
 
     if (!v.bus) {
+      for (let i = Math.floor(z0 / SEG); i < Math.floor(z1 / SEG); i++) if (segs[i].sprites.some(o => o.k === 'kamera')) camera(segs[i]);
       for (let i = Math.floor(z0 / SEG); i <= Math.floor(z1 / SEG); i++) {
         const seg = segs[i];
         for (const o of seg.sprites) if (!rampHides(seg, o) && hits(o)) { crash(o); return; }
@@ -480,6 +514,21 @@ const Drive = (() => {
         P(-40, 0, 80, 1700, COL.yellow);
         P(40, 1300, 600, 380, blink ? '#FF8A80' : COL.yellow);
         if (s * 1000 > 14) { g.fillStyle = COL.white; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 380))}px VT323`; g.fillText(o.t, cx, by - 1900 * s); g.textAlign = 'left'; }
+        break; }
+      case 'raja': { // nopeusrajoitusmerkki
+        P(-35, 0, 70, 1000, COL.grey3);
+        P(-330, 1000, 660, 660, '#D02020'); P(-380, 1060, 760, 540, '#D02020'); P(-270, 1080, 540, 500, '#FFFFFF'); P(-210, 1040, 420, 580, '#FFFFFF');
+        if (s * 660 > 9) { g.fillStyle = COL.black; g.textAlign = 'center'; g.font = `${Math.max(5, Math.round(s * 420))}px VT323`; g.fillText(String(limitOf(o.lim)), cx, by - 1180 * s); g.textAlign = 'left'; }
+        break; }
+      case 'valvonta': { // automaattinen liikennevalvonta -merkki
+        P(-35, 0, 70, 1000, COL.grey3);
+        P(-380, 1000, 760, 700, '#FFFFFF'); P(-340, 1040, 680, 620, '#1F4FB5');
+        P(-180, 1200, 300, 200, '#FFFFFF'); P(120, 1260, 80, 80, '#FFFFFF'); P(-60, 1250, 80, 100, '#1F4FB5'); // kameran kuva
+        break; }
+      case 'kamera': { // kameratolppa
+        P(-90, 0, 180, 1900, '#6E6E72');
+        P(-260, 1900, 520, 900, '#8E8E92'); P(-260, 2800, 520, 60, '#EEEE77'); P(-260, 1900, 520, 60, '#EEEE77');
+        P(-180, 2150, 360, 360, '#101012'); P(-90, 2240, 180, 180, st.flash > 0.3 ? '#FFFFFF' : '#3A3A8A');
         break; }
       case 'kuoppa': {
         const rim = sea.snow ? '#C8C8D0' : '#8A8A8A', c = sea.snow ? '#505058' : '#101012';
@@ -713,7 +762,11 @@ const Drive = (() => {
     hudSet('cash', `KASSA ${eur(S.cash)}`);
     hudSet('cashCls', S.cash < 0 ? 'neg' : '', 'className');
     hudSet('bar', Math.min(100, st.monthT / MONTH_S * 100).toFixed(1) + '%', 'width');
-    hudSet('speed', `${Math.round(st.speed / KMH)} km/h`);
+    const kmh = Math.round(st.speed / KMH), lim = limitOf(segAt(st.pos + PZ).lim);
+    hudSet('speed', `${kmh} km/h`);
+    hudSet('speedCls', kmh > lim ? 'over' : '', 'className');
+    hudSet('lim', st.veh.bus ? '' : String(lim));
+    hudSet('limD', st.veh.bus ? 'none' : 'inline-flex', 'display');
     hudSet('car', st.veh.name + (st.veh.tsa ? ' (työsuhdeauto)' : ''));
     const gh = gigHud();
     const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + st.toasts.map(t => {
@@ -776,7 +829,7 @@ const Drive = (() => {
   function init() {
     cv = document.getElementById('road'); g = cv.getContext('2d');
     const $ = id => document.getElementById(id);
-    Object.assign(hud, { month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
+    Object.assign(hud, { month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
     if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
@@ -830,6 +883,6 @@ const Drive = (() => {
     start, resume, stop,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
-    _st: st, _vehicle: vehicle, // testejä varten
+    _st: st, _vehicle: vehicle, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
   };
 })();

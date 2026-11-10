@@ -225,6 +225,7 @@ function monthTick() {
   R.push(['+', `Autobudjetti${S.layoff>0?' (LOMAUTETTU)':''}`, inc]);
   if (S.layoff>0) S.layoff--;
   let cash = S.cash + inc;
+  if (S.post && S.post.length) { S.post.forEach(([t, a]) => { cash -= a; R.push(['-', `Postissa: ${t}`, a]); }); S.post = []; }
   S.cars.forEach(car => { if (car.loan) { cash -= car.loan.pay; R.push(['-', `Lainan erä: ${C(car.c).name}`, car.loan.pay]); }});
   const rc = runCosts(); rc.lines.forEach(l => R.push(['-', l[0], l[1]])); cash -= rc.sum;
   if (S.gigs) {
@@ -490,7 +491,9 @@ function fire(k) {
   if (k==='muuttokolhu') { const van = vanOK(); const p = pick([['Pianon kulma naarmutti tavaratilan seinän',300,0.98],['Asiakkaan peruutustutka ei ollut sinun autossasi: lyhtypylväs',1200,0.94],['Pakkaamaton akvaario kaatui. Tavaratila haisee',400,0.97],['Kolmannen kerroksen asiakas ei maksanut',0,1]]);
     if (p[1]) payOrVippi(p[1]); van.base *= p[2];
     return say('MUUTTOKEIKKA', [`!${p[0]}.${p[1]?' Kulut '+eur(p[1])+'.':' Menetit keikan tulot.'}`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
-  if (k==='sakko') { const p = pick([['Nopeuskamera: 7 km/h ylinopeutta Kehä III:lla. Rikesakko', 140],['Pysäköintivirhemaksu kauppakeskuksessa', 80],['Latauspaikalla pysäköinnistä lappu (lataus oli jo valmis)', 60],['Yksityinen pysäköintivalvonta: "valvontamaksu"', 90]]);
+  // 2.0: nopeuskamerat ovat tiellä (drive.js). Pysäköintimaksut tulevat postissa seuraavaan tiliotteeseen.
+  if (k==='sakko') { const p = pick([['Pysäköintivirhemaksu kauppakeskuksessa', 80],['Latauspaikalla pysäköinnistä lappu (lataus oli jo valmis)', 60],['Yksityinen pysäköintivalvonta: "valvontamaksu"', 90]]);
+    if (Drive.active) { (S.post = S.post || []).push([p[0], p[1]]); return next(); }
     payOrVippi(p[1]); return say('SAKKO', [`!${p[0]}: ${eur(p[1])}.`]); }
   if (k==='kivenisku') { const car = drivenCar(); if (!car) return next();
     return scr('KIVENISKU', [`${C(car.c).name}: rekka heitti kiven tuulilasiin.`], [
