@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAALAAN! 2.0 – autolainavankilapeli (alpha)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root { --border:#7869C4; --screen:#40318D; --fg:#A59FF8; --hi:#FFFFFF; --red:#FF8A80; --green:#A9FF9F; --yel:#EEEE77; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--border); color:var(--fg); font-family:'VT323', ui-monospace, monospace; font-size:21px; line-height:1.15; }
+  .screen { position:relative; max-width:760px; margin:0 auto; min-height:100vh; background:var(--screen); padding:14px 14px 28px; }
+  @media (min-width:800px){ body{padding:28px 0} .screen{min-height:auto; border:4px solid var(--screen)} }
+  .status { border:2px solid var(--fg); padding:6px 8px; margin-bottom:12px; white-space:pre-wrap; }
+  .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:0 14px; }
+  .bar { font-family:inherit; letter-spacing:0; }
+  .jail { color:var(--red); animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:0 } }
+  h1 { font-size:26px; font-weight:normal; color:var(--hi); margin:4px 0 8px; text-transform:uppercase; }
+  .lines p { margin:0 0 4px; white-space:pre-wrap; }
+  .lines .r { color:var(--red); } .lines .g { color:var(--green); } .lines .dim { opacity:.75 }
+  .choices { margin-top:14px; display:flex; flex-direction:column; gap:7px; }
+  button { font:inherit; text-align:left; color:var(--screen); background:var(--fg); border:0; padding:8px 10px; cursor:pointer; }
+  button:hover, button:focus-visible { background:var(--hi); outline:none; }
+  button:disabled { background:transparent; color:var(--fg); opacity:.45; border:1px dashed var(--fg); cursor:default; }
+  button .k { color:var(--border); margin-right:6px; }
+  button.paa { background:var(--yel); }
+  .cursor { display:inline-block; width:.6em; background:var(--fg); animation:blink 1s steps(2) infinite; }
+  .foot { margin-top:18px; opacity:.6; font-size:17px; }
+  /* 2.0: ajotila */
+  #drive { display:none; }
+  #drive canvas { display:block; width:100%; height:auto; aspect-ratio:320/200; background:#000; image-rendering:crisp-edges; image-rendering:pixelated; touch-action:none; }
+  .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
+  .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
+  .pad button.on { background:var(--hi); }
+  .help { margin-top:8px; opacity:.75; font-size:17px; }
+  body.driving #drive { display:block; }
+  body.driving #status, body.driving #panel { display:none; }
+  body.driving.paused #panel { display:block; position:absolute; left:14px; right:14px; top:14px; padding:10px 12px 14px; background:var(--screen); border:2px solid var(--fg); box-shadow:0 0 0 4px var(--screen); z-index:2; }
+  body.driving.paused .pad { visibility:hidden; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div id="status" class="status" hidden></div>
+  <div id="drive">
+    <canvas id="road" width="320" height="200"></canvas>
+    <div class="pad">
+      <button data-k="left" aria-label="Vasemmalle">◀</button>
+      <button data-k="brake">JARRU</button>
+      <button data-k="right" aria-label="Oikealle">▶</button>
+    </div>
+    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon.</div>
+  </div>
+  <div id="panel">
+    <h1 id="title"></h1>
+    <div id="lines" class="lines"></div>
+    <div id="choices" class="choices"></div>
+  </div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 1 (10.11. klo 10.33) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
+</div>
+<script src="drive.js"></script>
+<script src="engine.js"></script>
+</body>
+</html>
