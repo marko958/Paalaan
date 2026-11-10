@@ -723,6 +723,8 @@ const Drive = (() => {
     ['Toyota Proace',     { b:'van', w:1.12, c:'#F2F2F2', tl:'vertical' }],
     ['Audi e-tron 55',    { b:'suv', w:1.04, c:'#5C6670', tl:'bar', x:['spoiler'] }],
     ['Citroën ë-SpaceTourer', { b:'van', w:1.06, c:'#2B3A55', tl:'vertical' }],
+    ['Kia PV5 Passenger', { b:'van', w:1.04, c:'#8C979C', tl:'vertical' }],
+    ['Kia PV5 Cargo',     { b:'van', w:1.04, c:'#EDEDED', tl:'vertical' }],
   ];
   function modelSpec(k) {
     const m = MODELS.find(([n]) => k.name.startsWith(n));
