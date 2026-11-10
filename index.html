@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v35 (10.11. klo 19.40) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v36 (10.11. klo 20.10) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -602,8 +602,8 @@ function fire(k) {
     return say('KAMPANJA!', [`+${C(c[0]).name}: ylihyvitys vaihtoautosta ${eur(c[1])}!`, 'Voimassa tämän ja ensi kuun. Löytyy autoliikkeestä.','Ylihyvitys on hinnanalennus, joka on piilotettu vaihtoautoon. Uuden auton arvo on heti pienempi kuin hinta.']); }
   if (k==='kolhu' || k==='peura') return damageEvent(k);
   if (k==='romutus') return scrapOffer();
-  if (k==='vienti') { S.M.ice = (S.M.ice||1) * 1.3; return say('VIENTIKYSYNTÄ', ['+Vanhoille polttomoottoriautoille on vientikysyntää.', 'Polttomoottoriautojen hinnat nousivat noin 30 %. Nyt olisi myynnin paikka.']); }
-  if (k==='kayttovoima') { S.M.ice = (S.M.ice||1) * 0.85; return say('KÄYTTÖVOIMAVERO NOUSEE', ['!Hallitus nostaa dieselin käyttövoimaveroa ja polttoaineveroa.', 'Polttomoottoriautojen hinnat laskivat noin 15 %.']); }
+  if (k==='vienti') { S.M.ice = (S.M.ice||1) * 1.3; return say('VIENTIKYSYNTÄ', ['+Vanhoille polttomoottoriautoille on yhtäkkiä vientikysyntää: ostajat kiertävät pihoja ja maksavat käteisellä.', 'Polttomoottoriautojen hinnat nousivat noin 30 %. Hinnat palautuvat hiljalleen, joten nyt olisi myynnin paikka.']); }
+  if (k==='kayttovoima') { S.M.ice = (S.M.ice||1) * 0.85; return say('KÄYTTÖVOIMAVERO NOUSEE', ['!Hallitus nostaa dieselin käyttövoimaveroa ja polttoaineveroa.', 'Polttomoottoriautojen käytettyjen hinnat laskivat noin 15 %. Ostajat kysyvät ensimmäiseksi, onko se sähköauto.']); }
   if (k==='reissu') return tripOffer();
   if (k==='lappi') return lappiOffer();
   if (k==='kuusamo') return kuusamoOffer();
@@ -711,23 +711,23 @@ function tireSwap() {
     if (staggered(k)) lines.push('!Porrastetut kiekot: edessä kapeammat, takana leveämmät. Ne pitää asentaa oikeille akseleille.');
     ch.push(['Rengashotelli 90 € (vaihto ja säilytys)', hotel], ['Vaihda itse (0 €)', diy]);
   } else {
-    lines.push(`!Autossa on vain yhdet vanteet. Joka vaihto on rengastyötä (${eur(mc)}), eikä sitä tehdä pihalla tunkilla.`);
+    lines.push(`!Autossa on vain yhdet vanteet. Renkaat pitää purkaa vanteilta ja asentaa uudet, ja pyörät tasapainotetaan: rengastyö ${eur(mc)}. Pihalla tunkilla sitä ei tehdä.`);
     if (winter) lines.push('!Ensilumi on tulossa, ja rengasliikkeissä on jonoa. Ilman varattua aikaa vaihto voi venyä viikkoja.');
     ch.push([`Rengastyö ${eur(mc)} (purku, asennus ja tasapainotus)`, ()=>{ payOrVippi(mc);
       const out = ['Renkaat vaihdettu vanteille.'];
       if (RND() < 0.08) { car.base *= 0.98; out.push('!Rengaskone naarmutti vanteen reunan. Arvo −2 %.'); }
-      if (winter && RND() < 0.4) { S.summer = 1; out.push('!Vapaa aika löytyi vasta kolmen viikon päästä. Siihen asti ajoit kesärenkailla lumella.'); }
+      if (winter && RND() < 0.4) { S.summer = 1; out.push('!Ensimmäinen vapaa aika oli vasta kolmen viikon päästä. Siihen asti ajoit kesärenkailla lumella: pito on huono, ja poliisi voi sakottaa.'); }
       say('RENKAANVAIHTO', out); }]);
     ch.push([`Osta toiset vanteet ${eur(rc)} + renkaiden asennus ${eur(mc)} (jatkossa vaihto 90 € tai itse)`, ()=>{ payOrVippi(rc + mc); car.rims2 = true;
-      say('TOISET VANTEET', [`+${k.name}: nyt on kahdet renkaat vanteilla. Vaihdot hoituvat hotellissa tai itse.`, `Kahdet renkaat vanteilla nostaa myös myyntihintaa noin ${eur(rimsBonus(car))}.`]); }]);
-    if (winter) ch.push(['Ajetaan kesärenkailla (laitonta talvikelillä)', ()=>{ S.summer = 4; say('KESÄRENKAAT', ['!Kesärenkaat lumella: pito on huono, ja poliisi voi sakottaa.']); }]);
+      say('TOISET VANTEET', [`+${k.name}: nyt on kahdet renkaat vanteilla. Seuraavat vaihdot tehdään samana päivänä, hotellissa tai pihalla tunkilla.`, `Kahdet renkaat vanteilla nostaa myös myyntihintaa noin ${eur(rimsBonus(car))}.`]); }]);
+    if (winter) ch.push(['Ajetaan kesärenkailla (laitonta talvikelillä)', ()=>{ S.summer = 4; say('KESÄRENKAAT', ['!Kesärenkaat lumella: auto liukuu mutkissa ja jarrutusmatka pitenee. Joulu–helmikuussa poliisi voi sakottaa.']); }]);
   }
   scr('RENKAANVAIHTO', lines, ch);
 }
 function scrapOffer() {
   const valtio = RND() < 0.6;
   if (valtio) { S.scrap = {kind:'valtio', until:S.m+2};
-    return say('ROMUTUSPALKKIO', ['+Romutuspalkkio: yli 10 v polttomoottoriautosta 2 000 €, sähköautoon vaihtaessa 2 500 €.', '!Määräraha voi loppua kesken.']); }
+    return say('ROMUTUSPALKKIO', ['+Valtio maksaa romutuspalkkiota: romuta yli 10 vuotta vanha polttomoottoriauto ja saat 2 000 €, tai 2 500 €, jos ostat tilalle täyssähköauton.', 'Romutus tehdään Myy auto -valikosta tai autoliikkeessä vaihdon yhteydessä.', '!Määräraha on rajallinen. Kun se loppuu, palkkio loppuu. Kuka ehtii ensin.']); }
   const pool = CARS.map((_,i)=>i).filter(i => { const k = C(i); return k.fl.includes('N') && k.type==='e' && !k.fl.includes('V') && k.price <= 80000; });
   const id = pick(pool); S.scrap = {kind:'liike', id, until:S.m+1, amt:3000};
   say('ROMUTUSBONUS', [`+Merkkiliike: tuo mikä tahansa yli 10 vuotta vanha polttomoottoriauto, ja saat 3 000 € uuden ${C(id).name}n hinnasta.`, 'Voimassa tämän ja ensi kuun. Bonusta ei voi yhdistää ylihyvityskampanjaan eikä 0 %-rahoitukseen.']);
@@ -759,7 +759,7 @@ const tripDrive = T => T.car || (T.tsa ? null : drivenCar());
 function rangeTxt(car) { if (C(car.c).type !== 'e') return ''; const E = tripRange(car); return `noin ${Math.round(E.range / tripCons(E, 100, coldSeason(), false, false) / 10) * 10} km 100 km/h vauhdissa`; }
 function startTrip(T) {
   const fast = T.road === 'autobahn' ? [110, 140, 180] : T.road === 'lappi' || (T.road === 'kuusamo' && coldSeason()) ? [70, 80, 100] : [80, 100, 120];
-  scr(`MATKA: ${T.name}`, [`${T.km} km, aikaa ${T.hours} h.`, 'Millä vauhdilla? Kova vauhti lyhentää matkaa, mutta syö akkua, ja lataus vie aikaa.', T.road === 'kuusamo' ? '!Pohjoisen tiellä porot seisovat ajoradalla, ja latausasemia on harvassa.' : T.road === 'lappi' ? '!Talvinopeusrajoitus on 80 km/h. Lujempaa ajaessa porot tulevat vastaan nopeammin, ja kamera voi välähtää.' : T.road === 'autobahn' ? 'Autobahnilla ei ole nopeusrajoitusta.' : 'Moottoritiellä rajoitus on 100–120 km/h.'],
+  scr(`MATKA: ${T.name}`, [`${T.km} km, aikaa ${T.hours} h.`, 'Millä vauhdilla ajetaan? Kova vauhti lyhentää ajoaikaa, mutta syö akkua tai tankkia, ja latausstopit vievät aikaa.', T.road === 'kuusamo' ? '!Pohjoisen tiellä porot seisovat ajoradalla, ja latausasemia on harvassa.' : T.road === 'lappi' ? '!Talvinopeusrajoitus on 80 km/h. Lujempaa ajaessa porot tulevat vastaan nopeammin, ja kamera voi välähtää.' : T.road === 'autobahn' ? 'Autobahnilla ei ole nopeusrajoitusta.' : 'Moottoritiellä rajoitus on 100–120 km/h.'],
     fast.map(v => [`${v} km/h`, ()=>tripResolve(T, v)]));
 }
 function tripResolve(T, kmh) {
@@ -807,7 +807,7 @@ function tripOffer() {
   const r = rangeTxt(car);
   scr('ANOPIN TAVARAT', ['"Voisitko viedä mun tavarat Kuopioon? Laatikoita, nojatuoli ja pakastin."', '+350 km, aikaa 5 tuntia, koska muuttofirma odottaa perillä. Palkkio 500 €.',
     r ? `${k.name}: toimintamatka ${r}. Kovempi vauhti ja kattoboksi syövät sitä. Latausasemia on matkan varrella.` : `${k.name}: tankki riittää, mutta polttoaine maksaa.`,
-    'Ajoissa koko palkkio, myöhässä puolet. Kolarissa tavarat rikki, korvaus 200 €.'], ch);
+    'Ajoissa saat koko palkkion, myöhässä puolet. Jos kolaroit kuorman kanssa, tavarat menevät rikki ja korvaat 200 €.'], ch);
 }
 function kuusamoOffer() {
   S.kuusamoY = Math.floor((S.m-1)/12);
@@ -816,12 +816,12 @@ function kuusamoOffer() {
   if (car) ch.push([`Omalla autolla (${C(car.c).name})`, ()=>startTrip(Object.assign({}, base))]);
   else if (S.tsa) ch.push([`Työsuhdeautolla (${C(S.tsa.c).name})`, ()=>startTrip(Object.assign({}, base, {tsa:true}))]);
   ch.push(['Vuokra-autolla 300 € (oma auto ei kulu)', ()=>{ payOrVippi(300); startTrip(Object.assign({}, base, {rental:{name:'Vuokra-auto (diesel)', type:'b', range:800, vmax:170}})); }]);
-  ch.push(['Ei tällä kertaa', ()=>say('ESAN PALJU', ['Esa lämmitti paljun yksin.'])]);
+  ch.push(['Ei tällä kertaa', ()=>say('ESAN PALJU', ['Esa lämmitti paljun yksin. Kuvista päätellen se oli hyvä.'])]);
   const r = car && rangeTxt(car);
-  scr('ESAN PALJU KUUSAMOSSA', ['+Esa soitti: "Palju lämpiää Kuusamossa. Tuu käymään!"', '500 km pohjoiseen. Palju on kuuma 7 tunnin päästä, eikä Esa lämmitä sitä toista kertaa.',
-    `!Poroja tiellä, latureita harvassa.${winter ? ' Pakkanen syö akkua.' : ''}`,
+  scr('ESAN PALJU KUUSAMOSSA', ['+Esa soitti: "Palju lämpiää Kuusamossa. Tuu käymään!"', '500 km pohjoiseen, ja palju on kuuma 7 tunnin päästä. Jos myöhästyt, Esa on ehtinyt jo lisätä puita kahdesti eikä lisää kolmatta kertaa.',
+    `!Tiellä on poroja, ja latausasemia on harvassa.${winter ? ' Pakkanen syö akkua.' : ''}`,
     r ? `${C(car.c).name}: toimintamatka ${r}.` : '',
-    'Ajoissa perillä palju pienentää lomautusriskiä puoleksi vuodeksi.'].filter(Boolean), ch);
+    'Ajoissa perillä: palju lepuuttaa, ja lomautusriski pienenee puoleksi vuodeksi.'].filter(Boolean), ch);
 }
 function lappiOffer() {
   S.lappiY = Math.floor((S.m-1)/12);
@@ -833,11 +833,11 @@ function lappiOffer() {
   ch.push(['Autojunalla 380 € (varma, ei ajoa)', ()=>{ payOrVippi(380); tripDone({kind:'lappi', train:true}, {ok:true}); }]);
   ch.push(['Jäädään kotiin (0 €)', ()=>{ S.wolt = S.taxi = S.gigs = false; say('HIIHTOLOMA', ['!Puoliso ei puhu sinulle. Sivukeikat jäävät tauolle, koska joku muu hoitaa nyt lapset.', 'Keikat saa takaisin päälle Sivutulot-valikosta.']); }]);
   const r = car && rangeTxt(car);
-  scr('HIIHTOLOMA LEVILLÄ', ['+Mökki on varattu Leviltä: 600 km, avaimet haettava 10 tunnissa.',
-    '!Lapissa on −30 °C, porot eivät väistä, ja latureita on harvassa.',
+  scr('HIIHTOLOMA LEVILLÄ', ['+Mökki on varattu Leviltä. Matkaa 600 km, ja avaimet pitää hakea 10 tunnin päästä ennen kuin vuokraamo sulkee.',
+    '!Lapin tiellä on −30 °C, porot seisovat tiellä eivätkä väistä, ja latausasemia on harvassa. Osa on rikki.',
     r ? `${C(car.c).name}: toimintamatka pakkasella ${r}${hasHeatPump(C(car.c)) ? '' : ' (ei lämpöpumppua, lämmitys syö akkua)'}.` : '',
     car && isDiesel(car) ? '!Diesel: jos tankissa on kesälaatua, se voi hyytyä pakkasessa.' : '',
-    'Onnistunut loma pienentää lomautusriskiä vuodeksi.'].filter(Boolean), ch);
+    'Onnistunut loma lepuuttaa: lomautusriski pienenee vuodeksi. Sähköautolla ajettu reissu kerää lisäksi kunniaa.'].filter(Boolean), ch);
 }
 function saksaOffer() {
   const pool = CARS.map((_,i)=>i).filter(i => { const k = C(i); return k.type==='e' && !k.fl.includes('N') && !k.fl.includes('V') && k.price >= 20000 && k.price <= 85000 && !/harmaatuonti/.test(k.name); });
@@ -864,7 +864,7 @@ function saksaOffer() {
     [`Hae se kulutusluotolla ${pct(rate)}, 60 kk · ${eur(pay)}/kk${aff?'':' · HYLÄTTY (maksukyky)'}`, ()=>go({bal:total, r:rate/1200, n:60, B:0, pay}), !aff],
     ['Ei kiitos', next]];
   scr('HALPA AUTO SAKSASSA', [`Mobile.de: ${k.name}${soh!==undefined && soh<100 ? ', akku ' + soh + ' %' : ''}. Hinta ${eur(de)}.`, `Suomessa sama auto maksaa noin ${eur(fi)}.`,
-    '!Hae se itse: lento Müncheniin, 800 km Autobahnia ja lautta. Suomessa odottaa rekisteröinti.', '!Takuu ei välttämättä päde Suomessa, eikä mittarilukemaa voi tarkistaa.'], ch);
+    '!Hae se itse: lento Müncheniin, 800 km Autobahnia ja lautta Travemündestä. Suomessa odottavat rekisteröinti, vastaanottotarkastus ja mahdollinen yksittäishyväksyntä.', '!Takuu ei välttämättä päde Suomessa, eikä mittarilukemaa voi tarkistaa.'], ch);
 }
 // matkan tulos ajotilasta: res = {ok, late, broken, towed, crashed}
 function tripDone(T, res) {
@@ -876,10 +876,10 @@ function tripDone(T, res) {
     return say('KUOPIO', lines);
   }
   if (T.kind === 'kuusamo') {
-    if (res.towed) lines.push('!Esa haki sinut traktorilla viimeiset kilometrit.');
-    if (res.late) lines.push('!Myöhästyit: palju ehti jäähtyä.');
-    else { S.rested = Math.max(S.rested || 0, S.m + 6); lines.push('+Esan palju oli 39-asteinen, ja tähdet näkyivät. Lomautusriski pienenee puoleksi vuodeksi.'); }
-    if (!res.late && !T.rental && ((S.tsa && C(S.tsa.c).type==='e') || (drivenCar() && C(drivenCar().c).type==='e'))) lines.push('+Esa kysyi, miten sähköauto pärjäsi.');
+    if (res.towed) lines.push('!Esa haki sinut traktorilla viimeiset kilometrit. Paljuun pääsit, mutta selitettävää riittää.');
+    if (res.late) lines.push('!Myöhästyit: palju oli ehtinyt jäähtyä haaleaksi, ja Esa oli jo saunassa.');
+    else { S.rested = Math.max(S.rested || 0, S.m + 6); lines.push('+Esan palju oli 39-asteinen, ja tähdet näkyivät. Lepo näkyy töissä: lomautusriski pienenee puoleksi vuodeksi.'); }
+    if (!res.late && !T.rental && ((S.tsa && C(S.tsa.c).type==='e') || (drivenCar() && C(drivenCar().c).type==='e'))) lines.push('+Esa kysyi, miten sähköauto pärjäsi. Kerroit pitkään.');
     return say('KUUSAMO', lines);
   }
   if (T.kind === 'lappi') {
@@ -1029,7 +1029,7 @@ function tsaTerms(i) {
         say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, `Luontoisetu ${eur(S.tsa.cost)}/kk vähennetään autobudjetista. Omat autosi ovat seisonnassa: vakuutus puolittuu, vero pysähtyy ja arvonlasku hidastuu.`, 'Työsuhdeautolla et voi myöhästellä latausten takia, joten lomautusriski on normaali.']); }]);
   });
   ch.push(['Takaisin', tsaOffer]);
-  scr('TYÖSUHDEAUTO', [`${k.name}`, 'Vapaassa autoedussa firma maksaa kaiken. Käyttöedussa etu on pienempi, mutta polttoaine tai sähkö on sinun. Omavastuut maksaa firma aina.'], ch);
+  scr('TYÖSUHDEAUTO', [`${k.name}`, 'Vapaassa autoedussa työnantaja maksaa kaiken: huollot, renkaat, rengasvaihdot ja omavastuut. Käyttöedussa etu on pienempi, mutta maksat polttoaineen tai sähkön itse. Omavastuut maksaa työnantaja kummassakin.'], ch);
 }
 // palautustarkastus: jokainen paikka tai vaurio huomataan 75 %:n todennäköisyydellä
 function tsaInspect(T) {
@@ -1111,7 +1111,7 @@ function carDetail(s) {
   if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${battCost(k)?' · uusi akku '+eur(battCost(k)):' · akku vuokralla'}${s.soh<80?': toimintamatka on jo heikko':''}`);
   lines.push(s.rims2 ? '+Mukana kahdet renkaat vanteilla: renkaanvaihdot hoituvat hotellissa 90 €:lla tai itse.' : `Vain yhdet vanteet: jokainen renkaanvaihto on rengastyötä (${eur(mountCost(k))}), tai osta toiset vanteet (${eur(rimsCost(k))}).${staggered(k) ? ' Porrastetut kiekot.' : ''}`);
   { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${es[3] ? ` Huippunopeus ${es[3] === 72 ? 'noin 70' : es[3]} km/h.` : ''}${/^Elcat/.test(k.name) ? ' Suomalainen sähköpaku, joka kerää jo museoarvoa.' : /^Fiat Topolino/.test(k.name) ? ' Mopoauto: ajamiseen riittää AM-kortti, ja vakuutus on halpa. Ovien tilalla on köydet.' : ''}`); }
-  if (/^Elcat/.test(k.name)) lines.push('+Pieni paku: kevyet muuttokeikat onnistuvat. Keräilijät pitävät arvon yllä.');
+  if (/^Elcat/.test(k.name)) lines.push('+Pieni pakettiauto: muuttokeikat onnistuvat, kunhan kuorma on kevyt ja matka lyhyt. Arvo pysyy, koska keräilijät haluavat näitä.');
   else if (k.fl.includes('V')) lines.push(`+Kova alennus listahinnasta (${eur(k.price)}). Iso pakettiauto: voit alkaa tehdä muuttokeikkoja.`, '!Pakettiautojen jälleenmyyntiarvo laskee nopeasti.');
   if (k.fl.includes('F')) lines.push('+Ilmaiset superit siirtyvät autolle: käyttökulut vain vakuutus, sähkön hintapiikit eivät koske.', '!650 000 km: vikoja tulee moninkertaisesti, ja ne ovat kalliita. Akku on vaihdettu kerran.');
   if (k.fl.includes('S')) lines.push('!Lyhyt toimintamatka: et ehdi työmatkoille latauksilta, ja lomautusriski moninkertaistuu.');
@@ -1157,7 +1157,7 @@ function finance(s, trade, h, R0) {
   lines.push(`Uuden auton arvo heti noin ${eur(nv)}.`);
   lines.push('Paljonko laitat käsirahaa?');
   const ch = [];
-  if (isNew && R.disc && !campHere) lines.push(R.zero ? `+Kampanja: 0 % korko listahinnasta TAI käteisalennus ${eur(R.disc)} ja tavallinen korko ${pct(R.std)}. Vertaa kokonaishintoja.` : `Käteisalennus ${eur(R.disc)}. 0 %-kampanjat tulevat kvartaalin lopussa.`);
+  if (isNew && R.disc && !campHere) lines.push(R.zero ? `+Kampanja: 0 % korko listahinnasta TAI käteisalennus ${eur(R.disc)} ja tavallinen korko ${pct(R.std)}. Vertaa kokonaishintoja.` : `Käteisalennus ${eur(R.disc)} käteis- ja lainakaupassa. 0 %-kampanjoita on yleensä kvartaalin lopussa (maalis-, kesä-, syys- ja joulukuu).`);
   const cashDisc = isNew && !campHere ? R.disc : 0;
   if (need - cashDisc <= 0) {
     ch.push([`Kauppa: saat välirahaa ${eur(-(need - cashDisc))}`, ()=>doBuy(s, trade, null, need - cashDisc)]);
