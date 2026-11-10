@@ -327,6 +327,8 @@ function startJob(id, inc) {
   const X = JOBS[id], lines = [`+Uusi työ: ${X.name}. Autobudjetti ${eur(inc)}/kk.`];
   if (id === 'accucar' && !S.sfs) { payOrVippi(300); S.sfs = true; lines.push('Sähkötyöturvallisuuskoulutus käyty: 300 €.'); }
   S.job = id; S.income = inc; S.boss = 0; S.trial = S.m + 6; S.jobApp = null;
+  if (S.layoff > 0) { S.layoff = 0; lines.push('+Lomautus jäi vanhaan työpaikkaan: uusi työnantaja maksaa täyttä palkkaa heti.'); }
+  S.pend = S.pend.filter(p => p.k !== 'lomautus');
   lines.push('!Koeaika 6 kk: lomautusriski on suurempi, ja rahoittaja hyväksyy eriä enintään 50 % tulosta.', '+Uusi pomo ei tiedä vanhoista kolhuista mitään.');
   if (S.tsa) Q.unshift(()=>tsaReturn('TYÖSUHDEAUTO PALAUTETAAN', 'Vanha työnantaja haluaa autonsa takaisin.', false));
   if (S.tsaWait) S.tsaWait = null;
