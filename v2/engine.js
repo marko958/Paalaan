@@ -64,6 +64,8 @@ const CARS = [
  // 2.0: uudet mallit lisätään loppuun, koska tavoitteet, kampanjat ja työsuhdeautot viittaavat indekseihin
  ['Audi e-tron 55 quattro 2020',22000,'e',280,.17,'K','Latausluukun moottori hajosi',900],
  ['Citroën ë-SpaceTourer 2022',27000,'e',230,.16,'B','Liukuoven moottori jumissa',800],
+ ['Kia PV5 Passenger (uusi)',46000,'e',190,.18,'NB','Liukuoven tunnistin jumissa',600],
+ ['Kia PV5 Cargo (uusi)',42000,'e',180,.18,'NV','Takaovien lukko jäätyi kiinni',500],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
@@ -105,7 +107,7 @@ const BATT = [
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
  ['Mercedes EQS (uusi)',40000],['Mercedes EQS',35000],['Maybach',60000],['BMW i7',40000],['Porsche Macan',30000],['Tesla Model S Plaid',22000],
  ['Lucid Air',50000],['Lotus Eletre',45000],['Polestar 3',15000],['Rolls-Royce Spectre',90000],['Tesla Cybertruck',35000],['Tesla Model S 85',14000],
- ['Toyota Proace',20000],['Audi e-tron 55',25000],['Citroën ë-SpaceTourer',14000],
+ ['Toyota Proace',20000],['Audi e-tron 55',25000],['Citroën ë-SpaceTourer',14000],['Kia PV5',16000],
 ];
 function battCost(k) { const b = BATT.find(([n]) => k.name.startsWith(n)); return b ? b[1] : (k.price > 50000 ? 30000 : 12000); }
 // ---------- TAKUUT ----------
@@ -330,6 +332,21 @@ function monthTick() {
   // kesällä korjaamatta jäänyt lämmitysvika pysäyttää auton pakkasilla
   if (coldSeason()) S.cars.forEach(car => { if (car.heater && !car.broken && (car.minor||0) >= car.heater) { const c = car.heater; car.heater = 0; car.minor -= c; car.broken = c;
     Q.push(()=>repairChoice(car, 'PAKKANEN', `${C(car.c).name}: kesällä korjaamatta jäänyt lämmitysvika. Pakkasaamuna tuulilasi on jäässä sisäpuolelta, eikä autolla voi ajaa. Korjaus ${eur(c)}.`)); } else if (car.heater && (car.minor||0) < car.heater) car.heater = 0; });
+  // kuluttajariitalautakunnan päätökset
+  S.cars.forEach(car => { if (!car.krl || S.m < car.krl.due) return;
+    const K = car.krl; car.krl = null;
+    const k = C(car.c), took = S.m - K.from, good = RND() < 0.45;
+    if (K.paid) { // korjattiin omaan piikkiin odotuksen aikana
+      if (good) { const back = K.paid - r100(K.paid * 0.6), korko = Math.round(back * 0.11 * took / 12); S.cash += back + korko;
+        Q.push(()=>say('KULUTTAJARIITALAUTAKUNTA', [`Käsittely kesti ${took} kuukautta.`, '+Suositus: merkkihuollon on korvattava osa korjauksesta, koska vika on tyyppivika.', `+Merkkihuolto palautti ${eur(back)} ja viivästyskorkoa ${eur(korko)}.`])); }
+      else Q.push(()=>say('KULUTTAJARIITALAUTAKUNTA', [`Käsittely kesti ${took} kuukautta.`, '!Ei suositusta. Rahoja ei palauteta.', 'Onneksi korjasit jo: muuten auto olisi pitänyt viedä K-Autolle tuplahintaan.']));
+      return; }
+    if (!car.broken) return;
+    car.broken = good ? r100(car.broken * 0.6) : car.broken * 2; car.krlDone = car.broken;
+    Q.push(()=>scr('KULUTTAJARIITALAUTAKUNTA', [`Käsittely kesti ${took} kuukautta.`,
+      good ? '+Suositus: merkkihuollon on korjattava fätti halvemmalla, koska vika on tyyppivika.' : '!Ei suositusta. Merkkihuolto ei enää koske autoon, joten se pitää viedä K-Autolle.',
+      good ? `Uusi korjaushinta ${eur(car.broken)}.` : `!K-Auto korjaa tuplahintaan: ${eur(car.broken)}.`],
+      [['Jatka', ()=>repairChoice(car, 'KORJAUS', `${k.name}: korjaus ${eur(car.broken)}${good ? ' (lautakunnan suositus)' : ' K-Autolla'}`)]])); });
   // huollot ja renkaat
   S.cars.forEach(car => {
     if (car.svc === undefined) { car.svc = S.m + ri(2,10); car.tire = ri(6,30); }
@@ -713,16 +730,16 @@ function minorChoice(car, cost, text, heater) {
 function repairChoice(car, title, text) {
   const k = C(car.c);
   const ch = [];
-  ch.push([`Korjaa käteisellä (${eur(car.broken)})`, ()=>{ S.cash -= car.broken; car.broken = 0; say(title,['Korjattu.']); }, S.cash < car.broken]);
-  ch.push(['Korjaa pikavipillä', ()=>{ addVippi(car.broken - Math.max(0,S.cash)); S.cash = Math.max(0, S.cash - car.broken); car.broken = 0; say(title,['Korjattu.','!Pikavippi otettu. Korko on 20 %/kk.']); }]);
-  if (k.name.startsWith('Audi e-tron 55') && car.broken >= 500 && car.krl !== car.broken) ch.push(['Kuluttajariitalautakuntaan (noppa: halvempi korjaus tai K-Auto tuplahintaan)', ()=>{
-    if (RND() < 0.45) { car.broken = r100(car.broken * 0.6); car.krl = car.broken;
-      sayTo('KULUTTAJARIITALAUTAKUNTA', ['Käsittely kesti 11 kuukautta.', '+Suositus: merkkihuollon on korjattava fätti halvemmalla, koska vika on tyyppivika.', `Uusi korjaushinta ${eur(car.broken)}.`], ()=>repairChoice(car, title, `${k.name}: korjaus ${eur(car.broken)} (lautakunnan suositus)`)); }
-    else { car.broken *= 2; car.krl = car.broken;
-      sayTo('KULUTTAJARIITALAUTAKUNTA', ['Käsittely kesti 11 kuukautta.', '!Ei suositusta. Merkkihuolto ei enää koske autoon, joten se pitää viedä K-Autolle.', `!K-Auto korjaa tuplahintaan: ${eur(car.broken)}.`], ()=>repairChoice(car, title, `${k.name}: korjaus K-Autolla ${eur(car.broken)}`)); } }]);
+  const krlNote = () => car.krl ? 'Valitus on yhä vireillä: jos päätös on myönteinen, saat erotuksen takaisin korkoineen.' : '';
+  ch.push([`Korjaa käteisellä (${eur(car.broken)})`, ()=>{ if (car.krl) car.krl.paid = car.broken; S.cash -= car.broken; car.broken = 0; say(title,['Korjattu.', krlNote()]); }, S.cash < car.broken]);
+  ch.push(['Korjaa pikavipillä', ()=>{ if (car.krl) car.krl.paid = car.broken; addVippi(car.broken - Math.max(0,S.cash)); S.cash = Math.max(0, S.cash - car.broken); car.broken = 0; say(title,['Korjattu.','!Pikavippi otettu. Korko on 20 %/kk.', krlNote()]); }]);
+  // kuluttajariitalautakunta: valitus vie oikeasti 4–8 kk, ja auto seisoo sen ajan merkkihuollon pihassa
+  if (k.name.startsWith('Audi e-tron 55') && car.broken >= 500 && !car.krl && car.krlDone !== car.broken) ch.push(['Kuluttajariitalautakuntaan (4–8 kk odotus; noppa: halvempi korjaus tai K-Auto tuplahintaan)', ()=>{
+    const n = ri(4,8); car.krl = {due: S.m + n, from: S.m};
+    say('KULUTTAJARIITALAUTAKUNTA', [`Valitus jätetty. Käsittely kestää noin ${n} kuukautta (päätös KK ${S.m + n}).`, '!Fätti odottaa merkkihuollon pihassa päätöstä, eikä sillä voi ajaa.', 'Voit myös korjauttaa auton omaan piikkiin odotuksen aikana. Jos päätös on myönteinen, saat erotuksen takaisin korkoineen.']); }]);
   if (k.fl.includes('K') && /luuk/i.test(text + ' ' + (car.lastFault||''))) ch.push(['Mikrobetoni luukkuun (40 €): arvo −20 %', ()=>{ S.cash -= 40; car.broken = 0; car.base *= 0.8; car.mb++; fixNeg(); say(title,['Luukku valettu kiinni mikrobetonilla. Lataus toimii, kun piuhan työntää raosta.', mbWarn(car)]); }]);
   ch.push(['Jätä odottamaan', ()=>{ say(title, ['!Auto seisoo. Arvo laskee seistessä nopeammin.', working().length ? '' : '!Ilman toimivaa autoa kuluu 850 €/kk takseihin ja busseihin. Harkitse hätäautoa.']); }]);
-  scr(title, [text], ch);
+  scr(title, car.krl ? [text, `Kuluttajariitalautakunnan päätös tulee KK ${car.krl.due}. Jos korjaat nyt omaan piikkiin, myönteisellä päätöksellä saat erotuksen takaisin korkoineen.`] : [text], ch);
 }
 
 function mbWarn(car) {
