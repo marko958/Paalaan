@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PAALAAN! 2.0 – autolainavankilapeli (alpha)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 <style>
+  /* VT323-fontti ladataan omalta palvelimelta (SIL OFL, ks. fonts/OFL.txt): ei pyyntöjä Googlelle */
+  @font-face { font-family:'VT323'; font-style:normal; font-weight:400; font-display:swap; src:url(../fonts/vt323.woff2) format('woff2'); }
   :root { --border:#7869C4; --screen:#40318D; --fg:#A59FF8; --hi:#FFFFFF; --red:#FF8A80; --green:#A9FF9F; --yel:#EEEE77; }
   * { box-sizing:border-box; }
   html,body { margin:0; background:var(--border); color:var(--fg); font-family:'VT323', ui-monospace, monospace; font-size:21px; line-height:1.15; }
@@ -95,7 +95,7 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 30 (10.11. klo 23.40) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 31 (10.11. klo 23.43) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
 </div>
 <script src="sound.js"></script>
 <script src="drive.js"></script>

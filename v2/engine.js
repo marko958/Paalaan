@@ -571,6 +571,7 @@ function start() {
   ch.push([sv ? 'Uusi peli (tallennus korvautuu)' : 'Uusi peli', pickTarget]);
   ch.push([`Päivän haaste ${d.txt}${d.tries ? ` (yrityksiä ${d.tries}, paras ${d.best} p)` : ''}`, dailyStart]);
   ch.push(['Ennätykset', records]);
+  if (sv) ch.push(['Poista tallennettu peli', ()=>scr('POISTA TALLENNUS', [`!Poistetaanko tallennettu peli (KK ${sv.m}/${LAST})? Sitä ei saa takaisin.`, 'Ennätykset säilyvät. Ne tyhjennetään Ennätykset-ruudusta.'], [['Kyllä, poista', ()=>{ lsDel(SAVE_KEY); start(); }], ['Peru', start]])]);
   ch.push([`Äänet: ${Snd.on ? 'päällä' : 'pois'}`, ()=>{ Snd.toggle(); start(); }]);
   scr('PAALAAN!', [
     'Autolainavankilapeli 2.0 (alpha)',
@@ -580,7 +581,7 @@ function start() {
     'Sinulla on 84 kuukautta aikaa päästä unelma-autoon niin, ettei laina ylitä auton arvoa.',
     'Jos lainaa on enemmän kuin autossa arvoa, olet VANKILASSA.',
     '',
-    'Peli tallentuu itsestään selaimeen aina, kun palaat valikkoon tai kuukausi vaihtuu tiellä.',
+    'Peli tallentuu itsestään tähän selaimeen aina, kun palaat valikkoon tai kuukausi vaihtuu tiellä. Mitään ei lähetetä minnekään.',
   ], ch);
 }
 function pickTarget() {
