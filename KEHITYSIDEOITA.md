@@ -77,19 +77,25 @@ Nyt `rateOffers` antaa uudelle autolle 60 %:n todennäköisyydellä 0 %:n koron.
 - **Korkoympäristö:** kun `S.rate` nousee, 0 %-kampanjoita tulee enemmän (valmistaja tukee myyntiä), mutta käteisalennukset pienenevät. Kun korot laskevat, 0 %:n etu häviää.
 - **Pienellä präntätty:** osa kampanjoista vaatii **pakollisen huoltosopimuksen** (+60 €/kk) tai **merkkivakuutuksen**, joka on kalliimpi kuin pelaajan oma.
 
-## 6. Kahdet renkaat -dilemma
+## 6. Kahdet renkaat -dilemma: ostetaanko toiset vanteet?
 
-Nyt renkaat vaihdetaan kahdesti vuodessa (`tireSwap`), mutta pelaajalla on vain yhdet kumit, jotka kuluvat (`car.tire`). Lisätään erilliset kesä- ja talvirenkaat:
+Ydinkysymys on **vanteet**, ei pelkät renkaat. Jos autossa on vain yhdet vanteet, kesä- ja talvirenkaat vaihdetaan samoille vanteille joka kerta. Silloin vaihto on rengastyötä: vanhat renkaat puretaan vanteilta, uudet asennetaan ja pyörät tasapainotetaan. Pihalla tunkilla sitä ei tehdä.
 
-- Jokaisella autolla on **kesärenkaat ja talvirenkaat erikseen**, ja kummallakin oma kulumansa. Käytetyn auton mukana tulee usein vain yhdet renkaat (”talvirenkaat puuttuvat, myyjä lupasi tuoda ne myöhemmin”).
-- **Vaihtoehdot lokakuussa:**
-  1. nastat (paras pito jäällä, vähiten peurakolhuja liukkaalla, mutta kalleimmat ja kovaääniset)
-  2. kitkat (hiljaiset ja sopivat Keski-Eurooppaan, ks. kohta 7, mutta jäällä huonommat)
-  3. **ympärivuotiset (all season)** – yhdet renkaat koko vuodelle: ei vaihtoja eikä rengashotellia, mutta talvella liukkaus kasvaa ja kesällä kuluminen on nopeampaa. Laillisia talvella, jos niissä on vuoristosymboli.
-  4. **ajetaan kesärenkailla talveen** – laiton marraskuusta helmikuuhun: poliisitarkastus = sakko ja ajokielto kunnes vaihdetaan; ajossa tie on luistinrata.
-- **Vaihtoautokaupassa:** auto, jonka mukana tulee kahdet hyvät renkaat, on 800–1 500 € arvokkaampi. Pelaaja voi myydä renkaat erikseen Marketplacessa ennen auton myyntiä (pieni lisätuotto, mutta ostaja huomaa).
-- **Rengashotelli:** säilytys maksaa 90 €/vaihto. Jos pelaaja vaihtaa itse, renkaat pitää säilyttää kotona. Pieni riski: ”varastossa olleet renkaat varastettiin” tai ”kesärenkaat haljenneet”.
-- **Ajossa:** rengastyyppi vaikuttaa `drive.js`:n pitoon (kaarteiden sivuluisu, jarrutusmatka) ja `S.slip`-arvoon. Sähköauton isot ja raskaat renkaat (`tireEvent`-kerroin) ovat kalliimpia, joten kahdet renkaat ovat isompi päätös.
+**Valinta tehdään kerran per auto** (auton oston yhteydessä tai ensimmäisessä renkaanvaihdossa):
+
+| | Yhdet vanteet | Toiset vanteet |
+|---|---|---|
+| Hankinta | 0 € | **400–1 200 €** (peltivanteet halvat, sähköauton isot alumiinivanteet kalliit; Taycanin ja i4 M60:n vanteet vielä kalliimmat) |
+| Vaihto keväällä ja syksyllä | **rengastyö 120–220 €**: purku, asennus ja tasapainotus | rengashotelli 90 € tai **itse 0 €** |
+| Itse vaihtaminen | **ei mahdollista** (vaatii rengaskoneen) | mahdollinen (nykyinen ”Vaihda itse” ja löysän mutterin riski 15 %) |
+| Ajoitus | rengasliikkeen jonot: lokakuun ensilumella aikaa saa vasta 2–3 viikon päähän (ks. alla) | pyörät vaihdetaan samana päivänä |
+| Kuluminen | jokainen purku voi vaurioittaa rengasta tai vannetta (pieni riski: ”vanne naarmuuntui koneessa”, ”rengas ei pidä ilmaa”) | ei purkuja |
+| Auton myynti | ostaja saa yhdet vanteet ja irtorenkaat | **”kahdet renkaat vanteilla”** nostaa myyntihintaa 400–800 €, tai vanteet myydään erikseen Marketplacessa |
+
+- **Laskettava pelaajalle:** toiset vanteet maksavat itsensä takaisin 2–5 vuodessa, kun vaihtaa itse, mutta autoa vaihdetaan pelissä usein, joten takaisinmaksu jää usein kesken. Jos vanteet sopivat myös seuraavaan autoon (sama merkki, sama pulttijako ja koko), ne siirtyvät mukana. Tämä on hyvä syy pysyä samassa merkissä.
+- **Ensilumen jono:** jos pelaajalla on yhdet vanteet ja hän ei varannut aikaa syyskuussa, lokakuun vaihto viivästyy. Siihen asti ajetaan kesärenkailla: ajotilassa pito on heikko (`S.slip` kasvaa), peura- ja ulosajoriski nousee ja poliisi voi sakottaa marraskuussa. Toisilla vanteilla tämä ei koske pelaajaa.
+- **Toteutus nykykoodiin:** autolle lippu `car.rims2`. `tireSwap` näyttää sen mukaan joko vaihtoehdot ”Rengashotelli 90 € / Vaihda itse 0 €” tai ”Rengastyö (purku + asennus + tasapainotus) X €”, jossa X riippuu auton hintaluokasta (`tierMult`) ja sähköautolla isommasta vannekoosta. Lisäksi valinta ”Osta toiset vanteet (Y €)”. Myyntiarvoon lisä, kun `car.rims2` on tosi.
+- **Lisämauste (myöhemmin):** talvirenkaiksi nastat, kitkat tai ympärivuotiset. Ympärivuotiset poistavat koko vannedilemman, mutta talven pito on heikompi ja kesällä kuluminen nopeampaa.
 
 ## 7. Keski-Euroopan kitkat -haaste
 
@@ -113,7 +119,7 @@ Uusi kampanja-/tehtävätapahtuma, joka yhdistää renkaat, toimintamatkan ja ha
 ## Mitä kannattaisi tehdä ensin
 
 1. **Energiamittari ja latausasemat** (SUUNNITELMA-2.0, kohta 3). Ilman sitä vetomassat, kattoboksi, Lapin reissu ja Autobahn eivät tunnu ajossa.
-2. **Kahdet renkaat** – pienin työ, koska `tireSwap` ja `car.tire` ovat jo olemassa. Tuo heti uuden päätöksen kahdesti vuodessa.
+2. **Kahdet renkaat (toiset vanteet)** – pienin työ: yksi lippu `car.rims2` ja muutos `tireSwap`iin. Tuo heti uuden päätöksen kahdesti vuodessa.
 3. **0 %:n kampanjan kokonaishintavertailu** – pieni muutos `rateOffers`- ja `finance`-funktioihin, mutta isompi vaikutus siihen, miten pelaaja ajattelee rahoitusta.
 4. **Romutuspalkkio** – yksi uusi tapahtuma `randomEvent`iin ja vaihtoehto myyntivalikkoon.
 5. **Vetomassat** – uusi kenttä `CARS`-dataan ja kärrytyypit.
