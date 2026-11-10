@@ -183,7 +183,7 @@ const Drive = (() => {
     R.forEach(r => { if (r[0] === '+') plus += r[2]; else if (r[0] === '-') minus += r[2]; });
     toast(`${KK[(S.m - 1) % 12].toUpperCase()}KUU: +${eur(plus)} / −${eur(minus)} · KASSA ${eur(S.cash)}`, 6);
     R.filter(r => r[0] === '+' && /keikat|toimitukset|kyydit/i.test(r[1])).forEach(r => toast(`+${r[1]}: ${eur(r[2])}`, 6));
-    R.filter(r => r[0] === '!').forEach(r => toast('!' + r[1], 6));
+    R.filter(r => r[0] === '!' && !(st.gig && /ei ajettu/.test(r[1]))).forEach(r => toast('!' + r[1], 6)); // kesken olevaa keikkaa ei moitita
     if (Q.length) openEvents();
   }
   function openEvents() {
@@ -383,11 +383,13 @@ const Drive = (() => {
     if (G.kind === 'wolt') { gigClear(); Q.push(() => say('KEITTO KAATUI', ['!Tilaus levisi pitkin takapenkkiä. Toimitus peruttiin, eikä siitä makseta.'])); }
     else G.crash++;
   }
+  // GPS rikki (antennit hapettuneet, korjaamatta): ei etäisyyksiä, kuski etsii kyltit itse
+  const gpsDown = () => { const c = !st.veh.tsa && drivenCar(); if (c && c.gps && !(c.minor > 0)) c.gps = false; return !!(c && c.gps); };
   function gigHud() {
     const G = st.gig;
     if (!G) return null;
     const d = Math.max(0, G.at - Math.floor((st.pos + PZ) / SEG)) * 5;
-    const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', ',')} KM` : `${d} M`;
+    const dist = gpsDown() ? 'GPS: EI SIGNAALIA' : d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', ',')} KM` : `${d} M`;
     if (G.kind === 'muutto') {
       if (G.load > 0) return `MUUTTO: ${G.phase === 'pickup' ? 'KANNETAAN KUORMAA' : 'PURETAAN'}… ${Math.ceil(LOAD_S - G.load)} S`;
       return G.phase === 'pickup' ? `MUUTTO: ASIAKAS ${dist} · PYSÄHDY KOHDALLE` : `MUUTTO: PURKUPAIKKA ${dist} · PYSÄHDY KOHDALLE`;
@@ -838,6 +840,12 @@ const Drive = (() => {
       R(-27, 5, 54, 9, '#8A7A5A');                               // vanerilaita
       for (let k = -18; k < 27; k += 9) R(k, 5, 1, 9, '#5E523C');
       R(-28, 14, 56, 2, '#2A2A2A');                              // yläreuna
+      if (st.gig && st.gig.kind === 'muutto' && st.gig.phase === 'deliver') { // lasti kyydissä
+        R(-25, 16, 13, 10, '#B08850'); R(-23, 26, 10, 7, '#C09860'); R(-25, 20, 13, 1, '#8A6A3A'); // laatikot
+        R(-9, 16, 24, 7, '#7A2E2E'); R(-9, 23, 4, 6, '#7A2E2E'); R(11, 23, 4, 6, '#7A2E2E');      // sohva
+        R(18, 16, 2, 12, '#333'); R(16, 27, 7, 2, '#333'); R(17, 16, 8, 2, '#333');                // kuntopyörä
+        R(-27, 15, 54, 1, '#E8C32A');                                                            // liinat
+      }
       R(-27, 4, 6, 3, lit); R(21, 4, 6, 3, lit);                 // valot
       R(-7, 6, 14, 5, COL.white); R(-6, 7, 12, 3, COL.black);    // rekkari
     }
@@ -878,7 +886,7 @@ const Drive = (() => {
     let ramp = '';
     if (st.ramp) {
       const d = st.ramp.start - Math.floor((st.pos + PZ) / SEG);
-      if (d > -RAMP_LEN) ramp = d > 0 ? `LIITTYMÄ ${d * 5} m → oikealle = valikko` : 'LIITTYMÄ → oikealle = valikko';
+      if (d > -RAMP_LEN) ramp = gpsDown() ? (d < 25 ? 'LIITTYMÄ → oikealle = valikko' : '') : d > 0 ? `LIITTYMÄ ${d * 5} m → oikealle = valikko` : 'LIITTYMÄ → oikealle = valikko';
     }
     hudSet('ramp', ramp);
     hudSet('hint', st.hint ? '← → ohjaa · ↓ jarru · P tauko' : '');

@@ -698,7 +698,7 @@ function faultEvent(car) {
     if (cov >= 1) { car.broken = 0; return say('TAKUUKORJAUS', [`${k.name}: ${fault}.`, '+' + ctxt + ' Sinulle 0 €. Sijaisautokin saatiin.']); }
     if (cov > 0) { car.broken = Math.round(car.broken * (1-cov) / 10) * 10; txt = `${k.name}: ${fault}. ${ctxt} Sinun osuutesi ${eur(car.broken)}.`; }
     else if (ctxt) txt += ' ' + ctxt.slice(1);
-    if (drivable(fault)) { const c = car.broken; car.broken = 0; return minorChoice(car, c, txt, HEATER.test(fault)); }
+    if (drivable(fault)) { const c = car.broken; car.broken = 0; if (/antennit/i.test(fault)) txt += ' Ilman GPS:ää et näe ajossa etäisyyksiä keikkakohteisiin etkä liittymään, vaan kyltit pitää bongata itse tien varresta.'; return minorChoice(car, c, txt, HEATER.test(fault)); }
   }
   repairChoice(car, 'AUTO HAJOSI', txt + ' Auto ei ole ajokunnossa.');
 }
@@ -707,7 +707,7 @@ function minorChoice(car, cost, text, heater) {
   scr('VIKA', [text, 'Auto kulkee, mutta vika näkyy myyntihinnassa ja voi kaataa katsastuksen.'], [
     [`Korjaa käteisellä (${eur(cost)})`, ()=>{ S.cash -= cost; say('VIKA', ['Korjattu.']); }, S.cash < cost],
     ['Korjaa pikavipillä', ()=>{ payOrVippi(cost); say('VIKA', ['Korjattu.', S.vippi ? '!Pikavippi otettu. Korko on 20 %/kk.' : '']); }],
-    [`Aja korjaamattomana (arvo −${eur(cost*0.6)})`, ()=>{ car.minor = (car.minor||0) + cost; if (heater) car.heater = cost; say('VIKA', ['Ajetaan näin. Vika jää odottamaan korjaamoa tai katsastusta.', heater ? '!Ensimmäisillä pakkasilla marraskuussa auto jää pihaan, jos vikaa ei ole korjattu.' : '']); }],
+    [`Aja korjaamattomana (arvo −${eur(cost*0.6)})`, ()=>{ car.minor = (car.minor||0) + cost; if (heater) car.heater = cost; if (/antennit/i.test(car.lastFault||'')) car.gps = true; say('VIKA', ['Ajetaan näin. Vika jää odottamaan korjaamoa tai katsastusta.', heater ? '!Ensimmäisillä pakkasilla marraskuussa auto jää pihaan, jos vikaa ei ole korjattu.' : '']); }],
   ]);
 }
 function repairChoice(car, title, text) {
