@@ -107,7 +107,9 @@ const Drive = (() => {
   }
 
   const winterLimits = () => [9, 10, 11, 0, 1, 2].includes((S.m - 1) % 12); // talvinopeusrajoitukset loka–maalis
-  const limitOf = lim => lim === 'H' ? (winterLimits() ? 80 : 100) : lim;
+  // peräkärry perässä, kun muuttokeikat ovat päällä eikä pakua ole
+  const towing = () => !!(S.gigs && !vanOK() && trailerOK());
+  const limitOf = lim => { const l = lim === 'H' ? (winterLimits() ? 80 : 100) : lim; return towing() ? Math.min(80, l) : l; };
 
   // ---------- nopeuskamerat ----------
   function camFine(over) {
@@ -139,6 +141,7 @@ const Drive = (() => {
     let acc = k.type === 'e' ? Math.min(36, 20 + k.price / 4000) : Math.min(24, 12 + k.price / 6000);
     const minor = car ? (car.minor || 0) : 0;
     if (minor) { vmax *= 0.92; acc *= 0.85; }
+    if (!T && towing()) { vmax = Math.min(vmax, 120); acc *= 0.75; }
     return { bus:false, tsa:!!T, name:k.name, vmax, acc, spec:modelSpec(k), mb: T ? T.mb : car.mb, minor };
   }
   function refreshVehicle() {
@@ -739,7 +742,19 @@ const Drive = (() => {
       g.fillStyle = COL.yellow; g.font = '8px VT323'; g.textAlign = 'center'; g.fillText('BUSSI', cx, by - 14); g.textAlign = 'left';
       return;
     }
-    drawModel(v, cx, by, tilt, sea);
+    const tow = !v.tsa && towing();
+    drawModel(v, cx, tow ? by - 14 : by, tilt, sea);
+    if (tow) { // peräkärry auton perässä: kapeampi ja matalampi kuin auto, aisa näkyy välissä
+      const lit = st.keys.brake ? '#FF3030' : sea.dark > 0.3 ? '#E02828' : '#A01818';
+      R(-3, 13, 6, 6, '#222');                                   // aisa
+      R(-29, 0, 8, 7, COL.black); R(21, 0, 8, 7, COL.black);     // renkaat
+      R(-28, 3, 56, 13, '#3E3A32');                              // runko
+      R(-27, 5, 54, 9, '#8A7A5A');                               // vanerilaita
+      for (let k = -18; k < 27; k += 9) R(k, 5, 1, 9, '#5E523C');
+      R(-28, 14, 56, 2, '#2A2A2A');                              // yläreuna
+      R(-27, 4, 6, 3, lit); R(21, 4, 6, 3, lit);                 // valot
+      R(-7, 6, 14, 5, COL.white); R(-6, 7, 12, 3, COL.black);    // rekkari
+    }
     if (v.minor && Math.random() < 0.4) R(28 + Math.random() * 6, 0, 4, 3, '#BBBBBB'); // savua
     if (sea.dark > 0.3) { // ajovalojen keila
       const gr = g.createRadialGradient(cx, by - 60, 4, cx, by - 60, 90);
