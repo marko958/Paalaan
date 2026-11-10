@@ -1,0 +1,246 @@
+{
+ "tex": {
+  "asfaltti": {
+   "diff": "tex/asfaltti_diff",
+   "nor": "tex/asfaltti_nor",
+   "rough": "tex/asfaltti_rough",
+   "avg": [
+    0.0518,
+    0.0425,
+    0.0325
+   ]
+  },
+  "lumi": {
+   "diff": "tex/lumi_diff",
+   "nor": "tex/lumi_nor",
+   "avg": [
+    0.3874,
+    0.3854,
+    0.3967
+   ]
+  },
+  "sora": {
+   "diff": "tex/sora_diff",
+   "nor": "tex/sora_nor",
+   "avg": [
+    0.4238,
+    0.4047,
+    0.3482
+   ]
+  },
+  "nurmi": {
+   "diff": "tex/nurmi_diff",
+   "nor": "tex/nurmi_nor",
+   "avg": [
+    0.0783,
+    0.045,
+    0.0049
+   ]
+  },
+  "kulo": {
+   "diff": "tex/kulo_diff",
+   "avg": [
+    0.4285,
+    0.3071,
+    0.2002
+   ]
+  },
+  "metsa": {
+   "diff": "tex/metsa_diff",
+   "nor": "tex/metsa_nor",
+   "avg": [
+    0.1502,
+    0.1058,
+    0.058
+   ]
+  },
+  "multa": {
+   "diff": "tex/multa_diff",
+   "avg": [
+    0.0967,
+    0.048,
+    0.0172
+   ]
+  },
+  "kaarna": {
+   "diff": "tex/kaarna_diff",
+   "nor": "tex/kaarna_nor",
+   "avg": [
+    0.1379,
+    0.0873,
+    0.0501
+   ]
+  },
+  "lauta": {
+   "diff": "tex/lauta_diff",
+   "nor": "tex/lauta_nor",
+   "avg": [
+    0.4663,
+    0.393,
+    0.3472
+   ]
+  },
+  "hirsi": {
+   "diff": "tex/hirsi_diff",
+   "avg": [
+    0.0526,
+    0.0293,
+    0.0216
+   ]
+  },
+  "pelti": {
+   "diff": "tex/pelti_diff",
+   "nor": "tex/pelti_nor",
+   "avg": [
+    0.0975,
+    0.097,
+    0.0802
+   ]
+  },
+  "betoni": {
+   "diff": "tex/betoni_diff",
+   "nor": "tex/betoni_nor",
+   "avg": [
+    0.1473,
+    0.1263,
+    0.0974
+   ]
+  },
+  "kivi": {
+   "diff": "tex/kivi_diff",
+   "nor": "tex/kivi_nor",
+   "avg": [
+    0.1631,
+    0.1582,
+    0.1015
+   ]
+  }
+ },
+ "sky": {
+  "kesa": {
+   "img": "sky/kesa",
+   "env": "sky/kesa_env.hdr",
+   "M": 2.5586,
+   "rows": 0.5625,
+   "sunEl": 0.8356,
+   "sunAz": 0.598,
+   "sunPeak": 74608.8,
+   "sunCol": [
+    0.993,
+    1.0,
+    0.911
+   ],
+   "horizon": [
+    0.4306,
+    0.4629,
+    0.5601
+   ],
+   "zenith": [
+    0.4805,
+    0.5254,
+    0.6799
+   ],
+   "mean": 0.4525
+  },
+  "pilvi": {
+   "img": "sky/pilvi",
+   "env": "sky/pilvi_env.hdr",
+   "M": 4.0563,
+   "rows": 0.5625,
+   "sunEl": 0.3935,
+   "sunAz": 0.5681,
+   "sunPeak": 6.0,
+   "sunCol": [
+    1.0,
+    0.884,
+    0.754
+   ],
+   "horizon": [
+    0.6603,
+    0.6969,
+    0.7738
+   ],
+   "zenith": [
+    0.9517,
+    1.0957,
+    1.3738
+   ],
+   "mean": 1.2023
+  },
+  "hamara": {
+   "img": "sky/hamara",
+   "env": "sky/hamara_env.hdr",
+   "M": 5.8006,
+   "rows": 0.5625,
+   "sunEl": 0.1975,
+   "sunAz": 0.6297,
+   "sunPeak": 5.6,
+   "sunCol": [
+    1.0,
+    0.456,
+    0.358
+   ],
+   "horizon": [
+    0.9872,
+    0.6755,
+    0.8326
+   ],
+   "zenith": [
+    0.5762,
+    0.6618,
+    1.1651
+   ],
+   "mean": 1.0939
+  },
+  "yo": {
+   "img": "sky/yo",
+   "env": "sky/yo_env.hdr",
+   "M": 1.4593,
+   "rows": 0.5625,
+   "sunEl": 0.2988,
+   "sunAz": 0.6203,
+   "sunPeak": 88126.8,
+   "sunCol": [
+    0.795,
+    0.862,
+    1.0
+   ],
+   "horizon": [
+    0.3592,
+    0.4226,
+    0.4955
+   ],
+   "zenith": [
+    0.0698,
+    0.0938,
+    0.1371
+   ],
+   "mean": 0.1824
+  },
+  "talvi": {
+   "img": "sky/talvi",
+   "env": "sky/talvi_env.hdr",
+   "M": 2.3626,
+   "rows": 0.5625,
+   "sunEl": 0.5388,
+   "sunAz": 0.648,
+   "sunPeak": 4.1,
+   "sunCol": [
+    1.0,
+    0.801,
+    0.548
+   ],
+   "horizon": [
+    0.5985,
+    0.5928,
+    0.5661
+   ],
+   "zenith": [
+    0.7193,
+    0.7236,
+    0.7132
+   ],
+   "mean": 0.7789
+  }
+ }
+}

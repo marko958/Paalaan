@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAALAAN! 3.0 – autolainavankilapeli (grafiikkakokeilu)</title>
+<style>
+  /* VT323-fontti ladataan omalta palvelimelta (SIL OFL, ks. fonts/OFL.txt): ei pyyntöjä Googlelle */
+  @font-face { font-family:'VT323'; font-style:normal; font-weight:400; font-display:swap; src:url(../fonts/vt323.woff2) format('woff2'); }
+  :root { --border:#7869C4; --screen:#40318D; --fg:#A59FF8; --hi:#FFFFFF; --red:#FF8A80; --green:#A9FF9F; --yel:#EEEE77; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--border); color:var(--fg); font-family:'VT323', ui-monospace, monospace; font-size:21px; line-height:1.15; }
+  .screen { position:relative; max-width:760px; margin:0 auto; min-height:100vh; background:var(--screen); padding:14px 14px 28px; }
+  @media (min-width:800px){ body{padding:28px 0} .screen{min-height:auto; border:4px solid var(--screen)} }
+  .status { border:2px solid var(--fg); padding:6px 8px; margin-bottom:12px; white-space:pre-wrap; }
+  .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:0 14px; }
+  .bar { font-family:inherit; letter-spacing:0; }
+  .jail { color:var(--red); animation:blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity:0 } }
+  h1 { font-size:26px; font-weight:normal; color:var(--hi); margin:4px 0 8px; text-transform:uppercase; }
+  .lines p { margin:0 0 4px; white-space:pre-wrap; }
+  .lines .r { color:var(--red); } .lines .g { color:var(--green); } .lines .dim { opacity:.75 }
+  .choices { margin-top:14px; display:flex; flex-direction:column; gap:7px; }
+  button { font:inherit; text-align:left; color:var(--screen); background:var(--fg); border:0; padding:8px 10px; cursor:pointer; }
+  button:hover, button:focus-visible { background:var(--hi); outline:none; }
+  button:disabled { background:transparent; color:var(--fg); opacity:.45; border:1px dashed var(--fg); cursor:default; }
+  button .k { color:var(--border); margin-right:6px; }
+  button.paa { background:var(--yel); }
+  .cursor { display:inline-block; width:.6em; background:var(--fg); animation:blink 1s steps(2) infinite; }
+  .foot { margin-top:18px; opacity:.6; font-size:17px; }
+  /* 2.0: ajotila */
+  #drive { display:none; }
+  #drive canvas { display:block; width:100%; height:auto; aspect-ratio:16/10; background:#0b0f14; touch-action:none; }
+  /* 3.0: leveällä näytöllä ajonäkymä saa enemmän tilaa kuin valikot */
+  @media (min-width:800px){ body.driving .screen { max-width:min(1180px, calc((100vh - 190px) * 1.6), 100vw); } body.driving.paused #panel { max-width:730px; margin:0 auto; } }
+  #h-flash { position:absolute; inset:0; background:#fff; opacity:0; }
+  #h-load { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#0b0f14; font-size:1.4em; }
+  #nogl { border:2px solid var(--red); color:var(--red); padding:8px 10px; margin-bottom:12px; } #nogl a { color:var(--hi); }
+  .view { position:relative; }
+  #hud { position:absolute; inset:0; pointer-events:none; color:#fff; font-size:clamp(16px, 3.3vw, 23px); line-height:1.05;
+    text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+  #hud p { margin:0 0 3px; }
+  .h-top { display:flex; justify-content:space-between; gap:8px; padding:3px 8px 2px; background:rgba(0,0,0,.6); }
+  .h-top .neg { color:#FF8A80; }
+  .h-prog { height:4px; background:#222; } .h-prog i { display:block; height:100%; width:0; background:var(--yel); }
+  #h-msgs { text-align:center; padding:6px 10px 0; }
+  #h-msgs .gig { color:#A5E8FF; } #h-msgs .r { color:#FF8A80; } #h-msgs .g { color:#A9FF9F; }
+  #h-hint { position:absolute; left:0; right:0; bottom:44%; text-align:center; }
+  #h-ramp { position:absolute; left:8px; right:8px; bottom:26%; text-align:center; color:var(--yel); font-size:1.15em; animation:blink 0.8s steps(2) infinite; }
+  .h-bot { position:absolute; left:8px; right:8px; bottom:4px; display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
+  #h-speed { font-size:1.6em; white-space:nowrap; } #h-speed.over { color:#FF8A80; }
+  .h-sp { display:flex; align-items:center; gap:8px; }
+  #h-right { max-width:52%; text-align:right; } #h-en { color:#A5E8FF; }
+  #h-lim { display:inline-flex; align-items:center; justify-content:center; width:2.1em; height:2.1em; border-radius:50%; background:#fff; border:0.3em solid #D02020; color:#000; text-shadow:none; font-size:1em; box-sizing:border-box; } 
+  /* alpha 30: pikavalinta tien päällä */
+  #quick { position:absolute; left:6%; right:6%; top:17%; display:none; pointer-events:auto; background:rgba(64,49,141,.92); border:2px solid var(--fg); padding:6px 8px 4px; font-size:clamp(15px, 3vw, 20px); line-height:1.1; text-shadow:none; color:var(--fg); }
+  #quick p { margin:0 0 3px; } #quick .r { color:var(--red); } #quick .g { color:var(--green); }
+  #quick .q-t { color:var(--hi); text-transform:uppercase; margin-bottom:3px; }
+  #quick .q-ch { display:flex; flex-direction:column; gap:4px; margin-top:5px; }
+  #quick button { padding:4px 8px; font-size:inherit; }
+  #quick button.def { outline:2px solid var(--yel); }
+  #quick .q-bar { height:3px; background:#222; margin-top:5px; } #quick .q-bar i { display:block; height:100%; background:var(--yel); }
+  #h-pause { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); font-size:1.8em; }
+  .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
+  .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
+  .pad button.on { background:var(--hi); }
+  .help { margin-top:8px; opacity:.75; font-size:17px; }
+  body.driving #drive { display:block; }
+  body.driving #status, body.driving #panel { display:none; }
+  body.driving.paused #panel { display:block; position:absolute; left:14px; right:14px; top:14px; padding:10px 12px 14px; background:var(--screen); border:2px solid var(--fg); box-shadow:0 0 0 4px var(--screen); z-index:2; }
+  body.driving.paused .pad { visibility:hidden; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div id="nogl" hidden>3.0-kokeilu tarvitsee WebGL:n, eikä se käynnistynyt tässä selaimessa. <span id="nogl-msg"></span><br>Sama peli toimii ilman WebGL:ää: <a href="../v2/">pelaa PAALAAN! 2.0</a>.</div>
+  <div id="status" class="status" hidden></div>
+  <div id="drive">
+    <div class="view">
+      <canvas id="road" width="960" height="600"></canvas>
+      <div id="hud">
+        <div id="h-flash"></div>
+        <div class="h-top"><span id="h-month"></span><span id="h-cash"></span></div>
+        <div class="h-prog"><i id="h-bar"></i></div>
+        <div id="h-msgs"></div>
+        <div id="h-hint"></div>
+        <div id="h-ramp"></div>
+        <div class="h-bot"><span class="h-sp"><span id="h-lim"></span><span id="h-speed"></span></span><span id="h-right"><span id="h-en"></span><br><span id="h-car"></span></span></div>
+        <div id="h-pause">TAUKO · P jatkaa</div>
+        <div id="h-load">LADATAAN GRAFIIKKAA…</div>
+      </div>
+      <div id="quick"></div>
+    </div>
+    <div class="pad">
+      <button data-k="left" aria-label="Vasemmalle">◀</button>
+      <button data-k="brake">JARRU</button>
+      <button data-k="right" aria-label="Oikealle">▶</button>
+    </div>
+    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon. Wolt, taksi, latausasemat ja autoliikkeet: pysähdy kohdalle oikeaan reunaan. Pikavalinnat tien päällä: 1–3 tai napauta, muuten 5 sekunnin päästä toteutuu keltaisella merkitty.</div>
+  </div>
+  <div id="panel">
+    <h1 id="title"></h1>
+    <div id="lines" class="lines"></div>
+    <div id="choices" class="choices"></div>
+  </div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 3.0 kokeilu 1 (11.11. klo 00.40) · Näppäimet 1–9 valitsevat · <a href="../v2/" style="color:inherit">2.0</a> · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset sekä ääni- ja grafiikka-asetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään. <a href="assets/LISENSSIT.md" style="color:inherit">Resurssien lisenssit</a></div>
+</div>
+<script src="sound.js"></script>
+<script src="drive.js"></script>
+<script src="engine.js"></script>
+<!-- three.js ja lisäosat ladataan omasta lib-kansiosta: ei pyyntöjä kolmansille osapuolille -->
+<script type="importmap">{ "imports": { "three": "./lib/three.module.min.js", "three/addons/": "./lib/jsm/" } }</script>
+<script type="module" src="gfx/main.js"></script>
+<script nomodule>Drive.fail('Selain ei tue ES-moduuleja.');</script>
+</body>
+</html>
