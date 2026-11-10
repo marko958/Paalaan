@@ -191,18 +191,19 @@ const Drive = (() => {
 
   // ---------- törmäykset tienvarteen ----------
   // puolikas leveys tien puolikkaina; kyltillä kaksi tolppaa
-  const HIT = { kuusi:0.28, koivu:0.12, tolppa:0.05, mökki:0.62, lato:0.82 };
+  // runkojen ja seinien puolikkaat leveydet piirretyn kuvan mukaan (1 = tien puolikas = 2000 yksikköä)
+  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8 };
   const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin' };
-  const CAR_HW = 0.2;
+  const CAR_HW = 0.11; // auto on 72 px leveä, tien puolikas pelaajan kohdalla 320 px
   function hits(o) {
-    if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.05 + CAR_HW);
+    if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.03 + CAR_HW);
     return HIT[o.k] !== undefined && Math.abs(o.x - st.x) < HIT[o.k] + CAR_HW;
   }
   const rampHides = (seg, o) => st.ramp && seg.i >= st.ramp.start - 2 && seg.i <= st.ramp.end + 2 && o.x > 0.9 && o.x < 2.6;
   function crashStop() {
     st.speed = 0; st.shake = 0.6; st.flash = 0.5;
     st.paused = true; // fysiikka seis heti, paneeli aukeaa hetken päästä
-    st.x = Math.max(-0.85, Math.min(0.85, st.x)); // hinataan takaisin tielle
+    st.tow = true; // hinataan takaisin tielle, kun tapahtumaikkuna suljetaan
   }
   function crash(o) {
     const kmh = Math.round(st.speed / KMH);
@@ -346,9 +347,9 @@ const Drive = (() => {
       if (d.k === 'peura') {
         if ((d.z - z1) / SEG < d.wake) d.x += d.vx * dt;
         if (Math.abs(d.x) > 3) { st.dyn.splice(st.dyn.indexOf(d), 1); continue; }
-        if (!v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < 0.42) { hitDeer(d); return; }
+        if (!v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < 0.15 + CAR_HW) { hitDeer(d); return; }
       }
-      if ((d.k === 'kuoppa' || d.k === 'kivi') && !v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < (d.k === 'kuoppa' ? 0.16 : 0.13) + CAR_HW) { hitHazard(d); return; }
+      if ((d.k === 'kuoppa' || d.k === 'kivi') && !v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < (d.k === 'kuoppa' ? 0.18 : 0.13) + CAR_HW) { hitHazard(d); return; }
       if (d.z < st.pos - SEG) st.dyn.splice(st.dyn.indexOf(d), 1);
     }
 
@@ -809,6 +810,7 @@ const Drive = (() => {
     if (S.cash < 0) { if (invTotal() > 0) return deficitPrompt(); fixNeg(); }
     if (S.vippi > 3000) { stop(); return repossess(); }
     st.paused = false; st.keys = {};
+    if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
     document.body.classList.remove('paused');
     refreshVehicle();
     window.scrollTo(0, 0);
