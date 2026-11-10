@@ -27,7 +27,7 @@ const Drive = (() => {
   const segs = [];
   const st = {
     active:false, paused:false, userPause:false, S:null,
-    pos:0, x:0.5, speed:0, monthT:0, ramp:null, dyn:[], toasts:[], keys:{}, veh:null,
+    pos:0, x:0.5, speed:0, gig:null, gigT:3, monthT:0, ramp:null, dyn:[], toasts:[], keys:{}, veh:null,
     skyOff:0, shake:0, flash:0, last:0, raf:0, hint:true,
   };
 
@@ -89,6 +89,7 @@ const Drive = (() => {
       bare: m === 10, // marraskuu: ruskea maa, lehdettömät koivut
       dark: [10, 11, 0].includes(m) ? 0.72 : [1, 9].includes(m) ? 0.35 : 0,
       deerPerMonth: m >= 8 && m <= 11 ? 4 : 2,
+      holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
     };
   }
 
@@ -105,9 +106,7 @@ const Drive = (() => {
     let acc = k.type === 'e' ? Math.min(36, 20 + k.price / 4000) : Math.min(24, 12 + k.price / 6000);
     const minor = car ? (car.minor || 0) : 0;
     if (minor) { vmax *= 0.92; acc *= 0.85; }
-    const pal = [COL.red, COL.lblue, COL.white, COL.grey3, COL.dgreen, COL.black, COL.orange, COL.blue, COL.lred];
-    let h = 0; for (const ch of k.name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-    return { bus:false, tsa:!!T, name:k.name, vmax, acc, color:pal[h % pal.length], mb: T ? T.mb : car.mb, minor };
+    return { bus:false, tsa:!!T, name:k.name, vmax, acc, spec:modelSpec(k), mb: T ? T.mb : car.mb, minor };
   }
   function refreshVehicle() {
     const prev = st.veh, v = vehicle();
@@ -138,6 +137,8 @@ const Drive = (() => {
     const R = monthTick();
     if (S.vippi > 3000) { stop(); return repossess(); }
     if (exiting) {
+      if (st.gig && st.gig.phase === 'deliver') Q.unshift(() => say('KEIKKA JÄI KESKEN', ['!Ajoit liittymästä kotiin kesken keikan. Siitä ei makseta.']));
+      st.gig = null;
       stop();
       return scr(`${monthName()}: TILIOTE`, tilioteLines(R), [['Jatka', next]]);
     }
@@ -163,14 +164,149 @@ const Drive = (() => {
     if (r < 0.65) { const s = Math.random() < 0.5 ? -1 : 1; st.dyn.push({ k:'peura', z, x: s * (1.6 + Math.random() * 0.6), vx: -s * (0.55 + Math.random() * 0.5), wake: 70 + Math.random() * 40 }); }
     else st.dyn.push({ k:'peura', z, x: (Math.random() - 0.5) * 1.6, vx: 0, wake: 999 });
   }
+  // ---------- kuopat ja kivet ----------
+  function spawnHazard() {
+    const z = st.pos + PZ + DRAW * (0.6 + Math.random() * 0.3) * SEG;
+    if (st.ramp && z / SEG > st.ramp.start - 5 && z / SEG < st.ramp.end + 5) return;
+    st.dyn.push({ k: Math.random() < 0.6 ? 'kuoppa' : 'kivi', z, x: (Math.random() - 0.5) * 1.7 });
+  }
+  function hitHazard(d) {
+    st.dyn.splice(st.dyn.indexOf(d), 1);
+    const kmh = Math.round(st.speed / KMH);
+    st.shake = 0.4;
+    if (kmh < 30) { st.speed *= 0.6; return toast(d.k === 'kuoppa' ? 'Kolahti kuoppaan, mutta pohja kesti.' : 'Raapaisit kiveä hiljaa. Ei vahinkoa.'); }
+    st.speed *= 0.4; st.paused = true;
+    gigCrash();
+    Q.unshift(() => dentEvent(d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen', kmh));
+    setTimeout(() => { if (st.active) openEvents(); }, 350);
+  }
   function hitDeer(d) {
     st.dyn.splice(st.dyn.indexOf(d), 1);
     const kmh = st.speed / KMH;
     if (kmh < 35) { st.speed *= 0.4; st.shake = 0.3; return toast('Peura säikähti ja loikkasi metsään. Huh.'); }
-    st.speed = 0; st.shake = 0.6; st.flash = 0.5;
-    Q.unshift(() => damageEvent('peura'));
-    st.paused = true; // pysäytä fysiikka heti, paneeli aukeaa hetken päästä
+    crashStop(); gigCrash();
+    Q.unshift(() => damageEvent('peura', kmh >= 100 ? { total:true, txt:`Peura osui keulaan ${Math.round(kmh)} km/h:n vauhdissa.` } : {}));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
+  }
+
+  // ---------- törmäykset tienvarteen ----------
+  // puolikas leveys tien puolikkaina; kyltillä kaksi tolppaa
+  const HIT = { kuusi:0.28, koivu:0.12, tolppa:0.05, mökki:0.62, lato:0.82 };
+  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin' };
+  const CAR_HW = 0.2;
+  function hits(o) {
+    if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.05 + CAR_HW);
+    return HIT[o.k] !== undefined && Math.abs(o.x - st.x) < HIT[o.k] + CAR_HW;
+  }
+  const rampHides = (seg, o) => st.ramp && seg.i >= st.ramp.start - 2 && seg.i <= st.ramp.end + 2 && o.x > 0.9 && o.x < 2.6;
+  function crashStop() {
+    st.speed = 0; st.shake = 0.6; st.flash = 0.5;
+    st.paused = true; // fysiikka seis heti, paneeli aukeaa hetken päästä
+    st.x = Math.max(-0.85, Math.min(0.85, st.x)); // hinataan takaisin tielle
+  }
+  function crash(o) {
+    const kmh = Math.round(st.speed / KMH);
+    if (kmh < 15) { st.speed = 0; st.shake = 0.25; st.x += st.x > 0 ? -0.08 : 0.08; return toast('Tömps. Pelkkä hipaisu.'); }
+    const name = st.veh.name;
+    const txt = `${name} törmäsi ${WHERE[o.k]} ${kmh} km/h:n vauhdissa.`;
+    const opt = kmh >= 100 ? { title:'ULOSAJO!', txt, total:true }
+      : { title:'ULOSAJO!', txt: txt + (kmh >= 50 ? ' Keula on mytyssä.' : ' Puskuri ja pelti saivat osansa.') };
+    crashStop(); gigCrash();
+    Q.unshift(() => damageEvent(kmh >= 50 ? 'peura' : 'kolhu', opt));
+    setTimeout(() => { if (st.active) openEvents(); }, 450);
+  }
+
+  // ---------- keikat: Wolt ja taksi ----------
+  const FOOD = ['KEBAB', 'PIZZA', 'SUSHI', 'BURGER', 'THAI', 'PHO', 'GRILLI'];
+  const DEST = ['Lentokentälle', 'Rautatieasemalle', 'Keskustaan', 'Sairaalalle', 'Kauppakeskukseen', 'Satamaan', 'Hotellille'];
+  const STOP_WIN = 8; // pysähdysikkuna segmentteinä kohteen molemmin puolin
+  function gigKind() {
+    const d = drivenCar();
+    if (S.tsa || !d) return null;
+    if (S.wolt) return 'wolt';
+    if (S.taxi && taxiOK(d)) return 'taxi';
+    return null;
+  }
+  const gigMarkers = () => st.dyn.filter(o => o.gig);
+  function gigClear() { st.dyn = st.dyn.filter(o => !o.gig); st.gig = null; st.gigT = 3 + Math.random() * 4; }
+  function gigSpawn(kind) {
+    const at = Math.floor((st.pos + PZ) / SEG) + 90 + Math.floor(Math.random() * 60);
+    if (st.ramp && at > st.ramp.start - 20 && at < st.ramp.end + 10) return;
+    const food = FOOD[Math.floor(Math.random() * FOOD.length)];
+    st.gig = { kind, phase:'pickup', at, food, t:0, off:0, crash:0 };
+    st.dyn.push(kind === 'wolt' ? { k:'ravintola', z:at * SEG, x:1.75, t:food, gig:true } : { k:'asiakas', z:at * SEG, x:1.3, gig:true });
+  }
+  function gigBook(kind, pay) {
+    S.gig = S.gig || { wolt:0, woltN:0, taxi:0, taxiN:0 };
+    S.gig[kind] += pay; S.gig[kind + 'N']++;
+    const car = drivenCar();
+    if (car) { // kuluminen per keikka
+      car.base *= kind === 'wolt' ? 0.999 : 0.996;
+      car.tire -= kind === 'wolt' ? 0.25 : 0.6;
+      if (car.soh !== undefined) car.soh -= kind === 'wolt' ? 0.04 : 0.12;
+    }
+  }
+  function gigUpdate(dt, z1) {
+    const kind = gigKind(), G = st.gig;
+    if (!G) {
+      if (!kind) return;
+      st.gigT -= dt;
+      if (st.gigT <= 0) { st.gigT = 3 + Math.random() * 4; gigSpawn(kind); }
+      return;
+    }
+    if (kind !== G.kind) { gigClear(); return toast('!Keikka peruttiin: tällä autolla ei voi ajaa sitä.'); }
+    const cur = Math.floor(z1 / SEG);
+    G.t += dt;
+    if (G.phase === 'deliver' && (st.x < -1 || st.x > 1)) G.off += dt;
+    const near = Math.abs(cur - G.at) <= STOP_WIN, stopped = st.speed < 15 * KMH && st.x > 0.25;
+    if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
+    if (cur > G.at + STOP_WIN) {
+      if (G.phase === 'pickup') { gigClear(); return toast(G.kind === 'wolt' ? 'Ohitit ravintolan. Tilaus meni toiselle kuskille.' : 'Ohitit asiakkaan. Hän tilasi kilpailijan.'); }
+      if (G.kind === 'wolt') { gigClear(); return toast('!Ohitit asiakkaan oven. Tilaus peruttiin, ei palkkiota.'); }
+      return gigFinish(G, true);
+    }
+  }
+  function gigPickup(G, cur) {
+    st.dyn = st.dyn.filter(o => !o.gig);
+    const dist = G.kind === 'wolt' ? 220 + Math.floor(Math.random() * 220) : 450 + Math.floor(Math.random() * 450);
+    G.phase = 'deliver'; G.at = cur + dist; G.t = 0;
+    G.limit = dist * SEG / (85 * KMH) + 6;
+    G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : ri(30, 80) * 5;
+    G.dest = DEST[Math.floor(Math.random() * DEST.length)];
+    st.dyn.push({ k:'kohde', z:G.at * SEG, x:1.45, t: G.kind === 'wolt' ? 'TOIMITUS' : 'KOHDE', gig:true });
+    toast(G.kind === 'wolt' ? `+${G.food} kyytiin. Vie se perille ennen kuin se jäähtyy.` : `+Asiakas kyytiin: "${G.dest}, ja äkkiä!"`, 4);
+  }
+  function gigFinish(G, missed) {
+    const late = G.t > G.limit;
+    let pay, msg;
+    if (G.kind === 'wolt') {
+      pay = late ? Math.round(G.pay / 2) : G.pay;
+      msg = `+Toimitettu: ${eur(pay)}${late ? ' (myöhässä, puolet)' : ''}`;
+    } else {
+      const stars = missed ? 1 : Math.max(1, 5 - 2 * G.crash - Math.floor(G.off / 1.5) - (late ? 1 : 0));
+      pay = Math.round(G.pay * (missed ? 0.5 : stars / 5));
+      S.taxiStars = (S.taxiStars === undefined ? 5 : S.taxiStars) * 0.7 + stars * 0.3;
+      msg = missed ? `!Ajoit kohteen ohi. Asiakas maksoi puolet (${eur(pay)}) ja antoi yhden tähden.` : `+Kyyti perillä: ${eur(pay)} · ${stars}/5 tähteä`;
+    }
+    gigBook(G.kind, pay);
+    gigClear();
+    if (G.kind === 'taxi') st.gigT *= 1 + (5 - S.taxiStars) * 0.5; // huonot tähdet = harvemmin kyytejä
+    toast(msg, 4);
+  }
+  function gigCrash() {
+    const G = st.gig;
+    if (!G || G.phase !== 'deliver') return;
+    if (G.kind === 'wolt') { gigClear(); Q.push(() => say('KEITTO KAATUI', ['!Tilaus levisi pitkin takapenkkiä. Toimitus peruttiin, eikä siitä makseta.'])); }
+    else G.crash++;
+  }
+  function gigHud() {
+    const G = st.gig;
+    if (!G) return null;
+    const d = Math.max(0, G.at - Math.floor((st.pos + PZ) / SEG)) * 5;
+    const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', ',')} KM` : `${d} M`;
+    if (G.phase === 'pickup') return G.kind === 'wolt' ? `WOLT: NOUDA ${G.food} ${dist} · PYSÄHDY KOHDALLE` : `TAKSI: ASIAKAS VIITTOO ${dist} · PYSÄHDY KOHDALLE`;
+    if (G.kind === 'wolt') { const left = Math.ceil(G.limit - G.t); return `WOLT: ${G.food} PERILLE ${dist} · ${left > 0 ? left + ' S' : 'MYÖHÄSSÄ'}`; }
+    return `TAKSI: ${G.dest.toUpperCase()} ${dist} · ${Math.max(1, 5 - 2 * G.crash - Math.floor(G.off / 1.5))}/5 TÄHTEÄ`;
   }
 
   // ---------- päivitys ----------
@@ -205,14 +341,26 @@ const Drive = (() => {
     // peurat
     const sea = season();
     if (!v.bus && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
+    if (!v.bus && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard();
     for (const d of st.dyn.slice()) {
       if (d.k === 'peura') {
         if ((d.z - z1) / SEG < d.wake) d.x += d.vx * dt;
         if (Math.abs(d.x) > 3) { st.dyn.splice(st.dyn.indexOf(d), 1); continue; }
         if (!v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < 0.42) { hitDeer(d); return; }
       }
+      if ((d.k === 'kuoppa' || d.k === 'kivi') && !v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < (d.k === 'kuoppa' ? 0.16 : 0.13) + CAR_HW) { hitHazard(d); return; }
       if (d.z < st.pos - SEG) st.dyn.splice(st.dyn.indexOf(d), 1);
     }
+
+    if (!v.bus) {
+      for (let i = Math.floor(z0 / SEG); i <= Math.floor(z1 / SEG); i++) {
+        const seg = segs[i];
+        for (const o of seg.sprites) if (!rampHides(seg, o) && hits(o)) { crash(o); return; }
+      }
+      for (const d of st.dyn) if (d.k === 'kyltti' && d.z >= z0 - SEG && d.z < z1 && hits(d)) { crash(d); return; }
+    }
+
+    if (!v.bus) gigUpdate(dt, z1);
 
     // kuukausi ja liittymä
     st.monthT += dt;
@@ -307,6 +455,36 @@ const Drive = (() => {
           g.textAlign = 'left';
         }
         break; }
+      case 'ravintola': {
+        P(-60, 0, 120, 1000, COL.grey1);
+        P(-1000, 900, 2000, 900, COL.white); P(-950, 950, 1900, 800, '#B03A2E');
+        if (s * 2000 > 24) { g.fillStyle = COL.white; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 560))}px VT323`; g.fillText(o.t, cx, by - 1150 * s); g.textAlign = 'left'; }
+        break; }
+      case 'asiakas': {
+        const wave = Math.floor(performance.now() / 250) % 2;
+        P(-120, 0, 90, 500, '#2A2A3A'); P(30, 0, 90, 500, '#2A2A3A');   // jalat
+        P(-170, 480, 340, 500, '#2F6DB5');                              // takki
+        P(-110, 980, 220, 220, '#E8B890');                              // pää
+        P(-120, 1150, 240, 80, '#3A2A1A');                              // pipo
+        P(170, 900 + wave * 150, 80, 400, '#2F6DB5');                   // heiluva käsi
+        if (s * 1000 > 14) { g.fillStyle = COL.yellow; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 380))}px VT323`; g.fillText('TAKSI!', cx, by - 1500 * s); g.textAlign = 'left'; }
+        break; }
+      case 'kohde': {
+        const blink = Math.floor(performance.now() / 300) % 2;
+        P(-40, 0, 80, 1700, COL.yellow);
+        P(40, 1300, 600, 380, blink ? '#FF8A80' : COL.yellow);
+        if (s * 1000 > 14) { g.fillStyle = COL.white; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 380))}px VT323`; g.fillText(o.t, cx, by - 1900 * s); g.textAlign = 'left'; }
+        break; }
+      case 'kuoppa': {
+        const rim = sea.snow ? '#C8C8D0' : '#8A8A8A', c = sea.snow ? '#505058' : '#101012';
+        P(-420, -20, 840, 110, rim); P(-340, 90, 680, 30, rim);
+        P(-360, 0, 720, 80, c); P(-280, 80, 560, 25, c);
+        if (!sea.snow) P(-180, 20, 260, 30, '#4A5A78'); // vesilätäkkö
+        break; }
+      case 'kivi': {
+        P(-260, 0, 520, 160, '#5E5E62'); P(-200, 160, 400, 90, '#6E6E72'); P(-120, 250, 220, 50, '#7E7E82');
+        P(-160, 180, 80, 40, '#9A9A9E'); if (sea.snow) P(-180, 250, 300, 40, '#FFFFFF');
+        break; }
       case 'peura': {
         const nightFar = sea.dark > 0.6 && n > 45;
         const f = o.vx < 0 ? -1 : 1;
@@ -331,8 +509,7 @@ const Drive = (() => {
     for (let n = DRAW - 1; n >= 0; n--) {
       const seg = segs[base + n];
       if (!seg || seg.p1.camera.z <= CAMD) continue;
-      const onRamp = st.ramp && seg.i >= st.ramp.start - 2 && seg.i <= st.ramp.end + 2;
-      let list = onRamp ? seg.sprites.filter(o => o.x < 0.9 || o.x > 2.6) : seg.sprites;
+      let list = st.ramp ? seg.sprites.filter(o => !rampHides(seg, o)) : seg.sprites;
       if (byIdx[seg.i]) list = list.concat(byIdx[seg.i]);
       if (!list.length) continue;
       const sc = seg.p1.screen, s = sc.scale * W / 2;
@@ -341,6 +518,158 @@ const Drive = (() => {
       for (const o of list) sprite(o, sc.x + s * o.x * ROAD, sc.y, s, sea, n);
       g.restore();
     }
+  }
+  // ---------- automallit takaa ----------
+  // b = korityyppi, w = leveyskerroin, c = väri, r = katon väri, tl = takavalot, x = lisäosat
+  // takavalot: corner, wide, bar (koko leveä valopalkki), pixel, vertical (pilarien vieressä), round, tri (kolme pystyviivaa), low
+  // lisäosat: exh1/exh2 = pakoputket, spoiler = kattospoileri, duck = takaluukun spoileri, rails = kattokaiteet,
+  //           split = jaettu takalasi, chrome = kromilista, blackhatch = musta lasiluukku, rust = ruostetta, diff = diffuusori
+  const MODELS = [
+    ['Ford Mondeo',       { b:'sedan', c:'#A8ADB4', tl:'corner', x:['exh1'] }],
+    ['Opel Astra',        { b:'hatch', c:'#7A1F24', tl:'wide', x:['exh1', 'spoiler'] }],
+    ['Toyota Avensis',    { b:'sedan', c:'#6E7378', tl:'wide', x:['exh1'] }],
+    ['Toyota Prius',      { b:'prius', c:'#C9CDD2', tl:'wide', x:['split', 'spoiler'] }],
+    ['Volvo V70',         { b:'wagon', c:'#23314F', tl:'vertical', x:['exh2', 'rails'] }],
+    ['VW Passat',         { b:'wagon', c:'#4D5258', tl:'wide', x:['exh2', 'rails'] }],
+    ['Audi A6',           { b:'sedan', w:1.04, c:'#1A1A1C', tl:'wide', x:['exh2', 'chrome'] }],
+    ['BMW 530d',          { b:'sedan', w:1.04, c:'#1F2633', tl:'corner', x:['exh2'] }],
+    ['Mitsubishi Outlander', { b:'suv', c:'#E4E4E4', tl:'corner', x:['rails'] }],
+    ['Nissan Leaf',       { b:'hatch', c:'#EDEDED', tl:'vertical', x:['spoiler'] }],
+    ['Renault Zoe',       { b:'mini', c:'#2F6DB5', tl:'wide' }],
+    ['VW e-Golf',         { b:'hatch', c:'#F0F0F0', tl:'wide', x:['spoiler'] }],
+    ['BMW i3',            { b:'tall', w:0.88, c:'#EDEDED', r:'#151515', tl:'corner', x:['blackhatch'] }],
+    ['Hyundai Ioniq 5',   { b:'hatch', w:1.02, c:'#9AA0A0', tl:'pixel', x:['spoiler'] }],
+    ['Hyundai Ioniq',     { b:'prius', c:'#D6D9DD', tl:'wide', x:['split'] }],
+    ['Hyundai Kona',      { b:'suv', w:0.94, c:'#B9C23A', r:'#1A1A1A', tl:'low', x:['spoiler'] }],
+    ['Kia e-Soul',        { b:'tall', c:'#A61E22', r:'#EDEDED', tl:'vertical' }],
+    ['Kia e-Niro',        { b:'suv', w:0.96, c:'#3A6EA5', tl:'vertical', x:['spoiler'] }],
+    ['Kia EV6',           { b:'suvc', c:'#3C4045', tl:'bar', x:['duck'] }],
+    ['Peugeot e-208',     { b:'hatch', w:0.94, c:'#D9B526', tl:'bar', x:['spoiler'] }],
+    ['Dacia Spring',      { b:'mini', w:0.84, c:'#E6E6E6', tl:'corner', x:['orange'] }],
+    ['Fiat 500e',         { b:'mini', w:0.82, c:'#9ED3C5', tl:'round', x:['chrome'] }],
+    ['MG4',               { b:'hatch', c:'#D0412C', tl:'bar', x:['spoiler'] }],
+    ['VW ID.3',           { b:'hatch', c:'#B7BEC2', tl:'wide', x:['blackhatch'] }],
+    ['Tesla Model 3',     { b:'fastback', c:'#A3121A', tl:'wide', x:['duck'] }],
+    ['Tesla Model Y',     { b:'suvc', c:'#ECECEC', tl:'wide', x:['duck'] }],
+    ['Tesla Model S 85',  { b:'fastback', w:1.04, c:'#8B8E92', tl:'wide', x:['rust'] }],
+    ['Tesla Model S',     { b:'fastback', w:1.04, c:'#111214', tl:'wide', x:['duck'] }],
+    ['Tesla Cybertruck',  { b:'truck', w:1.12, c:'#A9ADB1', tl:'bar' }],
+    ['Skoda Enyaq',       { b:'suv', c:'#2E5B4C', tl:'wide', x:['rails'] }],
+    ['VW ID.4',           { b:'suv', c:'#F1F1F1', r:'#151515', tl:'bar', x:['spoiler'] }],
+    ['Polestar 2',        { b:'fastback', c:'#E4E4E0', tl:'bar' }],
+    ['Polestar 3',        { b:'suv', w:1.06, c:'#1F2328', tl:'bar', x:['spoiler'] }],
+    ['Ford Mustang Mach-E', { b:'suvc', c:'#B1181E', r:'#151515', tl:'tri', x:['duck'] }],
+    ['BYD Atto 3',        { b:'suv', c:'#3E6FA9', tl:'bar' }],
+    ['Volvo XC40',        { b:'suv', c:'#7C8C7A', r:'#151515', tl:'vertical', x:['spoiler'] }],
+    ['Audi Q4',           { b:'suv', c:'#9AA1A6', tl:'bar', x:['spoiler'] }],
+    ['BMW i4',            { b:'fastback', c:'#1E4D9A', tl:'corner', x:['duck', 'diff'] }],
+    ['Porsche Taycan',    { b:'coupe', w:1.06, c:'#C8CBCE', tl:'bar', x:['diff'] }],
+    ['Audi RS e-tron GT', { b:'coupe', w:1.06, c:'#5B6B4E', tl:'bar', x:['diff', 'duck'] }],
+    ['Audi e-tron GT',    { b:'coupe', w:1.06, c:'#3A3F44', tl:'bar', x:['diff'] }],
+    ['BMW iX',            { b:'suv', w:1.06, c:'#1C2A3A', tl:'wide', x:['spoiler'] }],
+    ['Jaguar I-Pace',     { b:'suvc', c:'#7A1E28', tl:'wide', x:['spoiler'] }],
+    ['Mercedes EQS SUV',  { b:'suv', w:1.08, c:'#E6E6E6', tl:'bar', x:['chrome'] }],
+    ['Mercedes EQS',      { b:'fastback', w:1.06, c:'#2B2E33', tl:'bar', x:['chrome'] }],
+    ['Maybach EQS SUV',   { b:'suv', w:1.08, c:'#C0C3C7', r:'#16161A', tl:'bar', x:['chrome', 'twotone'] }],
+    ['BMW i7',            { b:'sedan', w:1.08, c:'#121417', tl:'wide', x:['chrome'] }],
+    ['Porsche Macan',     { b:'suvc', c:'#2E3A2F', tl:'bar', x:['spoiler'] }],
+    ['Lucid Air',         { b:'fastback', w:1.06, c:'#B9B2A4', tl:'bar' }],
+    ['Lotus Eletre',      { b:'suv', w:1.06, c:'#E8C32A', r:'#151515', tl:'bar', x:['spoiler', 'diff'] }],
+    ['Rolls-Royce Spectre', { b:'coupe', w:1.14, c:'#2B2F46', r:'#C0C3C7', tl:'vertical', x:['chrome'] }],
+    ['Toyota Proace',     { b:'van', w:1.12, c:'#F2F2F2', tl:'vertical' }],
+  ];
+  function modelSpec(k) {
+    const m = MODELS.find(([n]) => k.name.startsWith(n));
+    if (m) return m[1];
+    return { b: k.type === 'e' ? 'hatch' : 'sedan', c: COL.grey3, tl:'corner', x: k.type === 'b' ? ['exh1'] : [] };
+  }
+  // korityyppien mitat (pikseleinä, leveys 72 = 1.0)
+  const BODY = {
+    sedan:    { bh:15, cl:6, rw:0.66, cab:12, bw:0.92 },
+    fastback: { bh:15, cl:6, rw:0.58, cab:12, bw:0.94 },
+    prius:    { bh:16, cl:6, rw:0.66, cab:14, bw:0.92 },
+    hatch:    { bh:17, cl:6, rw:0.78, cab:14, bw:0.9 },
+    wagon:    { bh:16, cl:6, rw:0.84, cab:15, bw:0.9 },
+    suv:      { bh:20, cl:9, rw:0.8, cab:15, bw:0.9 },
+    suvc:     { bh:19, cl:8, rw:0.68, cab:13, bw:0.92 },
+    coupe:    { bh:12, cl:5, rw:0.56, cab:10, bw:0.96 },
+    mini:     { bh:17, cl:6, rw:0.82, cab:15, bw:0.88 },
+    tall:     { bh:18, cl:7, rw:0.86, cab:19, bw:0.88 },
+  };
+  function shade(hex, f) {
+    const n = parseInt(hex.slice(1), 16);
+    const ch = sh => Math.max(0, Math.min(255, Math.round(((n >> sh) & 255) * f)));
+    return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+  }
+  function drawModel(v, cx, by, tilt, sea) {
+    const sp = v.spec, x = sp.x || [];
+    const has = f => x.includes(f);
+    const R = (xx, y, w, h, c) => { g.fillStyle = c; g.fillRect(Math.round(cx + xx), Math.round(by - y - h), Math.round(w), Math.round(h)); };
+    const trap = (y0, w0, y1, w1, off, c) => quad(cx - w0 / 2, by - y0, cx + w0 / 2, by - y0, cx + w1 / 2 + off, by - y1, cx - w1 / 2 + off, by - y1, c);
+    const brake = st.keys.brake, lit = brake ? '#FF3030' : sea.dark > 0.3 ? '#E02828' : '#A01818';
+    const W0 = 72 * (sp.w || 1);
+    const glassC = sea.dark > 0.3 ? '#0E1420' : '#1E2A3A';
+    R(-W0 / 2 + 2, -2, W0 - 4, 3, 'rgba(0,0,0,0.45)'); // varjo
+
+    if (sp.b === 'van') {
+      const h = 50;
+      R(-W0 / 2 + 3, 0, 12, 8, COL.black); R(W0 / 2 - 15, 0, 12, 8, COL.black);
+      R(-W0 / 2, 5, W0, h, sp.c); R(-W0 / 2, 5, W0, 5, '#2A2A2A');
+      R(-W0 / 2 + 6, 34, W0 / 2 - 8, 14, glassC); R(2, 34, W0 / 2 - 8, 14, glassC);
+      R(-0.5, 10, 1, h - 6, '#9A9A9A');
+      R(-W0 / 2 + 1, 18, 5, 26, lit); R(W0 / 2 - 6, 18, 5, 26, lit);
+      R(-9, 12, 18, 6, COL.white); R(-8, 13, 16, 4, COL.black);
+      return;
+    }
+    if (sp.b === 'truck') {
+      R(-W0 / 2 + 3, 0, 13, 9, COL.black); R(W0 / 2 - 16, 0, 13, 9, COL.black);
+      trap(6, W0, 24, W0, 0, sp.c);                       // laatikko
+      trap(24, W0 * 0.98, 42, W0 * 0.22, tilt, shade(sp.c, 0.85)); // viisto katto
+      trap(31, W0 * 0.6, 38, W0 * 0.32, tilt, glassC);
+      R(-W0 / 2 + 2, 21, W0 - 4, 2, lit);                // valopalkki
+      R(-W0 / 2, 6, W0, 3, '#3A3A3A');
+      R(-9, 10, 18, 6, COL.white); R(-8, 11, 16, 4, COL.black);
+      return;
+    }
+    const B = BODY[sp.b] || BODY.sedan;
+    const top = B.cl + B.bh, bodyC = sp.c, lower = has('twotone') ? sp.r : shade(sp.c, 0.7);
+    // renkaat
+    R(-W0 / 2 + 2, 0, 11, B.cl + 3, COL.black); R(W0 / 2 - 13, 0, 11, B.cl + 3, COL.black);
+    // kori: alaosa tummempi, nurkat pyöristetty
+    R(-W0 / 2 + 1, B.cl, W0 - 2, B.bh, bodyC);
+    R(-W0 / 2, B.cl + 1, W0, B.bh - 2, bodyC);
+    R(-W0 / 2 + 1, B.cl, W0 - 2, 5, ['suv', 'suvc'].includes(sp.b) ? '#2A2A2A' : lower);
+    if (has('twotone')) R(-W0 / 2 + 1, B.cl, W0 - 2, B.bh * 0.55, lower);
+    if (has('orange')) { R(-W0 / 2 + 1, B.cl + 5, W0 - 2, 1, '#E07A1F'); }
+    // ohjaamo ja lasi
+    const roofC = sp.r && !has('twotone') ? sp.r : bodyC;
+    trap(top, W0 * B.bw, top + B.cab, W0 * B.rw, tilt, roofC);
+    if (has('blackhatch')) trap(top - 6, W0 * B.bw * 0.8, top + B.cab - 2, W0 * B.rw - 4, tilt, glassC);
+    else trap(top + 2, W0 * B.bw - 8, top + B.cab - 2, W0 * B.rw - 4, tilt, glassC);
+    if (has('split')) trap(top + B.cab * 0.45, W0 * (B.bw + B.rw) / 2 - 5, top + B.cab * 0.45 + 2, W0 * (B.bw + B.rw) / 2 - 6, tilt, bodyC);
+    if (has('spoiler')) trap(top + B.cab - 1, W0 * B.rw + 2, top + B.cab + 1, W0 * B.rw + 2, tilt, roofC);
+    if (has('rails')) { R(-W0 * B.rw / 2 + tilt, top + B.cab, 2, 2, '#2A2A2A'); R(W0 * B.rw / 2 - 2 + tilt, top + B.cab, 2, 2, '#2A2A2A'); }
+    if (has('duck')) R(-W0 * 0.38, top - 1, W0 * 0.76, 2, shade(sp.c, 0.6));
+    if (has('chrome')) R(-W0 * 0.3, top - 6, W0 * 0.6, 1, '#E8E8E8');
+    // takavalot
+    const ly = top - 7, side = W0 / 2;
+    switch (sp.tl) {
+      case 'bar':      R(-side + 2, ly, W0 - 4, 2, lit); R(-side + 1, ly - 1, 8, 4, lit); R(side - 9, ly - 1, 8, 4, lit); break;
+      case 'wide':     R(-side + 1, ly - 1, 18, 4, lit); R(side - 19, ly - 1, 18, 4, lit); break;
+      case 'pixel':    for (let i = 0; i < 4; i++) { R(-side + 2 + (i % 2) * 4, ly - 2 + (i >> 1) * 3, 3, 2, lit); R(side - 9 + (i % 2) * 4, ly - 2 + (i >> 1) * 3, 3, 2, lit); } R(-side + 10, ly, W0 - 20, 1, shade(lit === '#A01818' ? '#A01818' : '#E02828', 0.6)); break;
+      case 'vertical': R(-side + 1, ly - 4, 4, 13, lit); R(side - 5, ly - 4, 4, 13, lit); break;
+      case 'round':    R(-side + 2, ly - 2, 5, 7, lit); R(side - 7, ly - 2, 5, 7, lit); R(-side + 3, ly - 3, 3, 9, lit); R(side - 6, ly - 3, 3, 9, lit); break;
+      case 'tri':      for (let i = 0; i < 3; i++) { R(-side + 2 + i * 3, ly - 3, 2, 8, lit); R(side - 4 - i * 3, ly - 3, 2, 8, lit); } break;
+      case 'low':      R(-side + 1, B.cl + 3, 9, 3, lit); R(side - 10, B.cl + 3, 9, 3, lit); R(-side + 2, ly + 1, 10, 1, lit); R(side - 12, ly + 1, 10, 1, lit); break;
+      default:         R(-side + 1, ly - 1, 12, 5, lit); R(side - 13, ly - 1, 12, 5, lit);
+    }
+    // rekkari, pakoputket, diffuusori
+    R(-9, B.cl + 6, 18, 6, COL.white); R(-8, B.cl + 7, 16, 4, COL.black); R(-7, B.cl + 8, 2, 2, COL.white);
+    if (has('exh1')) R(-side + 14, B.cl - 1, 4, 2, '#222');
+    if (has('exh2')) { R(-side + 12, B.cl - 1, 4, 2, '#222'); R(side - 16, B.cl - 1, 4, 2, '#222'); }
+    if (has('diff')) for (let i = -2; i <= 2; i++) R(i * 6 - 1, B.cl - 1, 2, 3, '#151515');
+    if (has('rust')) { R(-side + 4, B.cl + 2, 3, 2, '#7A4A1E'); R(side - 9, B.cl + 3, 4, 2, '#7A4A1E'); R(-side + 18, B.cl + 1, 2, 2, '#7A4A1E'); }
+    if (v.mb) for (let k = 0; k < Math.min(4, v.mb); k++) R(-side + 6 + k * (W0 - 16) / 4, B.cl + B.bh - 6, 6, 4, '#9A9A9A'); // mikrobetonipaikat
   }
   function drawCar(sea) {
     const v = st.veh;
@@ -355,14 +684,8 @@ const Drive = (() => {
       g.fillStyle = COL.yellow; g.font = '8px VT323'; g.textAlign = 'center'; g.fillText('BUSSI', cx, by - 14); g.textAlign = 'left';
       return;
     }
-    R(-34, 0, 12, 7, COL.black); R(22, 0, 12, 7, COL.black);         // renkaat
-    R(-36, 5, 72, 16, v.color);                                    // kori
-    R(-29 + tilt, 21, 58, 13, v.color);                            // katto
-    R(-25 + tilt, 23, 50, 9, '#1E2A3A');                           // takalasi
-    R(-34, 12, 12, 5, st.keys.brake ? '#FF3030' : COL.red); R(22, 12, 12, 5, st.keys.brake ? '#FF3030' : COL.red);
-    R(-9, 7, 18, 6, COL.white); R(-8, 8, 16, 4, COL.black); R(-7, 9, 2, 2, COL.white); // rekkari
-    if (v.mb) for (let k = 0; k < Math.min(4, v.mb); k++) R(-30 + k * 16, 15, 6, 4, '#9A9A9A'); // mikrobetonipaikat
-    if (v.minor && Math.random() < 0.4) R(28 + Math.random() * 6, 0, 4, 3, '#BBBBBB');           // savua
+    drawModel(v, cx, by, tilt, sea);
+    if (v.minor && Math.random() < 0.4) R(28 + Math.random() * 6, 0, 4, 3, '#BBBBBB'); // savua
     if (sea.dark > 0.3) { // ajovalojen keila
       const gr = g.createRadialGradient(cx, by - 60, 4, cx, by - 60, 90);
       gr.addColorStop(0, 'rgba(255,255,200,0.10)'); gr.addColorStop(1, 'rgba(255,255,200,0)');
@@ -391,6 +714,8 @@ const Drive = (() => {
     text(`${String(kmh).padStart(3, '0')} KM/H`, 4, H - 6, COL.white, 14);
     text(st.veh.name + (st.veh.tsa ? ' (TSA)' : ''), W - 4, H - 6, COL.white, 9, 'right');
     let y = 26;
+    const gh = gigHud();
+    if (gh) { text(gh, W / 2, y, '#A5E8FF', 10, 'center'); y += 12; }
     for (const t of st.toasts) {
       const c = t.t[0] === '!' ? '#FF8A80' : t.t[0] === '+' ? '#A9FF9F' : COL.white;
       text(t.t[0] === '!' || t.t[0] === '+' ? t.t.slice(1) : t.t, W / 2, y, c, 10, 'center'); y += 11;
@@ -471,7 +796,7 @@ const Drive = (() => {
     if (!cv) init();
     if (st.S !== S) { st.S = S; st.pos = 0; st.x = 0.5; st.hint = true; }
     st.active = true; st.paused = false; st.userPause = false;
-    st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {};
+    st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.x = 0.5;
     st.veh = null; refreshVehicle();
     document.body.classList.add('driving'); document.body.classList.remove('paused');
@@ -498,6 +823,6 @@ const Drive = (() => {
     start, resume, stop,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
-    _st: st, // testejä varten
+    _st: st, _vehicle: vehicle, // testejä varten
   };
 })();
