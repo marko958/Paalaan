@@ -995,20 +995,28 @@ function saksaOffer() {
     '!Hae se itse: lento Müncheniin, 800 km Autobahnia ja lautta Travemündestä. Suomessa odottavat rekisteröinti, vastaanottotarkastus ja mahdollinen yksittäishyväksyntä.', '!Takuu ei välttämättä päde Suomessa, eikä mittarilukemaa voi tarkistaa.'].concat(S.job === 'accucar' ? [odoFake ? '!AccuCarin kautta tilattu huoltohistoria: mittaria on viilattu.' : '+AccuCarin kautta tilattu huoltohistoria: mittarilukema täsmää.'] : []), ch);
 }
 // matkan tulos ajotilasta: res = {ok, late, broken, towed, crashed}
+// pitkä ajo kalibroi BMS:n 75 %:ssa kerroista: akun kunto näyttää 1–6 % paremmalta, kuitenkin enintään 90 %
+function bmsCal(car, lines) {
+  if (!car || C(car.c).type !== 'e' || !(car.soh >= 0) || car.soh >= 90 || car.battFail || RND() >= 0.75) return;
+  const was = Math.round(car.soh); car.soh = Math.min(90, car.soh + ri(1, 6));
+  if (car.soh >= 85) car.w85 = false; if (car.soh >= 80) car.w80 = false;
+  if (Math.round(car.soh) > was) lines.push(`+Pitkä ajo kalibroi akunhallinnan (BMS): ${C(car.c).name}, akun kunto ${was} % → ${Math.round(car.soh)} %.`);
+}
 function tripDone(T, res) {
   if (S.trip === T) S.trip = null;
   const lines = [];
+  const bl = []; bmsCal(T.kind === 'saksa' ? T.car : T.rental || T.train ? null : drivenCar(), bl);
   if (T.kind === 'kuopio') {
     if (res.broken) { payOrVippi(200); lines.push('!Kolarissa pakastin ja nojatuoli menivät rikki. Korvasit anopille 200 €, eikä palkkiota tullut.'); }
     else { const p = res.late ? 250 : 500; S.cash += p; lines.push(res.late ? `!Olit myöhässä: muuttofirma laskutti odottelusta, ja anoppi maksoi puolet (${eur(p)}).` : `+Ajoissa perillä! Anoppi maksoi ${eur(p)} ja keitti kahvit.`); }
-    return say('KUOPIO', lines);
+    return say('KUOPIO', lines.concat(bl));
   }
   if (T.kind === 'kuusamo') {
     if (res.towed) lines.push('!Esa haki sinut traktorilla viimeiset kilometrit. Paljuun pääsit, mutta selitettävää riittää.');
     if (res.late) lines.push('!Myöhästyit: palju oli ehtinyt jäähtyä haaleaksi, ja Esa oli jo saunassa.');
     else { S.rested = Math.max(S.rested || 0, S.m + 6); lines.push('+Esan palju oli 39-asteinen, ja tähdet näkyivät. Lepo näkyy töissä: lomautusriski pienenee puoleksi vuodeksi.'); }
     if (!res.late && !T.rental && ((S.tsa && C(S.tsa.c).type==='e') || (drivenCar() && C(drivenCar().c).type==='e'))) lines.push('+Esa kysyi, miten sähköauto pärjäsi. Kerroit pitkään.');
-    return say('KUUSAMO', lines);
+    return say('KUUSAMO', lines.concat(bl));
   }
   if (T.kind === 'lappi') {
     if (res.late) lines.push('!Vuokraamo oli jo kiinni. Ensimmäinen yö meni auton takapenkillä, ja hotelli Levillä maksoi 180 €.'), payOrVippi(180);
@@ -1018,7 +1026,7 @@ function tripDone(T, res) {
     if (T.train) lines.unshift('Autojuna toi auton perille. Kalliimpaa, mutta lunta ei tarvinnut katsella tuulilasin läpi.');
     const car = drivenCar();
     if (good && !T.train && !T.rental && ((S.tsa && C(S.tsa.c).type==='e') || (car && C(car.c).type==='e'))) { if (S.boss > 0) S.boss--; lines.push('+Matkaraportti sähköautomiesten foorumilla keräsi 400 tykkäystä. Pomokin luki sen ja unohti yhden kolhun.'); }
-    return say('LEVI', lines);
+    return say('LEVI', lines.concat(bl));
   }
   if (T.kind === 'saksa') {
     const car = T.car;
@@ -1030,7 +1038,7 @@ function tripDone(T, res) {
       payOrVippi(fee); car.reg = S.m + 1;
       lines.push('!Auto odottaa rekisteröintiä kuukauden, eikä sillä saa ajaa sitä ennen.');
     }
-    return say('HARMAATUONTI', lines);
+    return say('HARMAATUONTI', lines.concat(bl));
   }
   next();
 }
