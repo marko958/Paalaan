@@ -151,9 +151,10 @@ const Drive = (() => {
     if (k.fl.includes('V')) vmax = 140;
     if (k.fl.includes('B')) vmax = 130;
     vmax = Math.min(230, Math.max(125, vmax));
-    if (/^Elcat/.test(k.name)) vmax = 72; // 90-luvun sähköpaku
+    { const es = evSpec(k); if (es && es[3]) vmax = es[3]; } // hitaat: Elcat ja Topolino
     let acc = k.type === 'e' ? Math.min(36, 20 + k.price / 4000) : Math.min(24, 12 + k.price / 6000);
     if (/^Elcat/.test(k.name)) acc = 7;
+    if (/^Fiat Topolino/.test(k.name)) acc = 6;
     const minor = car ? (car.minor || 0) : 0;
     if (minor) { vmax *= 0.92; acc *= 0.85; }
     if (!T && towing()) { vmax = Math.min(vmax, 120); acc *= 0.75; }
@@ -909,6 +910,7 @@ const Drive = (() => {
     ['Kia EV6',           { b:'suvc', c:'#3C4045', tl:'bar', x:['duck'] }],
     ['Peugeot e-208',     { b:'hatch', w:0.94, c:'#D9B526', tl:'bar', x:['spoiler'] }],
     ['Dacia Spring',      { b:'mini', w:0.84, c:'#E6E6E6', tl:'corner', x:['orange'] }],
+    ['Fiat Topolino',     { b:'mini', w:0.72, c:'#7FB8A4', r:'#E8E8E0', tl:'round' }],
     ['Fiat 500e',         { b:'mini', w:0.82, c:'#9ED3C5', tl:'round', x:['chrome'] }],
     ['MG4',               { b:'hatch', c:'#D0412C', tl:'bar', x:['spoiler'] }],
     ['VW ID.3',           { b:'hatch', c:'#B7BEC2', tl:'wide', x:['blackhatch'] }],
