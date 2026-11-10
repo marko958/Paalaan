@@ -112,7 +112,7 @@ Ominaisuudet johdetaan nykyisistä `CARS`-tiedoista, joten uutta autotietokantaa
 
 ## 9. Toteutusjärjestys
 
-1. **Tieprototyyppi:** tie, ohjaus, peurat, kuukausien vaihtuminen (30 s) ja liittymä takaisin valikkoon. Julkaistaan heti `/v2/`:een testattavaksi.
+1. ✅ **Tieprototyyppi** (2.0 alpha 1): tie, ohjaus, peurat, kuukausien vaihtuminen (30 s) ja liittymä takaisin valikkoon. Tapahtumat aukeavat toistaiseksi ikkunana tien päälle.
 2. **Tapahtumat:** törmäykset vahingoiksi, nopeusriippuvainen lunastus ja pelin päättyminen, pikavalinnat ja jono.
 3. **Energia:** mittari, lataus- ja huoltoasemat, myöhästymiset ja YT-mittari.
 4. **Autoliikkeet ja mainostaulut tien varressa.**
