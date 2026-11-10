@@ -72,6 +72,8 @@ const CARS = [
  ['Elcat Cityvan 1997',3000,'e',110,.03,'SV','Lyijyakusto loppu: 12 akkua vaihtoon',1800],
  ['Fiat Topolino 2024',8000,'e',70,.12,'S','Oviaukon köysi katkesi, ja sade tuli sisään',250],
 ];
+// vanhat sähköautot (ei Teslat), Elcat ja Topolino eivät saa etäpäivityksiä, joten päivitys ei voi jumittaa niitä
+const noOTA = k => k.type === 'e' && (/^(Elcat|Fiat Topolino)/.test(k.name) || (!k.fl.includes('T') && !/^Jaguar/.test(k.name) && +((k.name.match(/\b(19|20)\d\d\b/) || ['9999'])[0]) <= 2020));
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
   h: [['Näätä söi johtosarjan',700],['Akku kuoli pakkasella',180],['Invertterin jäähdytys vuotaa',900],['Moottorin vikavalo palaa',300]],
@@ -1055,7 +1057,7 @@ function faultEvent(car) {
   let fault = k.fault, cost = k.fcost;
   { const ex = EXTRA_FAULTS.find(([n]) => k.name.startsWith(n)); if (ex && RND() < 0.6) { const g = pick(ex[1]); fault = g[0]; cost = g[1]; } }
   if (k.fl.includes('F') && RND() < 0.6) { const g = pick(FFAULTS); fault = g[0]; cost = g[1]; }
-  else if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
+  else if (RND() < 0.5) { const g = pick(GENFAULTS[k.type].filter(f => !(noOTA(k) && /^Ohjelmistopäivitys/.test(f[0])))); fault = g[0]; cost = g[1] * tierMult(k); }
   if (/^Lämpöpumppu/.test(fault) && !hasHeatPump(k)) { fault = 'PTC-lämmitin hajosi: lasit huurtuvat, ja sisällä on pakkasta'; cost = 750 * tierMult(k); } // ei lämpöpumppua
   car.broken = Math.round(cost*rnd(0.9,1.3)*staffDisc(car)/10)*10; car.lastFault = fault;
   let txt = `${k.name}: ${fault}. Korjausarvio ${eur(car.broken)}.`;
