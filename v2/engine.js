@@ -773,12 +773,24 @@ function dentEvent(what, kmh) {
   const lines = [`${k.name} osui ${what} ${kmh} km/h:n vauhdissa. Pohjasta kuului ruma kolahdus.`,
     ev ? 'Akkukotelossa on lommo. Auto kulkee ja akku toimii normaalisti.' : 'Öljypohjassa ja alustassa on lommo. Auto kulkee normaalisti.',
     ev ? `!Akkulommo näkyy kuitenkin jokaisessa kuntotarkastuksessa. Ostajat ja rahoittajat kaikkoavat, ja arvo romahtaa (−${pct} %).` : `!Lommo näkyy kuntotarkastuksessa, ja arvo laskee (−${pct} %).`];
-  if (car.dent) lines.push(`!Pohjassa on jo ${car.dent} vanha${car.dent>1?'a':''} lommo${car.dent>1?'a':''}.`);
+  if (car.dent) lines.push(`!Pohjassa on jo ${car.dent} vanha${car.dent>1?'a':''} lommo${car.dent>1?'a':''}. Vakuutusyhtiö katsoo niitä tarkasti.`);
   const hit = () => { car.base *= drop; car.dent = (car.dent||0) + 1; };
   scr(t, lines, [
     [`Vakuutuscase: omavastuu ${eur(omav)}`, ()=>{ payOrVippi(omav);
-      if (RND() < 0.5) say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', ev ? `+Korvauspäätös: myönteinen. Akkukotelo vaihdettiin (${eur(battCost(k))}), ja arvo säilyi.` : '+Korvauspäätös: myönteinen. Pohja korjattiin, ja arvo säilyi.']);
-      else { hit(); say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', '!Korvauspäätös: kielteinen. "Lommo ei vaikuta ajoneuvon toimintaan."', `!Omavastuu meni, ja arvo romahti silti (−${pct} %).`, 'Vakuutuslautakuntaan voi valittaa. Käsittelyaika on noin 14 kuukautta.']); } }],
+      // useimmat korvataan; aiemmat lommot nostavat kielteisen päätöksen riskiä (20 % + 15 %/lommo, enintään 50 %)
+      const deny = Math.min(0.5, 0.2 + 0.15 * (car.dent || 0));
+      if (RND() >= deny) say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', pick(['Tarkastaja tuhahti, mutta kirjasi vahingon.', 'Tarkastaja otti 46 valokuvaa ja nyökkäsi.', 'Tarkastaja kysyi, miksi kuoppaa ei väistetty. Vastasit, että se oli pimeässä.']),
+        ev ? `+Korvauspäätös: myönteinen. Akkukotelo vaihdettiin (${eur(battCost(k))}), ja arvo säilyi.` : '+Korvauspäätös: myönteinen. Pohja korjattiin, ja arvo säilyi.']);
+      else { hit();
+        const why = car.dent > 1 ? 'Tämä puolen millin naarmu on tullut eri tapahtumasta ennen vakuutuksesi alkua. Ei korvata.' : pick([
+          'Tämä puolen millin naarmu on tullut eri tapahtumasta ennen vakuutuksesi alkua. Ei korvata.',
+          'Lommo ei vaikuta ajoneuvon toimintaan.',
+          'Kuoppa on ollut tienpitäjän tiedossa vuodesta 2019. Kuljettajan olisi pitänyt väistää.',
+          'Akkukotelon pohjapanssari on kulutusosa. Ei korvata.',
+          'Valokuvan aikaleima on väärässä aikavyöhykkeessä. Vahinkoa ei voida todentaa.',
+          'Vahinko ilmoitettiin 3 minuuttia liian myöhään.',
+        ]);
+        say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', `!Korvauspäätös: kielteinen. "${why}"`, `!Omavastuu meni, ja arvo romahti silti (−${pct} %).`, 'Vakuutuslautakuntaan voi valittaa. Käsittelyaika on noin 14 kuukautta.']); } }],
     [`Jätä (auto toimii, arvo −${pct} %)`, ()=>{ hit(); say(t, ['Ajetaan näin. Lommo jää muistoksi, ja jokainen ostaja löytää sen.']); }],
   ]);
 }
