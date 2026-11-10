@@ -6,8 +6,9 @@ peli yhdellä kasettilatauksella C64:n muistiin. Kasetilta tekstejä ei voi lada
 tarpeen mukaan, joten kaiken pitää mahtua muistiin kerralla.
 
 Käyttö:
-    python3 tools/c64budjetti.py            # raportti; virhekoodi 1, jos raja ylittyy
-    python3 tools/c64budjetti.py --tiukka   # myös liian pitkät valinnat ja liukuluvut ovat virheitä
+    python3 tools/c64budjetti.py            # raportti, ei koskaan virhekoodia
+    python3 tools/c64budjetti.py --raja     # virhekoodi 1, jos tekstiraja ylittyy (portatessa)
+    python3 tools/c64budjetti.py --tiukka   # kuten --raja, ja myös liian pitkät valinnat ja liukuluvut ovat virheitä
     python3 tools/c64budjetti.py --pitkat   # listaa pisimmät valintatekstit
 
 Rajat (arvioita, ks. README):
@@ -151,6 +152,7 @@ def choices(src):
 
 def main():
     strict = '--tiukka' in sys.argv
+    enforce = strict or '--raja' in sys.argv  # tekstejä ei lyhennetä ennen porttausta, joten oletuksena vain raportti
     html = (ROOT / 'index.html').read_text(encoding='utf-8')
     src = script_source(html)
     offset = html[:html.index('<script>')].count('\n')
@@ -165,12 +167,12 @@ def main():
     print(f'  Pakattuna ({nuniq} erilaista tekstiä, {CHUNK // 1024} kt:n lohkot) noin {fmt(packed)} / {fmt(TEXT_PACKED_MAX)} tavua (turvaraja {fmt(TEXT_PACKED_SAFE)})')
     if raw > TEXT_RAW_MAX: errs.append(f'pakkaamatonta tekstiä {fmt(raw - TEXT_RAW_MAX)} merkkiä liikaa')
     if packed > TEXT_PACKED_MAX: errs.append(f'pakattua tekstiä {fmt(packed - TEXT_PACKED_MAX)} tavua liikaa')
-    elif packed > TEXT_PACKED_SAFE: warns.append(f'pakattu teksti ylittää turvarajan {fmt(packed - TEXT_PACKED_SAFE)} tavulla: lyhennä tekstejä ennen kuin lisäät uusia')
+    elif packed > TEXT_PACKED_SAFE: warns.append(f'pakattu teksti ylittää turvarajan {fmt(packed - TEXT_PACKED_SAFE)} tavulla: tiivistettävä porttausvaiheessa')
     lo = packed / 1024 + sum(a for a, _ in OTHER_KB.values())
     hi = packed / 1024 + sum(b for _, b in OTHER_KB.values())
     print(f'  Koko peli muistissa arviolta {lo:.0f}–{hi:.0f} kt / noin {RAM_KB} kt '
           f'({", ".join(f"{k} {a}–{b} kt" if a != b else f"{k} {a} kt" for k, (a, b) in OTHER_KB.items())})')
-    if hi > RAM_KB: warns.append(f'yläarvio {hi:.0f} kt ylittää {RAM_KB} kt: tiivistä tekstejä tai koodia')
+    if hi > RAM_KB: warns.append(f'yläarvio {hi:.0f} kt ylittää {RAM_KB} kt: tiivistettävä porttausvaiheessa')
     print(f'  Tilaa uusille teksteille: noin {fmt(max(0, TEXT_RAW_MAX - raw))} merkkiä')
 
     ch = choices(src)
@@ -190,7 +192,8 @@ def main():
     for w in warns: print('  HUOM: ' + w)
     for e in errs: print('  YLITYS: ' + e)
     print('  OK: mahtuu budjettiin.' if not errs else '  EI MAHDU budjettiin.')
-    sys.exit(1 if errs else 0)
+    if errs and not enforce: print('  (Vain raportti. Tekstit tiivistetään vasta porttausvaiheessa.)')
+    sys.exit(1 if errs and enforce else 0)
 
 
 TEXTS = []

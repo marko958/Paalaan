@@ -22,5 +22,5 @@ Skripti laskee 1.0:n pelaajalle näkyvät tekstit ja arvioi, kuinka paljon ne vi
 - valinnan teksti enintään 38 merkkiä (yksi C64-rivi) ja ruudussa enintään 9 valintaa
 - ei liukulukufunktioita (`Math.pow` ym.): C64-versiossa euroilla lasketaan kokonaisluvuin
 
-Ylitys pakkaamattoman tai pakatun tekstin rajassa kaataa tarkistuksen. Pitkät valinnat ja liukuluvut ovat huomautuksia, ja `--tiukka` tekee niistäkin virheitä. `--pitkat` listaa liian pitkät valintatekstit. GitHub ajaa tarkistuksen automaattisesti, kun `index.html` muuttuu.
+Tekstejä ei lyhennetä budjetin takia ennen kuin peliä ollaan oikeasti porttaamassa, joten skripti vain raportoi eikä kaada mitään. Porttausvaiheessa `--raja` tekee tekstirajan ylityksestä virheen, ja `--tiukka` lisäksi pitkistä valinnoista ja liukuluvuista. `--pitkat` listaa liian pitkät valintatekstit. GitHub ajaa raportin automaattisesti, kun `index.html` muuttuu, jotta tilanne näkyy.
 
