@@ -759,7 +759,7 @@ function tsaTerms(i) {
         say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, `Luontoisetu ${eur(S.tsa.cost)}/kk vähennetään autobudjetista. Omat autosi ovat seisonnassa: vakuutus puolittuu, vero pysähtyy ja arvonlasku hidastuu.`, 'Työsuhdeautolla et voi myöhästellä latausten takia, joten lomautusriski on normaali.']); }]);
   });
   ch.push(['Takaisin', tsaOffer]);
-  scr('TYÖSUHDEAUTO', [`${k.name}`, 'Vapaassa autoedussa työnantaja maksaa kaiken: huollot, renkaat, rengasvaihdot ja omavastuut. Käyttöedussa etu on pienempi, mutta maksat polttoaineen tai sähkön sekä omavastuut itse.'], ch);
+  scr('TYÖSUHDEAUTO', [`${k.name}`, 'Vapaassa autoedussa työnantaja maksaa kaiken: huollot, renkaat, rengasvaihdot ja omavastuut. Käyttöedussa etu on pienempi, mutta maksat polttoaineen tai sähkön itse. Omavastuut maksaa työnantaja kummassakin.'], ch);
 }
 // palautustarkastus: jokainen paikka tai vaurio huomataan 75 %:n todennäköisyydellä
 function tsaInspect(T) {
@@ -786,9 +786,9 @@ function tsaDamage(k) {
   const T = S.tsa, name = C(T.c).name;
   const t = k==='peura' ? 'PEURA!' : 'KOLHU';
   const txt = k==='peura' ? `Peura loikkasi työsuhdeauton (${name}) keulaan.` : `${name}: joku avasi oven työsuhdeauton kylkeen.`;
-  const om = T.kind==='vapaa' ? 0 : (k==='peura' ? 400 : 200);
-  scr(t, [txt, T.kind==='vapaa' ? 'Vapaassa autoedussa firma maksaa omavastuun, jos ilmoitat vahingosta.' : 'Käyttöedussa omavastuu jää sinulle.', '!Pomo on mulkero, joka miettii jo lomautuksia. Jokainen ilmoitettu kolhu nostaa lomautusriskiä.'], [
-    [om ? `Ilmoita työnantajalle: käyttöedussa omavastuu ${eur(om)}` : 'Ilmoita työnantajalle (vapaa autoetu: firma maksaa omavastuun)', ()=>{ payOrVippi(om + 48); S.boss++; say(t, [om ? 'Korjattiin firman sopimuskorjaamolla. Omavastuu jäi sinulle.' : 'Korjattiin firman sopimuskorjaamolla. Firma maksoi.', '+Korjauksen ajaksi saat leasingyhtiöltä ilmaiseksi vara-autoksi Skoda Scalan.', '!Tästä ei kyllä selvitä ryyppäämättä: Coopin kaljat 48 €' + (om ? '.' : ', vaikka autosta ei kuluja tullutkaan.'), '!Pomo kirjasi vahingon ylös ja mulkaisi. Seuraavissa yt-neuvotteluissa sinulla on yksi miinus lisää.']); }],
+  const dsl = T.kind==='vapaa' ? 0 : (k==='peura' ? 120 : 60); // käyttöetu: vara-Scalan dieselit omasta pussista
+  scr(t, [txt, T.kind==='vapaa' ? 'Vapaassa autoedussa firma maksaa omavastuun ja kaikki ajokulut, jos ilmoitat vahingosta.' : 'Käyttöedussa firma maksaa omavastuun, mutta ajokulut ovat sinun: korjauksen ajan tankkaat vara-auton itse.', '!Pomo on mulkero, joka miettii jo lomautuksia. Jokainen ilmoitettu kolhu nostaa lomautusriskiä.'], [
+    [dsl ? `Ilmoita työnantajalle (käyttöetu: vara-auton dieselit ${eur(dsl)})` : 'Ilmoita työnantajalle (vapaa autoetu: firma maksaa kaiken)', ()=>{ payOrVippi(dsl + 48); S.boss++; say(t, ['Korjattiin firman sopimuskorjaamolla. Firma maksoi omavastuun.', '+Korjauksen ajaksi saat leasingyhtiöltä ilmaiseksi vara-autoksi Skoda Scalan.', dsl ? `!Käyttöetu: Scalan dieselit maksat itse, ${eur(dsl)}.` : '', '!Tästä ei kyllä selvitä ryyppäämättä: Coopin kaljat 48 €' + (dsl ? '.' : ', vaikka autosta ei kuluja tullutkaan.'), '!Pomo kirjasi vahingon ylös ja mulkaisi. Seuraavissa yt-neuvotteluissa sinulla on yksi miinus lisää.'].filter(Boolean)); }],
     ['Mikrobetoni (40 €): pomo ei saa tietää', ()=>{ S.cash -= 40; fixNeg(); T.mb++; say(t, ['Kukaan ei huomaa mitään. Ainakaan ennen palautustarkastusta, jossa noin kolme paikkaa neljästä jää kiinni.']); }],
     [`Salaa ja jätä (laskutetaan palautuksessa ${eur(k==='peura'?2500:800)})`, ()=>{ T.dmg.push(k==='peura'?2500:800); say(t, ['Ehkä sitä ei huomata. Tarkastaja huomaa noin kolme neljästä.']); }],
   ]);
