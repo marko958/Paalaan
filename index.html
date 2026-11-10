@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v32 (10.11. klo 17.45) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v33 (10.11. klo 19.00) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -101,6 +101,10 @@ const CARS = [
  ['Tesla Cybertruck (harmaatuonti)',150000,'e',600,.25,'T','Rekisteröinti evätty, auto seisoo',3000],
  ['Tesla Model S 85 2014 (650 000 km)',11000,'e',70,.10,'TF','Vetoyksikkö (drive unit) jumissa',4000],
  ['Toyota Proace Max EV (uusi)',72000,'e',200,.20,'NV','Takaovien sarana vääntyi muuttokeikalla',900],
+ // uudet mallit loppuun: indeksit pysyvät ennallaan
+ ['Renault Fluence Z.E. 2012',3500,'e',230,.15,'S','Latauslaite hajosi, eikä varaosia enää saa',1600],
+ ['Ford Focus Electric 2014',4500,'e',160,.14,'S','Latausportin lukko ja latauslaite hajosivat',1300],
+ ['Elcat Cityvan 1997',3000,'e',110,.03,'SV','Lyijyakusto loppu: 12 akkua vaihtoon',1800],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
@@ -113,7 +117,10 @@ const EXTRA_FAULTS = [
  ['Tesla Model 3', [['Akkukotelo ruostui, ja kosteus pääsi akkuun: eristysvika, auto ei käynnisty', 4200], ['Jarruputket ruostuivat suolatuilla teillä', 900]]],
 ];
 // sähköautot, joissa ei ole lämpöpumppua (lämmitys PTC-vastuksella)
-const NO_HEATPUMP = ['Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
+const NO_HEATPUMP = ['Renault Fluence','Ford Focus Electric','Elcat','Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
+// erikoiset sähköautot [nimen alku, toimintamatka km, suurin latausteho kW]: ei pikalatausta
+const EV_SPEC = [['Renault Fluence',130,3.7],['Ford Focus Electric',140,6.6],['Elcat',70,3]];
+const evSpec = k => EV_SPEC.find(([n]) => k.name.startsWith(n));
 const hasHeatPump = k => k.type === 'e' && !NO_HEATPUMP.some(n => k.name.startsWith(n));
 // lämmitysvika: kesällä autolla voi ajaa, talvella (marras–maalis) ei
 const HEATER = /^(Lämpöpumppu|PTC-lämmitin)/;
@@ -140,7 +147,7 @@ const BATT = [
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
  ['Mercedes EQS (uusi)',40000],['Mercedes EQS',35000],['Maybach',60000],['BMW i7',40000],['Porsche Macan',30000],['Tesla Model S Plaid',22000],
  ['Lucid Air',50000],['Lotus Eletre',45000],['Polestar 3',15000],['Rolls-Royce Spectre',90000],['Tesla Cybertruck',35000],['Tesla Model S 85',14000],
- ['Toyota Proace',20000],
+ ['Toyota Proace',20000],['Renault Fluence',0],['Ford Focus Electric',9000],['Elcat',2500],
 ];
 function battCost(k) { const b = BATT.find(([n]) => k.name.startsWith(n)); return b ? b[1] : (k.price > 50000 ? 30000 : 12000); }
 // ---------- TAKUUT ----------
@@ -153,7 +160,7 @@ function brandWarrYears(k) {
   if (/^Tesla/.test(n)) return 4;
   return 3;
 }
-function modelAge(i) { const k = C(i); if (k.fl.includes('N')) return 0; const y = +(k.name.match(/20\d\d/)||[2024])[0]; return Math.max(0, 2027 + (S.m-1)/12 - y); }
+function modelAge(i) { const k = C(i); if (k.fl.includes('N')) return 0; const y = +(k.name.match(/(19|20)\d\d/)||[2024])[0]; return Math.max(0, 2027 + (S.m-1)/12 - y); }
 function setWarranty(car, dealer) {
   const k = C(car.c), age = modelAge(car.c), wy = brandWarrYears(k);
   car.warr = S.m + Math.max(0, Math.round((wy - age) * 12));
@@ -230,7 +237,7 @@ function newState(t) {
 }
 const sohF = car => (C(car.c).type==='e' && car.soh!==undefined) ? Math.min(1, Math.max(0.5, (car.soh-50)/40)) : 1;
 const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:(S.M.ice||1)) * (k.fl.includes('T')?S.M.tesla:1) * sohF(car); };
-function genSoh(i) { const k = C(i); if (k.fl.includes('F')) return ri(80,86); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/20\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
+function genSoh(i) { const k = C(i); if (k.fl.includes('F')) return ri(80,86); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/(19|20)\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
 const sohTxt = car => car.soh!==undefined ? ` · akku ${Math.round(car.soh)} %` : '';
 // arvo: korjausvähennys enintään 60 % arvosta; pohjana osa- ja romuarvo (12 % mallin hinnasta, väh. 500 €)
 const val = car => {
@@ -731,9 +738,10 @@ function tripRange(car, rental) {
   if (rental) return {ev:false, range:rental.range};
   const k = C(car.c);
   if (k.type !== 'e') return {ev:false, range: k.type==='h' ? 900 : 750, diesel: k.fl.includes('D')};
-  let range = k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
+  const es = evSpec(k);
+  let range = es ? es[1] : k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
   if (car.soh !== undefined) range *= Math.max(0.5, car.soh / 100);
-  const kw = k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
+  const kw = es ? es[2] : k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
   return {ev:true, range, kw, hp: hasHeatPump(k), free: k.fl.includes('F')};
 }
 function tripCons(E, kmh, cold, box, lap) {
@@ -752,7 +760,9 @@ function startTrip(T) {
     fast.map(v => [`${v} km/h`, ()=>tripResolve(T, v)]));
 }
 function tripResolve(T, kmh) {
-  const car = tripDrive(T), E = T.tsa ? tripRange({c:S.tsa.c}) : tripRange(car, T.rental);
+  const car = tripDrive(T), slow = car && !T.rental && /^Elcat/.test(C(car.c).name);
+  if (slow) kmh = Math.min(kmh, 70);
+  const E = T.tsa ? tripRange({c:S.tsa.c}) : tripRange(car, T.rental);
   if (T.tsa && S.tsa.kind === 'vapaa') E.free = true;
   const lap = T.road === 'lappi', cold = lap || coldSeason(), lines = [];
   const need = T.km * tripCons(E, kmh, cold, T.box, lap) / E.range; // akun tai tankin täysiä
@@ -772,6 +782,7 @@ function tripResolve(T, kmh) {
   if (!E.ev) cost += E.free ? 0 : Math.min(need, start) * E.range * 0.07 * 1.95;
   if (lap && E.diesel && !T.rental && T.gel) { towed = true; h += 2; payOrVippi(400); lines.push('!−30 °C ja tankissa oli kesälaatua. Diesel hyytyi, ja hinaus lämpimään halliin maksoi 400 €.'); }
   if (cost > 0) payOrVippi(cost);
+  if (slow) lines.push('!Elcat ei kulje yli 70 km/h. Rekat ohittelivat koko matkan.');
   lines.unshift(`Ajoit ${kmh} km/h. ${stops ? `${E.ev ? 'Latausstoppeja' : 'Tankkauksia'} ${stops}, ${E.ev ? 'sähköä' : 'polttoainetta'} ${eur(cost)}.` : `Perille ilman ${E.ev ? 'latausstoppeja' : 'tankkausta'}${cost ? ', polttoainetta ' + eur(cost) : ''}.`} Matka-aika ${Math.floor(h)} h ${Math.round((h % 1) * 60)} min.`);
   // sattumukset: kova vauhti lisää riskiä
   const risk = (lap ? 0.1 : 0.05) * Math.pow(kmh / 90, 2);
@@ -1075,7 +1086,9 @@ function carDetail(s) {
     lines.push(`Takuu: ${w ? 'tehdastakuu '+w+' kk' : 'tehdastakuu päättynyt'}${bw ? ', akkutakuu '+bw+' kk' : ''}${k.fl.includes('N') ? '' : ', liikkeen virhevastuu 6 kk'}${/^Toyota/.test(k.name)&&age<10?' (Toyota: merkkihuolto pidentää)':''}`); }
   if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${battCost(k)?' · uusi akku '+eur(battCost(k)):' · akku vuokralla'}${s.soh<80?': toimintamatka on jo heikko':''}`);
   lines.push(s.rims2 ? '+Mukana kahdet renkaat vanteilla: renkaanvaihdot hoituvat hotellissa 90 €:lla tai itse.' : `Vain yhdet vanteet: jokainen renkaanvaihto on rengastyötä (${eur(mountCost(k))}), tai osta toiset vanteet (${eur(rimsCost(k))}).${staggered(k) ? ' Porrastetut kiekot.' : ''}`);
-  if (k.fl.includes('V')) lines.push(`+Kova alennus listahinnasta (${eur(k.price)}). Iso pakettiauto: voit alkaa tehdä muuttokeikkoja.`, '!Pakettiautojen jälleenmyyntiarvo laskee nopeasti.');
+  { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${/^Elcat/.test(k.name) ? ' Huippunopeus noin 70 km/h. Suomalainen sähköpaku, joka kerää jo museoarvoa.' : ''}`); }
+  if (/^Elcat/.test(k.name)) lines.push('+Pieni pakettiauto: muuttokeikat onnistuvat, kunhan kuorma on kevyt ja matka lyhyt. Arvo pysyy, koska keräilijät haluavat näitä.');
+  else if (k.fl.includes('V')) lines.push(`+Kova alennus listahinnasta (${eur(k.price)}). Iso pakettiauto: voit alkaa tehdä muuttokeikkoja.`, '!Pakettiautojen jälleenmyyntiarvo laskee nopeasti.');
   if (k.fl.includes('F')) lines.push('+Ilmaiset superit siirtyvät autolle: käyttökulut vain vakuutus, sähkön hintapiikit eivät koske.', '!650 000 km: vikoja tulee moninkertaisesti, ja ne ovat kalliita. Akku on vaihdettu kerran.');
   if (k.fl.includes('S')) lines.push('!Lyhyt toimintamatka: et ehdi työmatkoille latauksilta, ja lomautusriski moninkertaistuu.');
   const ch = [];
