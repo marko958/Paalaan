@@ -19,7 +19,8 @@ Nyt kärryn kanssa on vain kyllä/ei (`NO_TOW`). Tehdään siitä numeroita:
 - **Kortti:** B-kortilla auto + vaunu yhteensä enintään 3 500 kg. Raskaampi yhdistelmä vaatii **B96-koulutuksen** (n. 300 €, vie liittymän verran aikaa) tai **BE-kortin** (n. 900 €).
 - **Ylikuorma:** muuttokeikka voi olla painavampi kuin kärryn tai auton raja. Valinta: ota keikka silti (poliisin punnitus = rikesakko + kuorma jätetään tienvarteen, ei palkkiota) tai kieltäydy.
 - **Ajossa:** vetomassa nostaa kulutusta. Sähköautolla kärry lyhentää toimintamatkaa 30–50 %, polttomoottorilla kulutus nousee 20–30 %. Mäet hidastavat, jarrutusmatka pitenee ja kärry heiluu yli 80 km/h.
-- **Optimoitavaa:** iso kärry tuo enemmän per keikka, mutta vaatii auton, kortin ja latausstopit. Siitä tulee aito syy pitää vanha V70 D5 kakkosautona.
+- **Diesel ja kärry = tukkeutunut DPF:** kun dieselillä (`D`-lippu) vedetään kärryä, hiukkassuodatin (DPF) tukkeutuu **60 %:n todennäköisyydellä** per kärrykeikka/reissu. Seuraus: vikavalo, auto menee vikatilaan (vääntö pois, max 60 km/h) ja keikka myöhästyy. Korjausvaihtoehdot: regenerointi ja puhdistus korjaamolla (400–600 €), uusi suodatin (1 500–2 500 €) tai laiton DPF-poisto (halpa, mutta katsastus hylkää ja poliisi voi sakottaa).
+- **Optimoitavaa:** iso kärry tuo enemmän per keikka, mutta vaatii vetokykyisen sähköauton, kortin ja latausstopit. Polttomoottorilla vetäminen näyttää halvalta, mutta DPF syö edun: pelin linja pysyy, eli sähköauto on oikea vetoauto, ja pelaaja oppii laskemaan latausstopit kärryn kanssa.
 
 ## 2. Lapin reissu (hiihtoloma)
 
@@ -33,7 +34,7 @@ Kerran vuodessa (helmi–maaliskuussa) tulee tarjous: **”Hiihtoloma Levillä, 
 - **Oma auto -vaihtoehdossa:**
   - Sähköauton toimintamatka putoaa pakkasessa. Ilman lämpöpumppua (`NO_HEATPUMP`) pudotus on vielä isompi, ja lämmitysvika (`HEATER`) tekee autosta ajokelvottoman.
   - Latausasemat ovat 150–250 km:n päässä toisistaan, ja osa on rikki tai jonossa. Jos akku loppuu, tulee hinaus Rovaniemelle 600 € ja reissu jää kesken.
-  - Polttomoottori on varma mutta kallis. Diesel voi hyytyä −30 °C:ssa, jos tankissa on kesädieseliä.
+  - Polttomoottori ei ole oikotie: tankkaus on kallis, diesel hyytyy −30 °C:ssa, jos tankissa on kesädieseliä, ja lyhyiden kaupunkiajojen jälkeen DPF on valmiiksi puolitukossa. Peli palkitsee sähköautolla onnistuneen reissun (bonus), ei polttomoottorilla ajettua.
   - **Porot** tiellä: eivät väistä, seisovat tiellä ja pysäyttävät liikenteen. Kolari maksaa enemmän kuin peura, ja paliskunta laskuttaa.
 - **Palkinto:** reissun onnistuminen antaa ”loma-bonuksen” (esim. pomo-mittari `S.boss` laskee tai YT-riski pienenee seuraavaksi vuodeksi). Lisäksi Lapista voi ostaa halvan käytetyn auton (lappilaiset myyvät nelivetoja edullisesti keväällä).
 
@@ -60,7 +61,7 @@ Pelaajan Mondeo (tai Astra, Avensis) on kohta vain kuluerä. Nyt ainoa vaihtoeht
   - vaihtoauton hyvitystä (`val(car)*0.88`) ja mahdollista ylihyvitystä
   - yksityismyyntiä Marketplacessa (parempi hinta, mutta vie aikaa ja ostaja voi tulla takaisin)
   - romutuspalkkiota (varma summa, ei riippuvainen auton kunnosta)
-  - **pitämistä** kakkosautona (vetokoukku, Lapin reissu, varmuus pakkasella)
+  - **pitämistä** kakkosautona: houkutteleva (vetokoukku, ”varmuus pakkasella”), mutta peli tekee siitä huonon kaupan: vakuutus, käyttövoimavero ja katsastus juoksevat, auto hajoaa seistessään, DPF tukkeutuu kärryn kanssa ja romutuspalkkion määräraha voi loppua odotellessa
 - **Lisämauste – polttomoottorin jälkimarkkina vaihtelee:** tapahtuma ”Ukrainan/Afrikan vientikysyntä” nostaa vanhojen dieselien hintaa 30 %, ja ”käyttövoimaveron korotus” painaa sitä alas. Pelaajan kannattaa ajoittaa myynti, aivan kuten Teslan osakkeiden kanssa (`S.inv`).
 - **Romuralli-sivutulo:** autotrailerilla voi hakea romuja autopurkamoon (50–150 €/auto). Vaatii jarrullisen trailerin ja vetokykyisen auton (kohta 1).
 
