@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v40 (10.11. klo 22.30) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v41 (10.11. klo 23.00) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -484,6 +484,9 @@ function monthTick() {
   { const d = drivenCar(); if (d) { const k = C(d.c); const tax = Math.round((k.type==='e' ? (k.price>50000?450:200) : k.type==='h' ? 150 : 300 + (k.fl.includes('D')?450:0)) / 12);
     S.cash -= tax; fixNeg(); R.push(['-', `Ajoneuvovero: ${k.name}`, tax]); } }
   if (S.insPlus && S.cars.length) { const d = drivenCar(); const ip = S.cars.reduce((s,c)=>s + (c===d ? S.insPlus : S.insPlus/2), 0); S.cash -= ip; fixNeg(); R.push(['-', 'Vakuutusmaksujen korotukset', ip]); }
+  // Temu-osa, joka oli huono, hajoaa viiveellä ja vie mukanaan muutakin
+  S.cars.forEach(car => { if (car.temuBomb && S.m >= car.temuAt && !car.broken) { const c = car.temuBomb; car.temuBomb = 0; car.broken = c;
+    Q.push(()=>repairChoice(car, 'TEMU-OSA PETTI', `${C(car.c).name}: Temusta tilattu osa hajosi ajossa ja vei mukanaan muutakin. Korjaus ${eur(c)}. Auto ei ole ajokunnossa.`, true)); } });
   // kesällä korjaamatta jäänyt lämmitysvika pysäyttää auton pakkasilla
   if (coldSeason()) S.cars.forEach(car => { if (car.heater && !car.broken && (car.minor||0) >= car.heater) { const c = car.heater; car.heater = 0; car.minor -= c; car.broken = c;
     Q.push(()=>repairChoice(car, 'PAKKANEN', `${C(car.c).name}: kesällä korjaamatta jäänyt lämmitysvika. Pakkasaamuna tuulilasi on jäässä sisäpuolelta, eikä autolla voi ajaa. Korjaus ${eur(c)}.`)); } else if (car.heater && (car.minor||0) < car.heater) car.heater = 0; });
@@ -1050,20 +1053,30 @@ function faultEvent(car) {
 }
 
 function minorChoice(car, cost, text, heater) {
-  scr('VIKA', [text, 'Auto kulkee, mutta vika näkyy myyntihinnassa ja voi kaataa katsastuksen.'], [
+  const tc = RND() < 0.4 ? temuPrice(cost) : 0;
+  scr('VIKA', [text, 'Auto kulkee, mutta vika näkyy myyntihinnassa ja voi kaataa katsastuksen.'].concat(tc ? [TEMU_TXT] : []), [
     [`Korjaa käteisellä (${eur(cost)})`, ()=>{ S.cash -= cost; say('VIKA', ['Korjattu.']); }, S.cash < cost],
     ['Korjaa pikavipillä', ()=>{ payOrVippi(cost); say('VIKA', ['Korjattu.', S.vippi ? '!Pikavippi otettu. Korko on 20 %/kk.' : '']); }],
+    ...(tc ? [[`Tilaa osa Temusta (${eur(tc)})`, ()=>{ S.cash -= tc; temuFit(car, cost); say('VIKA', TEMU_DONE); }, S.cash < tc]] : []),
     [`Aja korjaamattomana (arvo −${eur(cost*0.6)})`, ()=>{ car.minor = (car.minor||0) + cost; if (heater) car.heater = cost; say('VIKA', ['Ajetaan näin. Vika jää odottamaan korjaamoa tai katsastusta.', heater ? '!Ensimmäisillä pakkasilla marraskuussa auto jää pihaan, jos vikaa ei ole korjattu.' : '']); }],
   ]);
 }
-function repairChoice(car, title, text) {
+const TEMU_TXT = 'Temusta saisi saman osan murto-osalla suomihinnasta.';
+const TEMU_DONE = ['Temun paketti tuli kahdessa viikossa. Osa näyttää melkein samalta kuin alkuperäinen, ja kaveri vaihtoi sen pihalla.'];
+const temuPrice = c => Math.max(10, Math.round(c * 0.1 / 10) * 10); // 90 % alle suomihinnan
+// 25 %:ssa osa on huono: se hajoaa 1–4 kk:n päästä, ja vahinko on alkuperäistä isompi (pelaajalle ei kerrota)
+function temuFit(car, cost) { if (RND() < 0.25) { car.temuBomb = Math.round(cost * rnd(1.5, 2.5) / 10) * 10; car.temuAt = S.m + ri(1, 4); } }
+function repairChoice(car, title, text, noTemu) {
   const k = C(car.c);
   const ch = [];
+  if (car.temuQ !== car.broken) { car.temuQ = car.broken; car.temuOK = !noTemu && !car.battFail && RND() < 0.4; } // tarjous pysyy samana, vaikka korjaamon avaa uudelleen
   ch.push([`Korjaa käteisellä (${eur(car.broken)})`, ()=>{ S.cash -= car.broken; car.broken = 0; say(title,['Korjattu.']); }, S.cash < car.broken]);
   ch.push(['Korjaa pikavipillä', ()=>{ addVippi(car.broken - Math.max(0,S.cash)); S.cash = Math.max(0, S.cash - car.broken); car.broken = 0; say(title,['Korjattu.','!Pikavippi otettu. Korko on 20 %/kk.']); }]);
   if (k.fl.includes('K') && /luuk/i.test(text + ' ' + (car.lastFault||''))) ch.push(['Mikrobetoni luukkuun (40 €): arvo −20 %', ()=>{ S.cash -= 40; car.broken = 0; car.base *= 0.8; car.mb++; fixNeg(); say(title,['Luukku valettu kiinni mikrobetonilla. Lataus toimii, kun piuhan työntää raosta.', mbWarn(car)]); }]);
+  const tc = car.temuOK ? temuPrice(car.broken) : 0;
+  if (tc) ch.push([`Tilaa osa Temusta (${eur(tc)})`, ()=>{ const c = car.broken; S.cash -= tc; car.broken = 0; car.temuOK = false; temuFit(car, c); say(title, TEMU_DONE); }, S.cash < tc]);
   ch.push(['Jätä odottamaan', ()=>{ say(title, ['!Auto seisoo. Arvo laskee seistessä nopeammin.', working().length ? '' : '!Ilman toimivaa autoa kuluu 850 €/kk takseihin ja busseihin. Harkitse hätäautoa.']); }]);
-  scr(title, [text], ch);
+  scr(title, tc ? [text, TEMU_TXT] : [text], ch);
 }
 
 function mbWarn(car) {
