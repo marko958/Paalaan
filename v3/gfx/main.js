@@ -4,15 +4,19 @@ import { loadManifest, initSky, busy, setTextureQuality, tex } from './assets.js
 import { Track, SEGM, HALF, CH, groundY, roadMaterial, rampMaterial, terrainMaterial, buildRoad, buildTerrain, buildRamp } from './world.js';
 import { Env } from './env.js';
 import { buildCar } from './cars.js';
+import { makeTrees } from './trees.js';
+import { makeProps } from './props.js';
+import { buildScenery, setLod, disposeScenery, footprints, signature } from './scenery.js';
+import { canvasTex, rng, avgColor } from './assets.js';
 
 const sim = Drive.sim, st = sim.st;
 const canvas = document.getElementById('road');
 
 // ---------- laatutasot ----------
 const QUALITY = {
-  low:  { dpr: 1,    shadow: 0,    range: 0,  draw: 6,  far: 60,  trees: 0.35, small: true,  aniso: 2, post: false, bloom: false, ao: false, blur: false, msaa: 0, carLod: 1, fx: 0.4 },
-  med:  { dpr: 1.5,  shadow: 1024, range: 55, draw: 9,  far: 112, trees: 0.7,  small: false, aniso: 4, post: true,  bloom: true,  ao: false, blur: false, msaa: 2, carLod: 0, fx: 0.7 },
-  high: { dpr: 2,    shadow: 2048, range: 70, draw: 13, far: 112, trees: 1,    small: false, aniso: 8, post: true,  bloom: true,  ao: true,  blur: true,  msaa: 4, carLod: 0, fx: 1 },
+  low:  { dpr: 1,    shadow: 0,    range: 0,  near: 1, draw: 6,  far: 60,  trees: 0.35, small: true,  aniso: 2, post: false, bloom: false, ao: false, blur: false, msaa: 0, carLod: 1, fx: 0.4 },
+  med:  { dpr: 1.5,  shadow: 1024, range: 55, near: 2, draw: 9,  far: 112, trees: 0.7,  small: false, aniso: 4, post: true,  bloom: true,  ao: false, blur: false, msaa: 2, carLod: 0, fx: 0.7 },
+  high: { dpr: 2,    shadow: 2048, range: 70, near: 3, draw: 13, far: 112, trees: 1,    small: false, aniso: 8, post: true,  bloom: true,  ao: true,  blur: true,  msaa: 4, carLod: 0, fx: 1 },
 };
 let setting = 'auto', level = 'med', Q = QUALITY.med;
 const auto = { t: 0, frames: 0, locked: false, tried: {} };
@@ -24,6 +28,7 @@ const U = { // varjostimien yhteiset muuttujat
   fieldMap: { value: null }, grassTint: { value: new THREE.Color(1, 1, 1) }, fieldTint: { value: new THREE.Color(1, 1, 1) }, forestTint: { value: new THREE.Color(1, 1, 1) },
 };
 const mats = {};
+let T = null, PR = null, backdrop = null, floor = null, fps = [], roadKind = '';
 const origin = new THREE.Vector3();
 const chunks = new Map();
 const P = { x: 0, y: 0, z: 0, th: 0, slope: 0 }, P2 = { x: 0, y: 0, z: 0, th: 0, slope: 0 };
@@ -50,6 +55,7 @@ function init() {
   loadManifest().then(() => {
     U.fieldMap.value = tex('nurmi', 'diff');
     mats.road = roadMaterial(U); mats.ramp = rampMaterial(U); mats.terrain = terrainMaterial(U);
+    T = makeTrees(); PR = makeProps(U); makeBackdrop();
     applyQuality();
     ready = true;
   }).catch(e => { failed = true; Drive.fail('Resurssien lataus ei onnistunut.'); console.error(e); });
@@ -87,9 +93,10 @@ function guess() { return (navigator.maxTouchPoints > 0 && Math.min(screen.width
 let seasonKey = '';
 function applySeason() {
   const sea = sim.season(), wx = sim.weather(), S = sim.game();
-  const key = S.m + ':' + (st.trip ? st.trip.road : '') + ':' + wx.kind;
+  const key = S.m + ':' + (st.trip ? st.trip.road : '') + ':' + wx.kind + ':' + sim.towing();
   if (key === seasonKey) return;
   seasonKey = key;
+  roadKind = st.trip ? st.trip.road || '' : '';
   const m = sea.m, foggy = !sea.snow && (sea.autumn || sea.bare) && ((S.m * 7 + 3) % 5 < 3);
   env.set(env.pick(sea, wx, foggy));
   env.fogMul = wx.kind === 'lumi' ? 5.5 : wx.kind === 'sade' ? 3.2 : foggy ? 7 : 1;
@@ -104,6 +111,39 @@ function applySeason() {
   else if (m === 3 || m === 4) { g.setRGB(1.05, 1.08, 0.75); f.setRGB(0.9, 1.0, 0.6); U.fieldMap.value = tex('nurmi', 'diff'); }
   else { g.setRGB(0.85, 1.12, 0.7); f.setRGB(1.25, 1.35, 0.62); U.fieldMap.value = tex('nurmi', 'diff'); }
   U.forestTint.value.setRGB(0.8, 0.85, 0.7);
+  T.applySeason(sea, roadKind);
+  env.nightWant = sea.dark > 0.6 ? 1 : sea.dark > 0 ? 0.45 : 0;
+  PR.applySeason(sea, env.nightWant);
+  for (const ch of chunks.values()) { ch.sc.snowObjs.forEach(o => { o.visible = sea.snow; }); refreshSigns(ch); }
+  // kaukometsä ja maan jatke
+  const lap = roadKind === 'lappi' || roadKind === 'kuusamo';
+  backdrop.material.map = lap ? backdrop.userData.fell : backdrop.userData.forest;
+  backdrop.material.color.copy(sea.snow ? new THREE.Color(0.62, 0.66, 0.72) : sea.autumn ? new THREE.Color(0.2, 0.19, 0.1) : sea.bare ? new THREE.Color(0.13, 0.12, 0.1) : new THREE.Color(0.1, 0.17, 0.09));
+  if (lap) backdrop.material.color.setRGB(0.85, 0.88, 0.95);
+  floor.material.color.copy(sea.snow ? new THREE.Color(0.8, 0.82, 0.86) : avgColor(sea.bare ? 'multa' : 'metsa').multiplyScalar(0.8));
+}
+function refreshSigns(ch) { for (const s of ch.sc.signs) s.face.material = PR.limitMat(sim.limTxt(sim.limitOf(s.lim))); }
+// kaukometsä: kameraa seuraava rengas, jossa on puiden siluetti; Lapissa tunturit
+function makeBackdrop() {
+  const sil = (seed, fell) => canvasTex(2048, 256, (g, W, H) => {
+    const r = rng(seed); g.clearRect(0, 0, W, H); g.fillStyle = '#fff';
+    if (fell) {
+      g.beginPath(); g.moveTo(0, H);
+      for (let x = 0; x <= W; x += 8) { const t = x / W * 6.28318; g.lineTo(x, H * (0.62 - 0.22 * Math.sin(t * 2 + 1) * Math.sin(t * 3) - 0.14 * Math.sin(t * 5 + 2) - 0.05 * Math.sin(t * 13))); }
+      g.lineTo(W, H); g.fill();
+    } else {
+      for (let x = -10; x < W + 10; x += 5 + r() * 9) { const h = H * (0.35 + r() * 0.5), w = 7 + r() * 9; g.beginPath(); g.moveTo(x - w, H); g.lineTo(x, H - h); g.lineTo(x + w, H); g.fill(); }
+      g.fillRect(0, H * 0.72, W, H * 0.28);
+    }
+  });
+  const forest = sil(3, false), fell = sil(8, true);
+  const geo = new THREE.CylinderGeometry(1, 1, 1, 64, 1, true);
+  const mat = new THREE.MeshBasicMaterial({ map: forest, alphaTest: 0.5, side: THREE.BackSide, color: 0x16240f, fog: true });
+  forest.repeat.set(6, 1); fell.repeat.set(1, 1);
+  backdrop = new THREE.Mesh(geo, mat); backdrop.userData = { forest, fell }; backdrop.frustumCulled = false;
+  scene.add(backdrop);
+  floor = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ color: 0x223018, fog: true }));
+  floor.rotation.x = -Math.PI / 2; floor.frustumCulled = false; scene.add(floor);
 }
 
 // ---------- lohkot ----------
@@ -115,14 +155,31 @@ function makeChunk(c) {
   group.add(road, ter);
   group.position.copy(r.anchor).sub(origin);
   scene.add(group);
-  return { c, group, anchor: r.anchor, geos: [r.geometry, ter.geometry] };
+  const ch = { c, group, anchor: r.anchor, geos: [r.geometry, ter.geometry], sc: null, sig: '' };
+  scenerize(ch);
+  return ch;
 }
-function disposeChunk(ch) { scene.remove(ch.group); ch.geos.forEach(g => g.dispose()); }
+function scenerize(ch) {
+  if (ch.sc) { ch.group.remove(ch.sc.group); disposeScenery(ch.sc); }
+  ch.sig = signature(ch.c, st, sim, roadKind, fps);
+  ch.sc = buildScenery(ch.c, { track, sim, st, T, P: PR, Q, road: roadKind, fps, anchor: ch.anchor });
+  ch.group.add(ch.sc.group);
+  const snow = sim.season().snow;
+  ch.sc.snowObjs.forEach(o => { o.visible = snow; });
+}
+function disposeChunk(ch) { scene.remove(ch.group); ch.geos.forEach(g => g.dispose()); if (ch.sc) disposeScenery(ch.sc); }
+let sigTick = 0;
 function updateChunks(cur, all) {
   const c0 = Math.max(0, Math.floor(cur / CH) - 1), c1 = c0 + Q.draw + 1;
   for (const [c, ch] of chunks) if (c < c0 || c > c1) { disposeChunk(ch); chunks.delete(c); }
   let built = 0;
   for (let c = c0; c <= c1; c++) if (!chunks.has(c)) { chunks.set(c, makeChunk(c)); if (!all && ++built >= 1) break; }
+  // simulaatio voi raivata puita taulun tai liikkeen edestä ja tuoda liittymän: muuttunut lohko rakennetaan uudelleen
+  if (all || ++sigTick % 6 === 0) {
+    fps = footprints(st, sim);
+    for (const ch of chunks.values()) if (signature(ch.c, st, sim, roadKind, fps) !== ch.sig) { scenerize(ch); if (!all) break; }
+  }
+  for (const [c, ch] of chunks) setLod(ch.sc, c - c0 <= Q.near);
 }
 function updateRamp() {
   const r = st.ramp, key = r ? r.start + ':' + origin.x + ':' + origin.z : '';
@@ -202,6 +259,9 @@ function frame(dt) {
   if (cam.override) cam.override(camera, car, P);
 
   env.update(car.pos, env.fogMul || 1);
+  const R = Q.draw * CH * 0.93;
+  backdrop.position.set(camera.position.x, car.pos.y + R * 0.045 - 6, camera.position.z); backdrop.scale.set(R, R * 0.09, R);
+  floor.position.set(camera.position.x, car.pos.y - 7, camera.position.z); floor.scale.setScalar(R * 1.02);
   renderer.render(scene, camera);
 
   // mittaus ja automaattinen laatutaso
@@ -233,7 +293,7 @@ const api = {
     if (!prepared) { const f = (st.pos + sim.PZ) / sim.SEG; track.at(f, st.x, P); rebase(P.x, P.z); updateChunks(f, true); prepared = true; }
     return true;
   },
-  render(dt) { if (ready && !failed) frame(dt); },
+  render(dt) { if (ready && !failed && !dbg.freeze) frame(dt); },
   enter() { prepared = false; cam.init = false; seasonKey = ''; car.prevX = st.x; resize(); },
   leave() {},
   setQuality,
@@ -242,4 +302,14 @@ const api = {
 
 init();
 if (!failed) Drive.attachView(api);
-window.__gfx = { get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, track, cam, car, stats, U, env: () => env, level: () => level, chunks, origin, QUALITY };
+// testejä ja lähikuvia varten: kamera kiertämään autoa (az = 0 takaa, el = korkeuskulma, d = etäisyys)
+function orbit(az, el, d, h = 0.7) {
+  cam.override = az === null ? null : (camera, car, P) => {
+    const a = P.th + Math.PI + az, c = Math.cos(el);
+    camera.position.set(car.pos.x + Math.sin(a) * d * c, car.pos.y + h + Math.sin(el) * d, car.pos.z - Math.cos(a) * d * c);
+    camera.up.set(0, 1, 0); camera.lookAt(car.pos.x, car.pos.y + h, car.pos.z);
+    if (camera.fov !== 40) { camera.fov = 40; camera.updateProjectionMatrix(); }
+  };
+}
+const dbg = { freeze: false };
+window.__gfx = { orbit, dbg, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, track, cam, car, stats, U, env: () => env, level: () => level, chunks, origin, QUALITY };

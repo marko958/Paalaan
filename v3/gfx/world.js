@@ -151,7 +151,7 @@ export function terrainMaterial(U) {
           vec3 cg = texture2D(map, uv).rgb * uGrassTint;
           vec3 cf = texture2D(tForest, uv * 0.8).rgb * uForestTint;
           vec3 cp = texture2D(tField, uv * 0.7).rgb * uFieldTint;
-          vec3 cr = texture2D(tGravel, uv * 1.7).rgb * vec3(0.5, 0.47, 0.42);
+          vec3 cr = texture2D(tGravel, uv * 1.7).rgb * vec3(0.36, 0.34, 0.31);
           vec3 col = mix(cg, cp, vMix.y);
           col = mix(col, cf, vMix.x);
           col *= 0.72 + 0.4 * macro;
@@ -222,7 +222,7 @@ export function buildTerrain(track, c, sim, far) {
       pos[o * 3] = wx - ax; pos[o * 3 + 1] = y - ay; pos[o * 3 + 2] = wz - az;
       uv[o * 2] = wx / 4; uv[o * 2 + 1] = wz / 4;
       const deep = smooth(6, 11, a);
-      mix[o * 3] = wF * deep; mix[o * 3 + 1] = wP * smooth(8, 13, a); mix[o * 3 + 2] = 1 - smooth(0.5, 1.5, a);
+      mix[o * 3] = wF * deep; mix[o * 3 + 1] = wP * smooth(8, 13, a); mix[o * 3 + 2] = 1 - smooth(0.3, 1.0, a);
     }
   }
   const idx = [];
