@@ -181,6 +181,7 @@ const Drive = (() => {
     let plus = 0, minus = 0;
     R.forEach(r => { if (r[0] === '+') plus += r[2]; else if (r[0] === '-') minus += r[2]; });
     toast(`${KK[(S.m - 1) % 12].toUpperCase()}KUU: +${eur(plus)} / −${eur(minus)} · KASSA ${eur(S.cash)}`, 6);
+    R.filter(r => r[0] === '+' && /keikat|toimitukset|kyydit/i.test(r[1])).forEach(r => toast(`+${r[1]}: ${eur(r[2])}`, 6));
     R.filter(r => r[0] === '!').forEach(r => toast('!' + r[1], 6));
     if (Q.length) openEvents();
   }
@@ -257,12 +258,17 @@ const Drive = (() => {
   const FOOD = ['KEBAB', 'PIZZA', 'SUSHI', 'BURGER', 'THAI', 'PHO', 'GRILLI'];
   const DEST = ['Lentokentälle', 'Rautatieasemalle', 'Keskustaan', 'Sairaalalle', 'Kauppakeskukseen', 'Satamaan', 'Hotellille'];
   const STOP_WIN = 8; // pysähdysikkuna segmentteinä kohteen molemmin puolin
-  function gigKind() {
+  const LOAD_S = 3; // muuttokuorman kantaminen ja purku (s)
+  // muuttokeikka vaatii, että ajossa on paku tai vetokoukullinen auto ja peräkärry
+  const muuttoOK = d => !!d && (C(d.c).fl.includes('V') || (!!S.trailer && towOK(d)));
+  function gigKinds() {
     const d = drivenCar();
-    if (S.tsa || !d) return null;
-    if (S.wolt) return 'wolt';
-    if (S.taxi && taxiOK(d)) return 'taxi';
-    return null;
+    if (S.tsa || !d) return [];
+    const k = [];
+    if (S.wolt) k.push('wolt');
+    if (S.taxi && taxiOK(d)) k.push('taxi');
+    if (S.gigs && muuttoOK(d)) k.push('muutto');
+    return k;
   }
   const gigMarkers = () => st.dyn.filter(o => o.gig);
   function gigClear() { st.dyn = st.dyn.filter(o => !o.gig); st.gig = null; st.gigT = 3 + Math.random() * 4; }
@@ -271,29 +277,31 @@ const Drive = (() => {
     if (st.ramp && at > st.ramp.start - 20 && at < st.ramp.end + 10) return;
     const food = FOOD[Math.floor(Math.random() * FOOD.length)];
     st.gig = { kind, phase:'pickup', at, food, t:0, off:0, crash:0 };
-    st.dyn.push(kind === 'wolt' ? { k:'ravintola', z:at * SEG, x:1.75, t:food, gig:true } : { k:'asiakas', z:at * SEG, x:1.3, gig:true });
+    st.dyn.push(kind === 'wolt' ? { k:'ravintola', z:at * SEG, x:1.75, t:food, gig:true } : kind === 'muutto' ? { k:'muutto', z:at * SEG, x:2.0, gig:true } : { k:'asiakas', z:at * SEG, x:1.3, gig:true });
   }
   function gigBook(kind, pay) {
-    S.gig = S.gig || { wolt:0, woltN:0, taxi:0, taxiN:0 };
-    S.gig[kind] += pay; S.gig[kind + 'N']++;
+    S.gig = S.gig || {};
+    S.gig[kind] = (S.gig[kind] || 0) + pay; S.gig[kind + 'N'] = (S.gig[kind + 'N'] || 0) + 1;
+    if (kind === 'muutto') { S.black += pay; if (S.trailer && !C(drivenCar().c).fl.includes('V')) S.trailer.wear++; }
     const car = drivenCar();
     if (car) { // kuluminen per keikka
-      car.base *= kind === 'wolt' ? 0.999 : 0.996;
-      car.tire -= kind === 'wolt' ? 0.25 : 0.6;
+      car.base *= kind === 'wolt' ? 0.999 : kind === 'muutto' ? 0.997 : 0.996;
+      car.tire -= kind === 'wolt' ? 0.25 : kind === 'muutto' ? 0.5 : 0.6;
       if (car.soh !== undefined) car.soh -= kind === 'wolt' ? 0.04 : 0.12;
     }
   }
   function gigUpdate(dt, z1) {
-    const kind = gigKind(), G = st.gig;
+    const kinds = gigKinds(), G = st.gig;
     if (!G) {
-      if (!kind) return;
+      if (!kinds.length) return;
       st.gigT -= dt;
-      if (st.gigT <= 0) { st.gigT = 3 + Math.random() * 4; gigSpawn(kind); }
+      if (st.gigT <= 0) { st.gigT = 3 + Math.random() * 4; gigSpawn(kinds[Math.floor(Math.random() * kinds.length)]); }
       return;
     }
-    if (kind !== G.kind) {
+    if (!kinds.includes(G.kind)) {
       gigClear();
       if (G.phase === 'pickup') return toast('Keikka peruttiin: tällä autolla sitä ei voi ajaa.');
+      if (G.kind === 'muutto') return toast('!Kuorma jäi kesken matkan. Asiakas ei maksa.');
       if (G.kind === 'taxi') { S.taxiStars = (S.taxiStars === undefined ? 5 : S.taxiStars) * 0.7 + 0.3; return toast('!Asiakas jäi tien varteen. Kyydistä ei makseta, ja tähtiä tuli yksi.'); }
       return toast('!Ruoka ei päässyt perille. Toimituksesta ei makseta.');
     }
@@ -301,27 +309,37 @@ const Drive = (() => {
     G.t += dt;
     if (G.phase === 'deliver' && (st.x < -1 || st.x > 1)) G.off += dt;
     const near = Math.abs(cur - G.at) <= STOP_WIN, stopped = st.speed < 15 * KMH && st.x > 0.25;
-    if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
+    if (G.kind === 'muutto') { // kuorma kannetaan ja puretaan: pitää seistä kohdalla hetki
+      if (near && stopped) { G.load = (G.load || 0) + dt; if (G.load < LOAD_S) return; G.load = 0; }
+      else { G.load = 0; }
+      if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
+    } else if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
     if (cur > G.at + STOP_WIN) {
-      if (G.phase === 'pickup') { gigClear(); return toast(G.kind === 'wolt' ? 'Ohitit ravintolan. Tilaus meni toiselle kuskille.' : 'Ohitit asiakkaan. Hän tilasi kilpailijan.'); }
+      if (G.phase === 'pickup') { gigClear(); return toast(G.kind === 'wolt' ? 'Ohitit ravintolan. Tilaus meni toiselle kuskille.' : G.kind === 'muutto' ? 'Ohitit muuttoasiakkaan. Hän soitti toiselle Marketplace-kuskille.' : 'Ohitit asiakkaan. Hän tilasi kilpailijan.'); }
       if (G.kind === 'wolt') { gigClear(); return toast('!Ohitit asiakkaan oven. Tilaus peruttiin, ei palkkiota.'); }
       return gigFinish(G, true);
     }
   }
   function gigPickup(G, cur) {
     st.dyn = st.dyn.filter(o => !o.gig);
-    const dist = G.kind === 'wolt' ? 220 + Math.floor(Math.random() * 220) : 450 + Math.floor(Math.random() * 450);
+    const dist = G.kind === 'wolt' ? 220 + Math.floor(Math.random() * 220) : G.kind === 'muutto' ? 350 + Math.floor(Math.random() * 350) : 450 + Math.floor(Math.random() * 450);
     G.phase = 'deliver'; G.at = cur + dist; G.t = 0;
     G.limit = dist * SEG / (85 * KMH) + 6;
-    G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : ri(30, 80) * 5;
+    const van = C(drivenCar().c).fl.includes('V');
+    G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : G.kind === 'muutto' ? (van ? ri(30, 80) : ri(20, 60)) * 5 : ri(30, 80) * 5;
+    if (G.kind === 'muutto') G.limit = Infinity;
     G.dest = DEST[Math.floor(Math.random() * DEST.length)];
-    st.dyn.push({ k:'kohde', z:G.at * SEG, x:1.45, t: G.kind === 'wolt' ? 'TOIMITUS' : 'KOHDE', gig:true });
+    st.dyn.push({ k:'kohde', z:G.at * SEG, x:1.45, t: G.kind === 'wolt' ? 'TOIMITUS' : G.kind === 'muutto' ? 'PURKU' : 'KOHDE', gig:true });
+    if (G.kind === 'muutto') return toast(van ? '+Paku täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille.' : '+Kärry täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille, max 80 km/h.', 4);
     toast(G.kind === 'wolt' ? `+${G.food} kyytiin. Vie se perille ennen kuin se jäähtyy.` : `+Asiakas kyytiin: "${G.dest}, ja äkkiä!"`, 4);
   }
   function gigFinish(G, missed) {
     const late = G.t > G.limit;
     let pay, msg;
-    if (G.kind === 'wolt') {
+    if (G.kind === 'muutto') {
+      pay = missed ? Math.round(G.pay / 2) : G.pay;
+      msg = missed ? `!Ajoit purkupaikan ohi. Asiakas kantoi itse loppumatkan ja maksoi puolet (${eur(pay)}).` : `+Muutto valmis: ${eur(pay)} käteistä, ei kuittia.`;
+    } else if (G.kind === 'wolt') {
       pay = late ? Math.round(G.pay / 2) : G.pay;
       msg = `+Toimitettu: ${eur(pay)}${late ? ' (myöhässä, puolet)' : ''}`;
     } else {
@@ -338,6 +356,7 @@ const Drive = (() => {
   function gigCrash() {
     const G = st.gig;
     if (!G || G.phase !== 'deliver') return;
+    if (G.kind === 'muutto') { gigClear(); Q.push(() => say('KUORMA LEVISI', ['!Kolarissa kuorma levisi pitkin tietä. Asiakas ei maksa, ja hänen kuntopyöränsä on nyt ojassa.'])); return; }
     if (G.kind === 'wolt') { gigClear(); Q.push(() => say('KEITTO KAATUI', ['!Tilaus levisi pitkin takapenkkiä. Toimitus peruttiin, eikä siitä makseta.'])); }
     else G.crash++;
   }
@@ -346,6 +365,10 @@ const Drive = (() => {
     if (!G) return null;
     const d = Math.max(0, G.at - Math.floor((st.pos + PZ) / SEG)) * 5;
     const dist = d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', ',')} KM` : `${d} M`;
+    if (G.kind === 'muutto') {
+      if (G.load > 0) return `MUUTTO: ${G.phase === 'pickup' ? 'KANNETAAN KUORMAA' : 'PURETAAN'}… ${Math.ceil(LOAD_S - G.load)} S`;
+      return G.phase === 'pickup' ? `MUUTTO: ASIAKAS ${dist} · PYSÄHDY KOHDALLE` : `MUUTTO: PURKUPAIKKA ${dist} · PYSÄHDY KOHDALLE`;
+    }
     if (G.phase === 'pickup') return G.kind === 'wolt' ? `WOLT: NOUDA ${G.food} ${dist} · PYSÄHDY KOHDALLE` : `TAKSI: ASIAKAS VIITTOO ${dist} · PYSÄHDY KOHDALLE`;
     if (G.kind === 'wolt') { const left = Math.ceil(G.limit - G.t); return `WOLT: ${G.food} PERILLE ${dist} · ${left > 0 ? left + ' S' : 'MYÖHÄSSÄ'}`; }
     return `TAKSI: ${G.dest.toUpperCase()} ${dist} · ${Math.max(1, 5 - 2 * G.crash - Math.floor(G.off / 1.5))}/5 TÄHTEÄ`;
@@ -511,6 +534,14 @@ const Drive = (() => {
         P(-120, 1150, 240, 80, '#3A2A1A');                              // pipo
         P(170, 900 + wave * 150, 80, 400, '#2F6DB5');                   // heiluva käsi
         if (s * 1000 > 14) { g.fillStyle = COL.yellow; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 380))}px VT323`; g.fillText('TAKSI!', cx, by - 1500 * s); g.textAlign = 'left'; }
+        break; }
+      case 'muutto': { // muuttava talo: laatikoita ja sohva pihalla
+        P(-1300, 0, 2600, 1500, '#C8B27A'); P(-1300, 0, 120, 1500, COL.white); P(1180, 0, 120, 1500, COL.white);
+        tri(-1500, 1500, 1500, 1500, 0, 2400, sea.snow ? '#FFFFFF' : COL.grey1);
+        P(-700, 600, 400, 400, '#A5C8FF'); P(300, 600, 400, 400, '#A5C8FF');
+        P(-1700, 0, 300, 300, '#B08850'); P(-1650, 300, 250, 250, '#C09860'); P(-1300, 0, 280, 280, '#B08850'); // laatikot
+        P(1400, 0, 700, 250, '#7A2E2E'); P(1400, 250, 120, 200, '#7A2E2E'); P(1980, 250, 120, 200, '#7A2E2E'); // sohva
+        if (s * 2600 > 24) { g.fillStyle = COL.yellow; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 460))}px VT323`; g.fillText('MUUTTO', cx, by - 2600 * s); g.textAlign = 'left'; }
         break; }
       case 'kohde': {
         const blink = Math.floor(performance.now() / 300) % 2;

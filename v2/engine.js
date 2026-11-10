@@ -242,19 +242,15 @@ function monthTick() {
   if (S.post && S.post.length) { S.post.forEach(([t, a]) => { cash -= a; R.push(['-', `Postissa: ${t}`, a]); }); S.post = []; }
   S.cars.forEach(car => { if (car.loan) { cash -= car.loan.pay; R.push(['-', `Lainan erä: ${C(car.c).name}`, car.loan.pay]); }});
   const rc = runCosts(); rc.lines.forEach(l => R.push(['-', l[0], l[1]])); cash -= rc.sum;
-  if (S.gigs) {
-    const rig = gigRig();
-    if (rig && rig.van) { const g = ri(2,7)*100; cash += g; S.black += g; rig.car.tire -= 1; rig.car.base *= 0.995; R.push(['+', 'Pimeät muuttokeikat (käteinen, ei kirjanpitoon)', g]); }
-    else if (rig) { const g = ri(1,5)*100; cash += g; S.black += g; rig.car.tire -= 1; rig.car.base *= 0.993; if (rig.car.soh!==undefined) rig.car.soh -= 0.2; S.trailer.wear++; R.push(['+', 'Pimeät muuttokeikat peräkärryllä (käteinen, ei kirjanpitoon)', g]); }
-    else R.push(['!', S.trailer ? 'Muuttokeikat jäivät väliin: ajossa olevassa autossa ei ole vetokoukkua tai se ei kulje' : 'Muuttokeikat jäivät väliin: pakettiauto ei ole ajokunnossa', 0]);
-  }
   const dc = drivenCar();
   // 2.0: keikkatulot tulevat vain tiellä ajetuista keikoista (drive.js kirjaa ne S.gig-olioon)
   { const G = S.gig || {}; S.gig = null;
     if (G.woltN) { cash += G.wolt; R.push(['+', `Wolt-toimitukset (${G.woltN} kpl)`, G.wolt]); }
     else if (S.wolt) R.push(['!', 'Wolt-keikat päällä, mutta yhtään toimitusta ei ajettu', 0]);
     if (G.taxiN) { cash += G.taxi; R.push(['+', `Taksikyydit (${G.taxiN} kpl, verotettu)`, G.taxi]); }
-    else if (S.taxi) R.push(['!', 'Taksivalo päällä, mutta yhtään kyytiä ei ajettu', 0]); }
+    else if (S.taxi) R.push(['!', 'Taksivalo päällä, mutta yhtään kyytiä ei ajettu', 0]);
+    if (G.muuttoN) { cash += G.muutto; R.push(['+', `Pimeät muuttokeikat (${G.muuttoN} kpl, käteinen, ei kirjanpitoon)`, G.muutto]); }
+    else if (S.gigs) R.push(['!', gigRig() ? 'Muuttokeikat päällä, mutta yhtään keikkaa ei ajettu' : S.trailer ? 'Muuttokeikat jäivät väliin: ajossa olevassa autossa ei ole vetokoukkua tai se ei kulje' : 'Muuttokeikat jäivät väliin: pakettiauto ei ole ajokunnossa', 0]); }
   if (S.flip) { S.flip.left--; if (S.flip.left<=0) { const f = S.flip; S.flip = null; cash += f.sale; R.push([f.sale>=f.cost?'+':'!', `Flippikohde ${f.name} myyty (${f.sale>=f.cost?'voittoa':'tappiota'} ${eur(Math.abs(f.sale-f.cost))})`, f.sale]); } }
   if (S.inv.tsla) S.inv.tsla = Math.max(0, S.inv.tsla * (1 + rnd(-0.11, 0.13)));
   if (S.inv.doge) S.inv.doge = Math.max(0, S.inv.doge * (1 + rnd(-0.28, 0.32)));
@@ -424,7 +420,7 @@ function sideMenu() {
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
   if (!S.trailer) ch.push(['Osta peräkärry Huutokaupat.comista (muuttokeikkoja varten)', trailerBuy]);
   else ch.push([`Myy peräkärry (noin ${eur(trailerValue())})`, trailerSell]);
-  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (+200–700 €/kk)' : 'Pimeät muuttokeikat peräkärryllä (+100–500 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua.') : ''], sideMenu); }]);
+  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (asiakkaat tien varressa, 150–400 €/keikka)' : 'Pimeät muuttokeikat peräkärryllä (asiakkaat tien varressa, 100–300 €/keikka)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok." Asiakkaat odottavat tien varressa MUUTTO-kyltin kohdalla: pysähdy ja odota, kun kuorma kannetaan. Purkupaikalla sama juttu.' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua.') : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
   ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
   ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
