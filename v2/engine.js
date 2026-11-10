@@ -383,6 +383,10 @@ function monthTick() {
   S.provisio = 0; if (S.job === 'myyja' && !(S.layoff>0)) { const pv = r100(rnd(0,600) * (S.bubble>0 ? 1.6 : S.M.all < 0.9 ? 0.3 : 1)); if (pv) R.push(['+', 'Myyntiprovisio', pv]); S.provisio = pv; }
   if (S.layoff>0) S.layoff--;
   let cash = S.cash + inc;
+  // uusi auto piristää: 80 %:ssa ostokuukausista työteho nousee ja töistä tulee bonus
+  if (S.joyM && S.joyM === S.m - 1 && !(S.layoff>0) && RND() < 0.8) { const bo = Math.round(S.income * rnd(0.15, 0.35) / 10) * 10; cash += bo;
+    R.push(['+', S.job === 'yrittaja' ? 'Uusi auto piristi: laskutit tavallista enemmän' : 'Uusi auto piristi: työteho nousi, ja pomo maksoi bonuksen', bo]); }
+  S.joyM = 0;
   if (S.post && S.post.length) { S.post.forEach(([t, a]) => { cash -= a; R.push(['-', `Postissa: ${t}`, a]); }); S.post = []; }
   S.cars.forEach(car => { if (car.loan) { cash -= car.loan.pay; R.push(['-', `Lainan erä: ${C(car.c).name}`, car.loan.pay]); }});
   const rc = runCosts(); rc.lines.forEach(l => R.push(['-', l[0], l[1]])); cash -= rc.sum;
@@ -971,7 +975,7 @@ function saksaOffer() {
     car.base = fi * 0.93 / mult(car); setWarranty(car, false); car.dealer = 0; car.warr = S.m; if (RND() < 0.5) car.bwarr = S.m;
     if (odoFake) car.odo = S.m + ri(3,8);
     car.reg = S.m + 999; // ajetaan kotiin siirtokilvillä, rekisteröidään perillä
-    S.cars.push(car);
+    S.cars.push(car); S.joyM = S.m;
     const winter = [11,0,1,2].includes((S.m-1)%12), kk = mountCost(k), fr = r100(600*tierMult(k));
     const trip = {kind:'saksa', name:'TRAVEMÜNDE', km:800, hours:10, road:'autobahn', car};
     const lines = [`+${k.name} ostettu Münchenistä ${eur(de)}${loan ? ' kulutusluotolla' : ''}. Lento 150 € ja siirtokilvet 100 €.`, 'Seuraavaksi 800 km Autobahnia Travemündeen. Lautta Helsinkiin lähtee 10 tunnin päästä.', '!Autobahnilla ei ole nopeusrajoitusta, mutta 200 km/h:ssa akku tyhjenee hetkessä. Etsi sopiva vauhti.'];
@@ -1405,7 +1409,7 @@ function doBuy(s, trade, loan, paid) {
   const car = {c:s.c, base:0, loan, broken:0, mb:0, sale:0, soh:s.soh, held:0, newBuy:C(s.c).fl.includes('N'), paid:s.price, bought:S.m, rims2:!!s.rims2};
   car.base = nv / mult(car);
   setWarranty(car, !C(s.c).fl.includes('N'));
-  S.cars.push(car);
+  S.cars.push(car); S.joyM = S.m;
   S.stock = S.stock.filter(x=>x!==s);
   const lines = [`+${k.name} on sinun!`];
   if (loan) lines.push(`Laina ${eur(loan.bal)}, auton arvo ${eur(nv)}.`);
@@ -1468,7 +1472,7 @@ function auctionPay(A, total, loan) {
   const car = {c:A.id, base:0, loan, broken:0, mb:0, sale:0, soh:A.soh, held:0};
   car.base = A.V / mult(car);
   setWarranty(car, false);
-  S.cars.push(car);
+  S.cars.push(car); S.joyM = S.m;
   const lines = [`+${C(A.id).name} on sinun.`];
   if (A.hidden) {
     if (RND()<0.5) { car.base *= 0.75; lines.push('!Piilovika: kori on kitattu ja maalattu. Arvo −25 %.'); }
