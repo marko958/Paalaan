@@ -31,6 +31,20 @@
   /* 2.0: ajotila */
   #drive { display:none; }
   #drive canvas { display:block; width:100%; height:auto; aspect-ratio:320/200; background:#000; image-rendering:crisp-edges; image-rendering:pixelated; touch-action:none; }
+  .view { position:relative; }
+  #hud { position:absolute; inset:0; pointer-events:none; color:#fff; font-size:clamp(16px, 3.3vw, 23px); line-height:1.05;
+    text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
+  #hud p { margin:0 0 3px; }
+  .h-top { display:flex; justify-content:space-between; gap:8px; padding:3px 8px 2px; background:rgba(0,0,0,.6); }
+  .h-top .neg { color:#FF8A80; }
+  .h-prog { height:4px; background:#222; } .h-prog i { display:block; height:100%; width:0; background:var(--yel); }
+  #h-msgs { text-align:center; padding:6px 10px 0; }
+  #h-msgs .gig { color:#A5E8FF; } #h-msgs .r { color:#FF8A80; } #h-msgs .g { color:#A9FF9F; }
+  #h-hint { position:absolute; left:0; right:0; bottom:44%; text-align:center; }
+  #h-ramp { position:absolute; left:8px; right:8px; bottom:26%; text-align:center; color:var(--yel); font-size:1.15em; animation:blink 0.8s steps(2) infinite; }
+  .h-bot { position:absolute; left:8px; right:8px; bottom:4px; display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
+  #h-speed { font-size:1.6em; white-space:nowrap; } #h-car { max-width:34%; text-align:right; }
+  #h-pause { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); font-size:1.8em; }
   .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
   .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
   .pad button.on { background:var(--hi); }
@@ -45,20 +59,31 @@
 <div class="screen">
   <div id="status" class="status" hidden></div>
   <div id="drive">
-    <canvas id="road" width="320" height="200"></canvas>
+    <div class="view">
+      <canvas id="road" width="640" height="400"></canvas>
+      <div id="hud">
+        <div class="h-top"><span id="h-month"></span><span id="h-cash"></span></div>
+        <div class="h-prog"><i id="h-bar"></i></div>
+        <div id="h-msgs"></div>
+        <div id="h-hint"></div>
+        <div id="h-ramp"></div>
+        <div class="h-bot"><span id="h-speed"></span><span id="h-car"></span></div>
+        <div id="h-pause">TAUKO · P jatkaa</div>
+      </div>
+    </div>
     <div class="pad">
       <button data-k="left" aria-label="Vasemmalle">◀</button>
       <button data-k="brake">JARRU</button>
       <button data-k="right" aria-label="Oikealle">▶</button>
     </div>
-    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon.</div>
+    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon. Wolt ja taksi: pysähdy kohdalle oikeaan reunaan.</div>
   </div>
   <div id="panel">
     <h1 id="title"></h1>
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 2 (10.11. klo 11.04) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 3 (10.11. klo 11.08) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
 </div>
 <script src="drive.js"></script>
 <script src="engine.js"></script>
