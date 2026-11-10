@@ -151,7 +151,9 @@ const Drive = (() => {
     if (k.fl.includes('V')) vmax = 140;
     if (k.fl.includes('B')) vmax = 130;
     vmax = Math.min(230, Math.max(125, vmax));
+    if (/^Elcat/.test(k.name)) vmax = 72; // 90-luvun sähköpaku
     let acc = k.type === 'e' ? Math.min(36, 20 + k.price / 4000) : Math.min(24, 12 + k.price / 6000);
+    if (/^Elcat/.test(k.name)) acc = 7;
     const minor = car ? (car.minor || 0) : 0;
     if (minor) { vmax *= 0.92; acc *= 0.85; }
     if (!T && towing()) { vmax = Math.min(vmax, 120); acc *= 0.75; }
@@ -172,9 +174,10 @@ const Drive = (() => {
   function eSpecFor(k, car, T) {
     const obj = T || car;
     if (k.type !== 'e') { const range = k.type === 'h' ? 900 : 750; return { ev:false, range, obj, tank: range * (k.fl.includes('D') ? 0.06 : 0.07), free: !!(T && T.kind === 'vapaa') }; }
-    let range = k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
+    const es = evSpec(k);
+    let range = es ? es[1] : k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
     if (car && car.soh !== undefined) range *= Math.max(0.5, car.soh / 100);
-    const kw = k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
+    const kw = es ? es[2] : k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
     return { ev:true, range, obj, kw, cap: range * 0.17, hp: hasHeatPump(k), free: k.fl.includes('F') || !!(T && T.kind === 'vapaa') };
   }
   function eSpec() {
@@ -941,6 +944,9 @@ const Drive = (() => {
     ['Citroën ë-SpaceTourer', { b:'van', w:1.06, c:'#2B3A55', tl:'vertical' }],
     ['Kia PV5 Passenger', { b:'van', w:1.04, c:'#8C979C', tl:'vertical' }],
     ['Kia PV5 Cargo',     { b:'van', w:1.04, c:'#EDEDED', tl:'vertical' }],
+    ['Renault Fluence',   { b:'sedan', c:'#D8D8D8', tl:'wide', x:['chrome'] }],
+    ['Ford Focus Electric', { b:'hatch', c:'#2F6DB5', tl:'vertical', x:['spoiler'] }],
+    ['Elcat',             { b:'van', w:0.84, c:'#F28C28', tl:'vertical' }],
   ];
   function modelSpec(k) {
     const m = MODELS.find(([n]) => k.name.startsWith(n));
