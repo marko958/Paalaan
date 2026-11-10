@@ -698,37 +698,35 @@ const Drive = (() => {
     gr.addColorStop(0, 'rgba(0,0,16,0)'); gr.addColorStop(0.45, `rgba(0,0,16,${sea.dark * 0.45})`); gr.addColorStop(1, `rgba(0,0,16,${sea.dark})`);
     g.fillStyle = gr; g.fillRect(0, 0, W, H);
   }
-  function text(t, x, y, c, size, align) {
-    g.font = `${size || 10}px VT323`; g.textAlign = align || 'left';
-    g.fillStyle = COL.black; g.fillText(t, x + 1, y + 1);
-    g.fillStyle = c; g.fillText(t, x, y);
-    g.textAlign = 'left';
-  }
+  // HUD on HTML-tekstiä canvasin päällä, jotta se pysyy terävänä kaikilla näytöillä
+  const hud = {};
+  const hudSet = (k, v, prop) => { if (hud[k + '_'] !== v) { hud[k + '_'] = v; hud[k][prop || 'textContent'] = v; } };
+  const escH = t => String(t).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
   function drawHud() {
-    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, W, 12);
-    text(`KK ${S.m}/${LAST} ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)}`, 3, 9, COL.white);
-    text(`KASSA ${eur(S.cash)}`, W - 3, 9, S.cash < 0 ? '#FF8A80' : COL.white, 10, 'right');
-    g.fillStyle = '#222'; g.fillRect(0, 12, W, 2);
-    g.fillStyle = COL.yellow; g.fillRect(0, 12, Math.min(1, st.monthT / MONTH_S) * W, 2);
-    const kmh = Math.round(st.speed / KMH);
-    text(`${String(kmh).padStart(3, '0')} KM/H`, 4, H - 6, COL.white, 14);
-    text(st.veh.name + (st.veh.tsa ? ' (TSA)' : ''), W - 4, H - 6, COL.white, 9, 'right');
-    let y = 26;
+    hudSet('month', `KK ${S.m}/${LAST} · ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)}`);
+    hudSet('cash', `KASSA ${eur(S.cash)}`);
+    hudSet('cashCls', S.cash < 0 ? 'neg' : '', 'className');
+    hudSet('bar', Math.min(100, st.monthT / MONTH_S * 100).toFixed(1) + '%', 'width');
+    hudSet('speed', `${Math.round(st.speed / KMH)} km/h`);
+    hudSet('car', st.veh.name + (st.veh.tsa ? ' (työsuhdeauto)' : ''));
     const gh = gigHud();
-    if (gh) { text(gh, W / 2, y, '#A5E8FF', 10, 'center'); y += 12; }
-    for (const t of st.toasts) {
-      const c = t.t[0] === '!' ? '#FF8A80' : t.t[0] === '+' ? '#A9FF9F' : COL.white;
-      text(t.t[0] === '!' || t.t[0] === '+' ? t.t.slice(1) : t.t, W / 2, y, c, 10, 'center'); y += 11;
-    }
+    const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + st.toasts.map(t => {
+      const c = t.t[0] === '!' ? 'r' : t.t[0] === '+' ? 'g' : '';
+      return `<p class="${c}">${escH(c ? t.t.slice(1) : t.t)}</p>`;
+    }).join('');
+    hudSet('msgs', msgs, 'innerHTML');
+    let ramp = '';
     if (st.ramp) {
       const d = st.ramp.start - Math.floor((st.pos + PZ) / SEG);
-      if (d > -RAMP_LEN && Math.floor(performance.now() / 400) % 2) text(d > 0 ? `LIITTYMÄ ${d * 5} M → AJA OIKEALLE = VALIKKO` : 'LIITTYMÄ: AJA OIKEALLE = VALIKKO', W / 2, H - 22, COL.yellow, 10, 'center');
+      if (d > -RAMP_LEN) ramp = d > 0 ? `LIITTYMÄ ${d * 5} m → oikealle = valikko` : 'LIITTYMÄ → oikealle = valikko';
     }
-    if (st.hint) text('← → OHJAA · ↓ JARRU · P TAUKO', W / 2, H - 70, COL.white, 10, 'center');
-    if (st.userPause) { g.fillStyle = 'rgba(0,0,0,0.5)'; g.fillRect(0, 0, W, H); text('TAUKO · P JATKAA', W / 2, H / 2, COL.white, 16, 'center'); }
+    hudSet('ramp', ramp);
+    hudSet('hint', st.hint ? '← → ohjaa · ↓ jarru · P tauko' : '');
+    hudSet('pause', st.userPause ? 'flex' : 'none', 'display');
     if (st.flash > 0) { g.fillStyle = `rgba(255,255,255,${st.flash})`; g.fillRect(0, 0, W, H); }
   }
   function render() {
+    g.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0);
     const sea = season();
     const baseIdx = Math.floor(st.pos / SEG); ensure(baseIdx);
     const base = segs[baseIdx], basePct = (st.pos % SEG) / SEG;
@@ -771,6 +769,8 @@ const Drive = (() => {
   const KEYMAP = { ArrowLeft:'left', a:'left', A:'left', ArrowRight:'right', d:'right', D:'right', ArrowDown:'brake', s:'brake', S:'brake', ' ':'brake' };
   function init() {
     cv = document.getElementById('road'); g = cv.getContext('2d');
+    const $ = id => document.getElementById(id);
+    Object.assign(hud, { month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
     if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
