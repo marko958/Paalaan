@@ -3,6 +3,7 @@
 
 // ---------- DATA ----------
 // [nimi, hinta, tyyppi(b=polttomoottori,h=hybridi,e=sähkö), kulut €/kk, arvonlasku %/v, liput, vika, vian hinta]
+// 2.0: B=tila-auto (8 paikkaa: taksikyydit maksavat enemmän)
 // liput: V=pakettiauto (iso alennus, muuttokeikat), F=ilmaiset superit (halpa ajaa, hajoaa usein), D=diesel (käyttövoimavero), N=uusi liikkeestä, T=Tesla, K=latausluukku (mikrobetoni käy), S=lyhyt toimintamatka (lomautusriski)
 const CARS = [
  ['Ford Mondeo 2006',1000,'b',900,.10,'','Katsastus hylkäsi: jarruputket poikki',700],
@@ -60,6 +61,9 @@ const CARS = [
  ['Tesla Cybertruck (harmaatuonti)',150000,'e',600,.25,'T','Rekisteröinti evätty, auto seisoo',3000],
  ['Tesla Model S 85 2014 (650 000 km)',11000,'e',70,.10,'TF','Vetoyksikkö (drive unit) jumissa',4000],
  ['Toyota Proace Max EV (uusi)',72000,'e',200,.20,'NV','Takaovien sarana vääntyi muuttokeikalla',900],
+ // 2.0: uudet mallit lisätään loppuun, koska tavoitteet, kampanjat ja työsuhdeautot viittaavat indekseihin
+ ['Audi e-tron 55 quattro 2020',22000,'e',280,.17,'K','Latausluukun moottori hajosi',900],
+ ['Citroën ë-SpaceTourer 2022',27000,'e',230,.16,'B','Liukuoven moottori jumissa',800],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
@@ -70,6 +74,7 @@ const FFAULTS = [['MCU-näyttö pimeni, auto ei käynnisty',1500],['Ovenkahvat e
 // mallikohtaiset lisätyyppiviat CARS-taulukon oman vian lisäksi
 const EXTRA_FAULTS = [
  ['Tesla Model 3', [['Akkukotelo ruostui, ja kosteus pääsi akkuun: eristysvika, auto ei käynnisty', 4200], ['Jarruputket ruostuivat suolatuilla teillä', 900]]],
+ ['Audi e-tron 55', [['Etumoottori hajosi: moottoriremppa', 9000], ['Katto- ja taka-antennit hapettuivat: radio, GPS ja puhelin pimeinä', 1200], ['Latausluukun moottori ja lukitus hajosivat taas', 1100]]],
 ];
 // sähköautot, joissa ei ole lämpöpumppua (lämmitys PTC-vastuksella)
 const NO_HEATPUMP = ['Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
@@ -80,6 +85,7 @@ const coldSeason = () => [10,11,0,1,2].includes((S.m-1)%12);
 const drivable = f => HEATER.test(f) ? !coldSeason() : DRIVABLE.has(f);
 // viat, joiden kanssa auto kulkee (muut pysäyttävät auton)
 const DRIVABLE = new Set([
+ 'Katto- ja taka-antennit hapettuivat: radio, GPS ja puhelin pimeinä',
  'PTC-lämmitin hajosi: lasit huurtuvat, ja sisällä on pakkasta',
  'Ruoste puhkesi kynnyksiin','Jarrulevyt loppu','Hybridiakku väsyi','DSG-vaihteisto nykii','Latausakku hiipuu','Akku heikkeni, toimintamatka romahti',
  'Lämpöpumppu hajosi','Hiilikuitukori kolhiintui','Ilmastointi hajosi','Pelti lommolle ostoskärrystä','Infotainment pimeni','Ovenkahva jumissa ja paneelirako',
@@ -99,7 +105,7 @@ const BATT = [
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
  ['Mercedes EQS (uusi)',40000],['Mercedes EQS',35000],['Maybach',60000],['BMW i7',40000],['Porsche Macan',30000],['Tesla Model S Plaid',22000],
  ['Lucid Air',50000],['Lotus Eletre',45000],['Polestar 3',15000],['Rolls-Royce Spectre',90000],['Tesla Cybertruck',35000],['Tesla Model S 85',14000],
- ['Toyota Proace',20000],
+ ['Toyota Proace',20000],['Audi e-tron 55',25000],['Citroën ë-SpaceTourer',14000],
 ];
 function battCost(k) { const b = BATT.find(([n]) => k.name.startsWith(n)); return b ? b[1] : (k.price > 50000 ? 30000 : 12000); }
 // ---------- TAKUUT ----------
@@ -583,16 +589,18 @@ function damageEvent(k, o) {
   if (!car) return next();
   const kk = C(car.c);
   const lux = kk.price > 50000;
-  const omav = k==='peura' ? (lux?800:500) : (lux?500:300);
+  const fatti = kk.name.startsWith('Audi e-tron 55'); // fätti: tutkia enemmän kuin lentokentällä
+  const omav = fatti && k==='peura' ? 2000 : k==='peura' ? (lux?800:500) : (lux?500:300);
   const t = o.title || (k==='peura' ? 'PEURA!' : 'KOLHU');
   const txt = o.txt || (k==='peura' ? `Peura loikkasi ${kk.name}n keulaan.` : (S.parking ? `${kk.name}: joku pysäköi kolmen paikan keskelle kahden paikan väliin ja avasi oven silti kylkeen.` : `${kk.name}: parkkipaikalla joku avasi oven kylkeen.`));
   const ch = [
     [`Vakuutus: omavastuu ${eur(omav)}`, ()=>{ payOrVippi(omav); say(t,['Korjattu kunnolla. Arvo säilyi.']); }],
     [`Mikrobetoni (${eur(k==='peura'?60:40)}): arvo −${k==='peura'?25:20} %`, ()=>{ S.cash -= (k==='peura'?60:40); car.base *= (k==='peura'?0.75:0.8); car.mb++; fixNeg(); say(t,['Mikrobetonia, hiekkapaperia ja spraymaalia. Melkein huomaamaton.', mbWarn(car)]); }],
   ];
-  if (k==='kolhu') ch.push(['Jätä korjaamatta (arvo −6 %)', ()=>{ car.base *= 0.94; say(t,['Kolhu jää muistoksi.']); }]);
-  else ch.push(['Jätä korjaamatta: auto ei kulje (korjaus 3 000 €)', ()=>{ car.broken = 3000; say(t,['!Auto seisoo pihassa.']); }]);
+  if (k==='kolhu') ch.push(fatti ? ['Jätä korjaamatta (arvo −6 %, rikkinäinen lidar 2 800 €)', ()=>{ car.base *= 0.94; car.minor = (car.minor||0) + 2800; say(t,['Kolhu jää muistoksi, ja peruutustutka piippaa nyt koko ajan.']); }] : ['Jätä korjaamatta (arvo −6 %)', ()=>{ car.base *= 0.94; say(t,['Kolhu jää muistoksi.']); }]);
+  else ch.push(fatti ? ['Jätä korjaamatta: auto ei kulje (korjaus 20 000 €)', ()=>{ car.broken = 20000; say(t,['!Fätti seisoo pihassa. Tutkat ja matriisivalot odottavat.']); }] : ['Jätä korjaamatta: auto ei kulje (korjaus 3 000 €)', ()=>{ car.broken = 3000; say(t,['!Auto seisoo pihassa.']); }]);
   const lines = [txt];
+  if (fatti && !o.total) lines.push(k==='peura' ? '!Fätin keulassa on enemmän tutkia kuin lentokentällä: korjaamo laski vauriot 20 000 €:ksi. Omavastuu 2 000 €.' : '!Kolhu osui takapuskurin lidar-anturiin ja tutkiin. Ilman vakuutusta korjaus maksaa 2 800 €.');
   if (k==='peura' && (o.total || RND() < 0.4)) {
     const uus = car.newBuy && S.m - (car.bought||0) <= 24;
     const pay = r100(uus ? car.paid : val(car)) - omav;
@@ -680,7 +688,7 @@ function faultEvent(car) {
   if (k.fl.includes('F') && RND() < 0.6) { const g = pick(FFAULTS); fault = g[0]; cost = g[1]; }
   else if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
   if (/^Lämpöpumppu/.test(fault) && !hasHeatPump(k)) { fault = 'PTC-lämmitin hajosi: lasit huurtuvat, ja sisällä on pakkasta'; cost = 750 * tierMult(k); } // ei lämpöpumppua
-  car.broken = Math.round(cost*rnd(0.9,1.3)/10)*10;
+  car.broken = Math.round(cost*rnd(0.9,1.3)/10)*10; car.lastFault = fault;
   let txt = `${k.name}: ${fault}. Korjausarvio ${eur(car.broken)}.`;
   if (HEATER.test(fault)) txt += coldSeason() ? ' Pakkasella tuulilasi jäätyy sisäpuolelta, eikä autolla voi ajaa.' : ' Kesällä pärjää ilman lämmitystä, mutta pakkasilla autolla ei voi ajaa.';
   if (car.mb && RND() < 0.4) { car.broken *= 2; txt = `${k.name}: mikrobetonipaikka lohkesi ja vei mukanaan muutakin. Korjausarvio ${eur(car.broken)} (tuplana).`; }
@@ -706,7 +714,12 @@ function repairChoice(car, title, text) {
   const ch = [];
   ch.push([`Korjaa käteisellä (${eur(car.broken)})`, ()=>{ S.cash -= car.broken; car.broken = 0; say(title,['Korjattu.']); }, S.cash < car.broken]);
   ch.push(['Korjaa pikavipillä', ()=>{ addVippi(car.broken - Math.max(0,S.cash)); S.cash = Math.max(0, S.cash - car.broken); car.broken = 0; say(title,['Korjattu.','!Pikavippi otettu. Korko on 20 %/kk.']); }]);
-  if (k.fl.includes('K')) ch.push(['Mikrobetoni luukkuun (40 €): arvo −20 %', ()=>{ S.cash -= 40; car.broken = 0; car.base *= 0.8; car.mb++; fixNeg(); say(title,['Luukku valettu kiinni mikrobetonilla. Lataus toimii, kun piuhan työntää raosta.', mbWarn(car)]); }]);
+  if (k.name.startsWith('Audi e-tron 55') && car.broken >= 500 && car.krl !== car.broken) ch.push(['Kuluttajariitalautakuntaan (noppa: halvempi korjaus tai K-Auto tuplahintaan)', ()=>{
+    if (RND() < 0.45) { car.broken = r100(car.broken * 0.6); car.krl = car.broken;
+      sayTo('KULUTTAJARIITALAUTAKUNTA', ['Käsittely kesti 11 kuukautta.', '+Suositus: merkkihuollon on korjattava fätti halvemmalla, koska vika on tyyppivika.', `Uusi korjaushinta ${eur(car.broken)}.`], ()=>repairChoice(car, title, `${k.name}: korjaus ${eur(car.broken)} (lautakunnan suositus)`)); }
+    else { car.broken *= 2; car.krl = car.broken;
+      sayTo('KULUTTAJARIITALAUTAKUNTA', ['Käsittely kesti 11 kuukautta.', '!Ei suositusta. Merkkihuolto ei enää koske autoon, joten se pitää viedä K-Autolle.', `!K-Auto korjaa tuplahintaan: ${eur(car.broken)}.`], ()=>repairChoice(car, title, `${k.name}: korjaus K-Autolla ${eur(car.broken)}`)); } }]);
+  if (k.fl.includes('K') && /luuk/i.test(text + ' ' + (car.lastFault||''))) ch.push(['Mikrobetoni luukkuun (40 €): arvo −20 %', ()=>{ S.cash -= 40; car.broken = 0; car.base *= 0.8; car.mb++; fixNeg(); say(title,['Luukku valettu kiinni mikrobetonilla. Lataus toimii, kun piuhan työntää raosta.', mbWarn(car)]); }]);
   ch.push(['Jätä odottamaan', ()=>{ say(title, ['!Auto seisoo. Arvo laskee seistessä nopeammin.', working().length ? '' : '!Ilman toimivaa autoa kuluu 850 €/kk takseihin ja busseihin. Harkitse hätäautoa.']); }]);
   scr(title, [text], ch);
 }

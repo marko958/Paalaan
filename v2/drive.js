@@ -137,6 +137,7 @@ const Drive = (() => {
     if (k.fl.includes('T')) vmax += 20;
     if (k.fl.includes('S')) vmax = 125;
     if (k.fl.includes('V')) vmax = 140;
+    if (k.fl.includes('B')) vmax = 130;
     vmax = Math.min(230, Math.max(125, vmax));
     let acc = k.type === 'e' ? Math.min(36, 20 + k.price / 4000) : Math.min(24, 12 + k.price / 6000);
     const minor = car ? (car.minor || 0) : 0;
@@ -202,6 +203,27 @@ const Drive = (() => {
     else st.dyn.push({ k:'peura', z, x: (Math.random() - 0.5) * 1.6, vx: 0, wake: 999 });
   }
   // ---------- kuopat ja kivet ----------
+  // ---------- muu liikenne ----------
+  const TRAFFIC_COL = ['#A8ADB4', '#1F2633', '#7A1F24', '#ECECEC', '#2F6DB5', '#3A3F44', '#2E5B4C', '#9B6739'];
+  function spawnTraffic(oncoming) {
+    const z1 = st.pos + PZ, seg = segAt(z1), lim = limitOf(seg.lim);
+    const z = z1 + DRAW * SEG * (oncoming ? 0.95 : 0.6 + Math.random() * 0.3);
+    if (st.ramp && z / SEG > st.ramp.start - 10 && z / SEG < st.ramp.end + 10) return;
+    if (st.dyn.some(o => (o.k === 'auto' || o.k === 'vasta') && Math.abs(o.z - z) < 20 * SEG && (o.k === 'vasta') === oncoming)) return;
+    const kmh = oncoming ? lim - 5 + Math.random() * 15 : Math.max(45, lim - 15 + Math.random() * 15);
+    st.dyn.push({ k: oncoming ? 'vasta' : 'auto', z, x: oncoming ? -0.5 : 0.5, v: (oncoming ? -1 : 1) * kmh * KMH, col: TRAFFIC_COL[Math.floor(Math.random() * TRAFFIC_COL.length)], prel: z - z1 });
+  }
+  function hitTraffic(d, kmh) {
+    st.dyn.splice(st.dyn.indexOf(d), 1);
+    const on = d.k === 'vasta';
+    if (kmh < 12) { st.speed = Math.max(0, d.v); st.shake = 0.3; return toast('Kolautit puskuria. Pahoittelut vilkulla, ja matka jatkuu.'); }
+    const name = st.veh.name;
+    const txt = on ? `${name} ajoi vastaantulevien kaistalle, ja nokat kohtasivat ${kmh} km/h:n yhteisnopeudella.` : `${name} ajoi edellä menevän auton perään ${kmh} km/h:n nopeuserolla.`;
+    crashStop(); gigCrash();
+    Q.unshift(() => damageEvent(kmh >= 50 ? 'peura' : 'kolhu', { title: on ? 'NOKKAKOLARI!' : 'PERÄÄNAJO!', txt: txt + (on ? ' Syy on sinun.' : ' Peräänajaja on aina syyllinen.'), total: kmh >= 100 }));
+    setTimeout(() => { if (st.active) openEvents(); }, 450);
+  }
+
   function spawnHazard() {
     const z = st.pos + PZ + DRAW * (0.6 + Math.random() * 0.3) * SEG;
     if (st.ramp && z / SEG > st.ramp.start - 5 && z / SEG < st.ramp.end + 5) return;
@@ -329,9 +351,10 @@ const Drive = (() => {
     G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : G.kind === 'muutto' ? (van ? ri(30, 80) : ri(20, 60)) * 5 : ri(30, 80) * 5;
     if (G.kind === 'muutto') G.limit = Infinity;
     G.dest = DEST[Math.floor(Math.random() * DEST.length)];
+    if (G.kind === 'taxi' && C(drivenCar().c).fl.includes('B')) { G.pay = Math.round(G.pay * 1.6 / 5) * 5; G.big = true; } // tila-auto: isot porukat
     st.dyn.push({ k:'kohde', z:G.at * SEG, x:1.45, t: G.kind === 'wolt' ? 'TOIMITUS' : G.kind === 'muutto' ? 'PURKU' : 'KOHDE', gig:true });
     if (G.kind === 'muutto') return toast(van ? '+Paku täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille.' : '+Kärry täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille, max 80 km/h.', 4);
-    toast(G.kind === 'wolt' ? `+${G.food} kyytiin. Vie se perille ennen kuin se jäähtyy.` : `+Asiakas kyytiin: "${G.dest}, ja äkkiä!"`, 4);
+    toast(G.kind === 'wolt' ? `+${G.food} kyytiin. Vie se perille ennen kuin se jäähtyy.` : G.big ? `+8 hengen porukka kyytiin: "${G.dest}, ja äkkiä!" (tila-autolla isompi taksa)` : `+Asiakas kyytiin: "${G.dest}, ja äkkiä!"`, 4);
   }
   function gigFinish(G, missed) {
     const late = G.t > G.limit;
@@ -407,7 +430,18 @@ const Drive = (() => {
     const sea = season();
     if (!v.bus && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
     if (!v.bus && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard();
+    const busy = pseg.lim === 50 || pseg.lim === 60 ? 1.6 : 1; // taajamassa enemmän liikennettä
+    if (Math.random() < dt * 0.12 * busy) spawnTraffic(false);
+    if (Math.random() < dt * 0.22 * busy) spawnTraffic(true);
     for (const d of st.dyn.slice()) {
+      if (d.k === 'auto' || d.k === 'vasta') {
+        d.z += d.v * dt;
+        const rel = d.z - z1;
+        if (!v.bus && d.prel > 0 && rel <= 0 && Math.abs(d.x - st.x) < 0.22) { hitTraffic(d, Math.round(Math.abs(st.speed - d.v) / KMH)); return; }
+        d.prel = rel;
+        if (rel < -150 || rel > DRAW * SEG * 1.2) st.dyn.splice(st.dyn.indexOf(d), 1);
+        continue;
+      }
       if (d.k === 'peura') {
         if ((d.z - z1) / SEG < d.wake) d.x += d.vx * dt;
         if (Math.abs(d.x) > 3) { st.dyn.splice(st.dyn.indexOf(d), 1); continue; }
@@ -564,6 +598,25 @@ const Drive = (() => {
         P(-260, 1900, 520, 900, '#8E8E92'); P(-260, 2800, 520, 60, '#EEEE77'); P(-260, 1900, 520, 60, '#EEEE77');
         P(-180, 2150, 360, 360, '#101012'); P(-90, 2240, 180, 180, st.flash > 0.3 ? '#FFFFFF' : '#3A3A8A');
         break; }
+      case 'auto': { // samaan suuntaan: takaa
+        const lit = sea.dark > 0.3 ? '#FF3030' : '#A01818';
+        if (!(sea.dark > 0.6 && n > 50)) {
+          P(-210, 0, 80, 60, COL.black); P(130, 0, 80, 60, COL.black);
+          P(-225, 40, 450, 150, o.col); P(-170, 190, 340, 110, o.col); P(-150, 200, 300, 80, '#1E2A3A');
+          P(-60, 70, 120, 40, COL.white);
+        }
+        P(-220, 120, 70, 35, lit); P(150, 120, 70, 35, lit);
+        break; }
+      case 'vasta': { // vastaantuleva: edestä
+        const head = sea.dark > 0.3 ? '#FFFFEE' : '#E8E8D0';
+        if (!(sea.dark > 0.6 && n > 50)) {
+          P(-210, 0, 80, 60, COL.black); P(130, 0, 80, 60, COL.black);
+          P(-225, 40, 450, 150, o.col); P(-180, 190, 360, 120, o.col); P(-160, 195, 320, 95, '#2A3A4E');
+          P(-70, 60, 140, 40, '#222');
+        }
+        P(-215, 110, 80, 40, head); P(135, 110, 80, 40, head);
+        if (sea.dark > 0.3) { g.fillStyle = 'rgba(255,255,220,0.25)'; g.fillRect(cx - 320 * s, by - 220 * s, 640 * s, 200 * s); }
+        break; }
       case 'kuoppa': {
         const rim = sea.snow ? '#C8C8D0' : '#8A8A8A', c = sea.snow ? '#505058' : '#101012';
         P(-420, -20, 840, 110, rim); P(-340, 90, 680, 30, rim);
@@ -666,6 +719,8 @@ const Drive = (() => {
     ['Lotus Eletre',      { b:'suv', w:1.06, c:'#E8C32A', r:'#151515', tl:'bar', x:['spoiler', 'diff'] }],
     ['Rolls-Royce Spectre', { b:'coupe', w:1.14, c:'#2B2F46', r:'#C0C3C7', tl:'vertical', x:['chrome'] }],
     ['Toyota Proace',     { b:'van', w:1.12, c:'#F2F2F2', tl:'vertical' }],
+    ['Audi e-tron 55',    { b:'suv', w:1.04, c:'#5C6670', tl:'bar', x:['spoiler'] }],
+    ['Citroën ë-SpaceTourer', { b:'van', w:1.06, c:'#2B3A55', tl:'vertical' }],
   ];
   function modelSpec(k) {
     const m = MODELS.find(([n]) => k.name.startsWith(n));
