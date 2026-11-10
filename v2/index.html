@@ -47,6 +47,14 @@
   .h-sp { display:flex; align-items:center; gap:8px; }
   #h-right { max-width:52%; text-align:right; } #h-en { color:#A5E8FF; }
   #h-lim { display:inline-flex; align-items:center; justify-content:center; width:2.1em; height:2.1em; border-radius:50%; background:#fff; border:0.3em solid #D02020; color:#000; text-shadow:none; font-size:1em; box-sizing:border-box; } 
+  /* alpha 30: pikavalinta tien päällä */
+  #quick { position:absolute; left:6%; right:6%; top:17%; display:none; pointer-events:auto; background:rgba(64,49,141,.92); border:2px solid var(--fg); padding:6px 8px 4px; font-size:clamp(15px, 3vw, 20px); line-height:1.1; text-shadow:none; color:var(--fg); }
+  #quick p { margin:0 0 3px; } #quick .r { color:var(--red); } #quick .g { color:var(--green); }
+  #quick .q-t { color:var(--hi); text-transform:uppercase; margin-bottom:3px; }
+  #quick .q-ch { display:flex; flex-direction:column; gap:4px; margin-top:5px; }
+  #quick button { padding:4px 8px; font-size:inherit; }
+  #quick button.def { outline:2px solid var(--yel); }
+  #quick .q-bar { height:3px; background:#222; margin-top:5px; } #quick .q-bar i { display:block; height:100%; background:var(--yel); }
   #h-pause { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); font-size:1.8em; }
   .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
   .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -73,21 +81,23 @@
         <div class="h-bot"><span class="h-sp"><span id="h-lim"></span><span id="h-speed"></span></span><span id="h-right"><span id="h-en"></span><br><span id="h-car"></span></span></div>
         <div id="h-pause">TAUKO · P jatkaa</div>
       </div>
+      <div id="quick"></div>
     </div>
     <div class="pad">
       <button data-k="left" aria-label="Vasemmalle">◀</button>
       <button data-k="brake">JARRU</button>
       <button data-k="right" aria-label="Oikealle">▶</button>
     </div>
-    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon. Wolt, taksi ja latausasemat: pysähdy kohdalle oikeaan reunaan.</div>
+    <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon. Wolt, taksi, latausasemat ja autoliikkeet: pysähdy kohdalle oikeaan reunaan. Pikavalinnat tien päällä: 1–3 tai napauta, muuten 5 sekunnin päästä toteutuu keltaisella merkitty.</div>
   </div>
   <div id="panel">
     <h1 id="title"></h1>
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 29 (11.11. klo 00.15) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 30 (10.11. klo 23.40) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
 </div>
+<script src="sound.js"></script>
 <script src="drive.js"></script>
 <script src="engine.js"></script>
 </body>

@@ -32,6 +32,7 @@ const Drive = (() => {
     active:false, paused:false, userPause:false, S:null,
     pos:0, x:0.5, speed:0, gig:null, gigT:3, monthT:0, ramp:null, dyn:[], toasts:[], keys:{}, veh:null,
     skyOff:0, shake:0, flash:0, last:0, raf:0, hint:true, trip:null, kmTot:0, nextSt:40, chg:null, eWarn:0, lateM:0,
+    quick:null, boardN:0, lotDone:false, ice:0, iceWarn:false, wx:null, fx:[],
   };
 
   // ---------- satunnaisuus tielle (toistettava segmentin mukaan) ----------
@@ -108,8 +109,24 @@ const Drive = (() => {
       deerPerMonth: north ? 0 : m >= 8 && m <= 11 ? 4 : 2,
       poroPerMonth: lap ? 7 : north ? 5 : S.job === 'kuusamo' && !st.trip ? 2 : 0,
       holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
+      temp: temperature(m, lap, north),
     };
   }
+  // alpha 30: lämpötila ja sää. Sama kuukausi näyttää samalta koko ajon ajan (siemen kuukaudesta).
+  const TEMP = [-8, -9, -4, 3, 10, 15, 18, 16, 10, 4, -1, -6];
+  function temperature(m, lap, north) {
+    if (autobahn()) return Math.round(TEMP[m] / 2 + 6 + rr(S.m, 31) * 4);
+    return Math.round(TEMP[m] + (lap ? -20 : north ? -6 : 0) + (rr(S.m, 30) - 0.5) * 8);
+  }
+  function weather() {
+    const key = S.m + (st.trip ? ':' + st.trip.road : '');
+    if (st.wx && st.wx.key === key) return st.wx;
+    const sea = season(), r = rr(S.m, 32 + (st.trip ? 7 : 0));
+    const kind = sea.snow ? (r < 0.6 ? 'lumi' : '') : (sea.temp > 0 && [3, 4, 7, 8, 9].includes(sea.m) && r < 0.5) ? 'sade' : (sea.temp <= 0 && r < 0.3 ? 'lumi' : '');
+    st.wx = { key, kind, ice: sea.temp <= 1 && !autobahn() ? (sea.temp <= -15 ? 2 : 4) : 0 };
+    return st.wx;
+  }
+  const keliTxt = () => { const sea = season(), w = weather(); return `${sea.temp > 0 ? '+' : sea.temp < 0 ? '−' : ''}${Math.abs(sea.temp)} °C${w.kind === 'lumi' ? ' · LUMISADE' : w.kind === 'sade' ? ' · SADE' : ''}${w.ice ? ' · LIUKASTA' : ''}`; };
 
   const winterLimits = () => [9, 10, 11, 0, 1, 2].includes((S.m - 1) % 12); // talvinopeusrajoitukset loka–maalis
   // peräkärry perässä, kun muuttokeikat ovat päällä eikä pakua ole
@@ -132,7 +149,7 @@ const Drive = (() => {
     const kmh = Math.round(st.speed / KMH), lim = limitOf(seg.lim);
     if (kmh <= lim + 7) return; // kamera sallii pienen toleranssin
     const [f, kind] = camFine(kmh - lim);
-    st.flash = 0.8;
+    st.flash = 0.8; Snd.play('flash'); ST().cam++; S.stat.camEur += f;
     (S.post = S.post || []).push([`Nopeuskamera: ${kmh} km/h, rajoitus ${lim} (${kind})`, f]);
     toast(`!SALAMA! ${kmh} km/h alueella ${lim}. Sakko ${eur(f)} tulee postissa.`, 5);
   }
@@ -207,7 +224,7 @@ const Drive = (() => {
   }
   function spawnStation() {
     const at = Math.floor((st.pos + PZ) / SEG) + 110, r = st.trip && st.trip.road;
-    if (st.ramp && at > st.ramp.start - 25 && at < st.ramp.end + 15) { st.nextSt = st.kmTot + 3; return; }
+    if ((st.ramp && at > st.ramp.start - 25 && at < st.ramp.end + 15) || lotNear(at, 30)) { st.nextSt = st.kmTot + 3; return; }
     const kw = r === 'autobahn' ? (Math.random() < 0.8 ? 300 : 150) : r === 'lappi' || r === 'kuusamo' ? (Math.random() < 0.5 ? 50 : 150) : (Math.random() < 0.6 ? 150 : 50);
     st.dyn.push({ k:'asema', station:true, z:at * SEG, x:1.9, at, kw, broken: Math.random() < (r === 'lappi' ? 0.3 : r === 'kuusamo' ? 0.2 : 0.08), queue: Math.random() < (r === 'autobahn' ? 0.35 : 0.2) ? 2 + Math.random() * 4 : 0 });
     st.nextSt = Infinity;
@@ -236,7 +253,7 @@ const Drive = (() => {
   function chargeEnd() {
     const c = st.chg; st.chg = null;
     if (!c || c.broken || (!c.kwh && !c.l)) return;
-    if (c.cost > 0) payOrVippi(c.cost);
+    if (c.cost > 0) payOrVippi(c.cost, false);
     toast(c.E.ev ? `+Ladattu ${Math.round(c.start * 100)} → ${Math.round(energy(c.E) * 100)} % · ${Math.round(c.kwh)} kWh · ${c.cost ? eur(c.cost) : 'ilmainen'}` : `+Tankattu ${Math.round(c.l)} l · ${c.cost ? eur(c.cost) : 'firma maksaa'}`, 4);
     // työmatkalla pitkä latausstoppi myöhästyttää (työsuhdeautolla ja matkoilla ei)
     if (!st.trip && !st.veh.tsa && job().km > 0 && c.E.ev && c.t > 3 && st.lateM !== S.m) { st.lateM = S.m; S.late = (S.late || 0) + 1; toast('!OLET MYÖHÄSSÄ PALAVERISTA! Pomo merkitsi sen muistiin.', 5); }
@@ -313,12 +330,13 @@ const Drive = (() => {
     st.dyn.push({ k:'kyltti', z:(start - 4) * SEG, x:2.2, t:'→ VALIKKO', s:'' });
   }
   function monthEnd(exiting) {
-    st.ramp = null; st.monthT = 0;
+    st.ramp = null; st.monthT = 0; st.boardN = 0; st.lotDone = false;
     if (S.m >= LAST) { stop(); return endGame(); }
     S.m++;
     Q = [];
     const R = monthTick();
     if (S.vippi > 3000) { stop(); return repossess(); }
+    Snd.play('cash');
     if (exiting) {
       if (st.gig && st.gig.phase === 'deliver') Q.unshift(() => say('KEIKKA JÄI KESKEN', ['!Ajoit liittymästä kotiin kesken keikan. Siitä ei makseta.']));
       st.gig = null;
@@ -332,11 +350,52 @@ const Drive = (() => {
     R.filter(r => r[0] === '!' && !(st.gig && /ei ajettu/.test(r[1]))).forEach(r => toast('!' + r[1], 6)); // kesken olevaa keikkaa ei moitita
     if (Q.length) openEvents();
   }
+  // alpha 30: jono käydään läpi ilman pakkopysähdystä. Pikavalinnat näkyvät tien päällä (quick), muut ruudut
+  // pysäyttävät pelin ja aukeavat paneeliin (hold). Tyhjä jono kutsuu resume().
   function openEvents() {
-    st.paused = true;
-    document.body.classList.add('paused');
     st.keys = {};
-    next(); // engine näyttää jonon ruudut paneelissa; tyhjä jono kutsuu resume()
+    next();
+  }
+  function hold() {
+    if (!st.active) return;
+    if (st.quick) { const s = st.quick.s; st.quick = null; Q.unshift(() => show(s)); } // kesken jäänyt pikavalinta odottaa vuoroaan
+    st.paused = true; st.keys = {};
+    document.body.classList.add('paused');
+  }
+  const QUICK_S = 5;
+  function quick(s) {
+    if (!st.active) return false;
+    if (st.paused) { // paneelista takaisin tielle
+      st.paused = false; st.keys = {};
+      if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
+      document.body.classList.remove('paused');
+      refreshVehicle(); st.last = performance.now();
+    }
+    const def = s.choices.length - 1 - [...s.choices].reverse().findIndex(c => !c.dis);
+    // pelkkä ilmoitus: pitkä teksti saa enemmän lukuaikaa (enintään 9 s)
+    const len = s.lines.join(' ').length, T = s.choices.length === 1 ? Math.min(9, Math.max(QUICK_S, 3 + len / 35)) : QUICK_S;
+    st.quick = { s, t: T, T, def: def > s.choices.length - 1 ? 0 : def };
+    Snd.play('quick');
+    return true;
+  }
+  function quickPick(i) {
+    const q = st.quick; if (!q) return;
+    const c = q.s.choices[i]; if (!c || c.dis) return;
+    st.quick = null;
+    Snd.play('click');
+    c.f();
+  }
+  function quickUpdate(dt) {
+    const q = st.quick; if (!q) return;
+    q.t -= dt;
+    if (q.t <= 0) quickPick(q.def);
+  }
+  function quickHtml() {
+    const q = st.quick; if (!q || st.paused) return '';
+    const lines = q.s.lines.filter(l => l !== '').map(l => { const c = l[0] === '!' ? 'r' : l[0] === '+' ? 'g' : ''; return `<p class="${c}">${escH(c ? l.slice(1) : l)}</p>`; }).join('');
+    const one = q.s.choices.length === 1;
+    const ch = q.s.choices.map((c, i) => `<button data-i="${i}"${c.dis ? ' disabled' : ''}${i === q.def ? ' class="def"' : ''}><span class="k">${i + 1}</span>${escH(one && c.t === 'Jatka' ? 'OK' : c.t)}</button>`).join('');
+    return `<div class="q-t">${escH(q.s.title)}</div>${lines}<div class="q-ch">${ch}</div><div class="q-bar"><i id="q-bar"></i></div>`;
   }
 
   // ---------- peurat ----------
@@ -369,7 +428,7 @@ const Drive = (() => {
     if (kmh < 12) { st.speed = Math.max(0, d.v); st.shake = 0.3; return toast('Kolautit puskuria. Pahoittelut vilkulla, ja matka jatkuu.'); }
     const name = st.veh.name;
     const txt = on ? `${name} ajoi vastaantulevien kaistalle, ja nokat kohtasivat ${kmh} km/h:n yhteisnopeudella.` : `${name} ajoi edellä menevän auton perään ${kmh} km/h:n nopeuserolla.`;
-    crashStop(); gigCrash();
+    crashStop(); gigCrash(); Snd.play('crash'); ST().crash++;
     Q.unshift(dmg(kmh >= 50 ? 'peura' : 'kolhu', { title: on ? 'NOKKAKOLARI!' : 'PERÄÄNAJO!', txt: txt + (on ? ' Syy on sinun.' : ' Peräänajaja on aina syyllinen.'), total: kmh >= 100 }));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
@@ -384,18 +443,65 @@ const Drive = (() => {
     const kmh = Math.round(st.speed / KMH);
     st.shake = 0.4;
     if (kmh < 30) { st.speed *= 0.6; return toast(d.k === 'kuoppa' ? 'Kolahti kuoppaan, mutta pohja kesti.' : 'Raapaisit kiveä hiljaa. Ei vahinkoa.'); }
-    st.speed *= 0.4; st.paused = true;
+    st.speed *= 0.4; st.paused = true; Snd.play('thump');
     gigCrash();
     if (st.veh.rental) Q.unshift(dmg('kolhu', { title:'KOLAHDUS!', txt:`Vuokra-auto osui ${d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen'} ${kmh} km/h:n vauhdissa.` }));
     else Q.unshift(() => dentEvent(d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen', kmh, st.trip && st.trip.car));
     setTimeout(() => { if (st.active) openEvents(); }, 350);
   }
+  // ---------- mainostaulut ja autoliikkeet (alpha 30) ----------
+  // puut ja rakennukset pois taulun tai liikkeen edestä, jotta se näkyy
+  function clearSide(at, side) { ensure(at + 2); for (let i = Math.max(0, at - 14); i <= at + 2; i++) { const a = segs[i].sprites; for (let j = a.length - 1; j >= 0; j--) if (Math.sign(a[j].x) === side && Math.abs(a[j].x) > 1.15 && ['kuusi', 'koivu', 'mökki', 'lato'].includes(a[j].k)) a.splice(j, 1); } }
+  const lotNear = (at, w) => st.dyn.some(d => d.lot && !d.used && Math.abs(d.at - at) < w);
+  function boardUpdate(km) {
+    st.boardKm -= km;
+    if (st.boardKm > 0 || autobahn() || st.veh.bus) return;
+    st.boardKm = 45 + Math.random() * 50;
+    const at = Math.floor((st.pos + PZ) / SEG) + 120;
+    if (st.dyn.some(d => d.k === 'mainos' && Math.abs(d.z / SEG - at) < 40)) return;
+    const b = billboard(); if (!b) return;
+    clearSide(at, -1);
+    st.dyn.push({ k:'mainos', z:at * SEG, x:-2.6, t:b[0], s:b[1], hot: !!(S.camp && b[0] === shortName(S.camp.id)) || /0 %|★/.test(b[0]) });
+  }
+  function lotSpawn() {
+    const at = Math.floor((st.pos + PZ) / SEG) + 130;
+    if (st.ramp && at > st.ramp.start - 30 && at < st.ramp.end + 15) return;
+    if (st.dyn.some(d => d.station && Math.abs(d.at - at) < 30) || (st.gig && Math.abs(st.gig.at - at) < 30)) return;
+    clearSide(at, 1); clearSide(at - 70, -1);
+    st.dyn.push({ k:'liike', lot:true, z:at * SEG, x:2.3, at });
+    st.dyn.push({ k:'mainos', z:(at - 70) * SEG, x:-2.6, t:'AUTOLIIKE 350 M', s:'KÄÄNNY PIHAAN · KAHVIT VALMIINA', hot:true });
+    st.lotDone = true;
+  }
+  function lotUpdate(z1) {
+    if (!st.lotDone && !st.trip && st.monthT > 7 && st.monthT < MONTH_S - RAMP_LEAD_S - 7) lotSpawn();
+    const o = st.dyn.find(d => d.lot && !d.used); if (!o) return;
+    const cur = Math.floor(z1 / SEG);
+    if (cur > o.at + STOP_WIN) { o.used = true; return; }
+    if (Math.abs(cur - o.at) <= STOP_WIN && st.speed < 15 * KMH && st.x > 0.25) {
+      o.used = true; st.speed = 0; st.paused = true; st.keys = {};
+      Q.unshift(lotVisit);
+      openEvents();
+    }
+  }
+  // ---------- liukkaus (alpha 30): musta jää pakkasella ----------
+  function spawnIce() {
+    const z = st.pos + PZ + DRAW * (0.6 + Math.random() * 0.3) * SEG;
+    if (st.ramp && z / SEG > st.ramp.start - 5 && z / SEG < st.ramp.end + 5) return;
+    st.dyn.push({ k:'jää', z, x:(Math.random() - 0.5) * 1.4, w:0.25 + Math.random() * 0.2 });
+  }
+  function hitIce(d) {
+    d.hit = true;
+    st.ice = S.summer > 0 ? 2.4 : 1.3;
+    Snd.play('ice');
+    if (!st.iceWarn || S.summer > 0) { st.iceWarn = true; toast(S.summer > 0 ? '!MUSTA JÄÄ – ja kesärenkaat! Auto ei ohjaa eikä jarruta.' : '!Musta jää! Ohjaus ja jarrut eivät pure hetkeen.', 3.5); }
+  }
+
   function hitDeer(d) {
     st.dyn.splice(st.dyn.indexOf(d), 1);
     const kmh = st.speed / KMH;
     const poro = d.k === 'poro';
     if (kmh < 35) { st.speed *= 0.4; st.shake = 0.3; return toast(poro ? 'Poro katsoi sinua, ja sinä poroa. Se siirtyi lopulta metrin.' : 'Peura säikähti ja loikkasi metsään. Huh.'); }
-    crashStop(); gigCrash();
+    crashStop(); gigCrash(); Snd.play('crash'); ST()[poro ? 'poro' : 'deer']++;
     if (poro) (S.post = S.post || []).push(['Paliskunta: poron korvaus', 450]);
     const ptxt = poro ? { title:'PORO!', txt:`Poro seisoi keskellä tietä eikä väistänyt. Osuma ${Math.round(kmh)} km/h:n vauhdissa. Paliskunta laskuttaa poron (450 €).` } : {};
     Q.unshift(dmg('peura', kmh >= 100 ? Object.assign(ptxt, { total:true, txt: ptxt.txt || `Peura osui keulaan ${Math.round(kmh)} km/h:n vauhdissa.` }) : ptxt));
@@ -426,7 +532,7 @@ const Drive = (() => {
     const txt = `${name} törmäsi ${WHERE[o.k]} ${kmh} km/h:n vauhdissa.`;
     const opt = kmh >= 100 ? { title:'ULOSAJO!', txt, total:true }
       : { title:'ULOSAJO!', txt: txt + (kmh >= 50 ? ' Keula on mytyssä.' : ' Puskuri ja pelti saivat osansa.') };
-    crashStop(); gigCrash();
+    crashStop(); gigCrash(); Snd.play('crash'); ST().crash++;
     Q.unshift(dmg(kmh >= 50 ? 'peura' : 'kolhu', opt));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
@@ -452,6 +558,7 @@ const Drive = (() => {
   function gigSpawn(kind) {
     const at = Math.floor((st.pos + PZ) / SEG) + 90 + Math.floor(Math.random() * 60);
     if (st.ramp && at > st.ramp.start - 20 && at < st.ramp.end + 10) return;
+    if (lotNear(at, 30)) return;
     const food = FOOD[Math.floor(Math.random() * FOOD.length)];
     st.gig = { kind, phase:'pickup', at, food, t:0, off:0, crash:0 };
     const d = drivenCar();
@@ -465,7 +572,7 @@ const Drive = (() => {
   }
   function gigBook(kind, pay) {
     S.gig = S.gig || {};
-    S.gig[kind] = (S.gig[kind] || 0) + pay; S.gig[kind + 'N'] = (S.gig[kind + 'N'] || 0) + 1;
+    S.gig[kind] = (S.gig[kind] || 0) + pay; S.gig[kind + 'N'] = (S.gig[kind + 'N'] || 0) + 1; ST().gig += pay; if (pay) Snd.play('coin');
     if (kind === 'muutto') { S.black += pay; if (S.trailer && !C(drivenCar().c).fl.includes('V')) S.trailer.wear++; }
     if (kind === 'romu' && S.trailer) S.trailer.wear++;
     const car = drivenCar();
@@ -587,14 +694,16 @@ const Drive = (() => {
 
     // huono pito: kesärenkaat talvikelillä tai rengashotellin sekoittamat kiekot
     const slick = !v.bus && ((S.summer > 0 && (season().snow || season().bare)) || !!(v.car && v.car.mixed));
+    const icy = !v.bus && st.ice > 0; if (st.ice > 0) st.ice -= dt;
     if (v.bus) st.speed += (Math.min(maxU, 80 * KMH) - st.speed) * Math.min(1, dt * 0.8);
-    else if (keys.brake) st.speed -= (slick ? 46 : 70) * KMH * dt;
+    else if (keys.brake) st.speed -= (slick ? 46 : 70) * (icy ? 0.3 : 1) * KMH * dt;
     else st.speed += v.acc * KMH * dt * (1 - 0.6 * st.speed / maxU);
     if (off && st.speed > 45 * KMH) { st.speed -= 90 * KMH * dt; st.shake = Math.max(st.shake, 0.08); }
     st.speed = Math.max(0, Math.min(maxU, st.speed));
 
     const sp = st.speed / (160 * KMH);
-    const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0)) * (slick ? 0.65 : 1);
+    const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0)) * (slick ? 0.65 : 1) * (icy ? 0.3 : 1);
+    if (icy) st.x += dt * 0.35 * sp * Math.sin(performance.now() / 300); // takapää elää
     if (keys.left) st.x -= steer;
     if (keys.right) st.x += steer;
     if (v.minor) st.x += dt * 0.05 * sp; // korjaamaton vika vetää sivulle
@@ -609,7 +718,7 @@ const Drive = (() => {
 
     // energia: akku tai tankki kuluu ajetuista kilometreistä
     const km = st.speed * dt * kmPerU();
-    st.kmTot += km;
+    st.kmTot += km; ST().km += km;
     const E = eSpec();
     if (E) {
       const e = energy(E) - km * consNow(E, st.speed / KMH);
@@ -625,6 +734,8 @@ const Drive = (() => {
     if (!v.bus && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
     if (!v.bus && Math.random() < dt * sea.poroPerMonth / MONTH_S) spawnPoro();
     if (!v.bus && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard();
+    if (!v.bus && Math.random() < dt * weather().ice / MONTH_S) spawnIce();
+    boardUpdate(km);
     const busy = pseg.lim === 50 || pseg.lim === 60 ? 1.6 : 1; // taajamassa enemmän liikennettä
     if (Math.random() < dt * 0.12 * busy) spawnTraffic(false);
     if (Math.random() < dt * 0.22 * busy) spawnTraffic(true);
@@ -638,10 +749,12 @@ const Drive = (() => {
         continue;
       }
       if (d.k === 'peura' || d.k === 'poro') {
+        if (!d.warned && !v.bus && (d.z - z1) / SEG < 45 && Math.abs(d.x) < 1.4) { d.warned = true; Snd.play('deer'); }
         if ((d.z - z1) / SEG < d.wake || d.k === 'poro') d.x += d.vx * dt;
         if (Math.abs(d.x) > 3) { st.dyn.splice(st.dyn.indexOf(d), 1); continue; }
         if (!v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < 0.15 + CAR_HW) { hitDeer(d); return; }
       }
+      if (d.k === 'jää' && !d.hit && !v.bus && d.z >= z0 && d.z < z1 + SEG && Math.abs(d.x - st.x) < d.w + CAR_HW) hitIce(d);
       if ((d.k === 'kuoppa' || d.k === 'kivi') && !v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < (d.k === 'kuoppa' ? 0.18 : 0.13) + CAR_HW) { hitHazard(d); return; }
       if (d.z < st.pos - SEG) st.dyn.splice(st.dyn.indexOf(d), 1);
     }
@@ -657,6 +770,7 @@ const Drive = (() => {
 
     if (!v.bus) gigUpdate(dt, z1);
     stationUpdate(dt, z1);
+    if (!v.bus) { lotUpdate(z1); if (!st.active || st.paused) return; }
     if (st.trip) return; // matkalla kuukausi ei vaihdu eikä liittymää tule
 
     // kuukausi ja liittymä
@@ -839,6 +953,32 @@ const Drive = (() => {
         P(-1100, 0, 420, 260, '#111111'); P(700, 0, 420, 260, '#111111'); P(-500, 200, 300, 120, '#5A3A1A');
         if (s * 2600 > 24) { g.fillStyle = COL.yellow; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 460))}px VT323`; g.fillText('ROMU', cx, by - 1500 * s); g.textAlign = 'left'; }
         break; }
+      case 'mainos': { // mainostaulu kahdella jalalla; teksti kutistuu mahtumaan
+        P(-1700, 0, 160, 1400, COL.grey1); P(1540, 0, 160, 1400, COL.grey1);
+        P(-2350, 1300, 4700, 1600, COL.white); P(-2250, 1380, 4500, 1440, o.hot ? '#B03A2E' : '#352879');
+        if (sea.dark > 0.3) { P(-2350, 2900, 4700, 50, '#FFFFAA'); g.fillStyle = 'rgba(255,255,200,0.12)'; g.fillRect(cx - 2350 * s, by - 2900 * s, 4700 * s, 1600 * s); }
+        if (s * 4700 > 40) {
+          fit(o.t, cx, by - 2260 * s, s * 600, 4300 * s, COL.yellow);
+          fit(o.s, cx, by - 1680 * s, s * 340, 4300 * s, COL.white);
+        }
+        break; }
+      case 'liike': { // autoliike: lasinen näyttelytila, liput ja auto pihassa
+        P(-2300, 0, 50, 2700, COL.grey3); P(-2250, 2250, 520, 320, COL.yellow);
+        P(2250, 0, 50, 2700, COL.grey3); P(2300, 2250, 520, 320, '#2F6DB5');
+        P(-1800, 0, 3600, 1700, '#D8D8D8'); P(-1650, 120, 3300, 1250, sea.dark > 0.3 ? '#EEEE99' : '#6FA8DC');
+        for (const k of [-1100, -400, 300, 1000]) P(k, 120, 60, 1250, '#4A4A50');
+        P(-1900, 1700, 3800, 380, '#B03A2E');
+        P(-1350, 0, 950, 260, '#A3121A'); P(-1200, 260, 650, 210, '#A3121A'); P(-1150, 300, 550, 140, '#1E2A3A');
+        P(500, 0, 950, 260, '#ECECEC'); P(650, 260, 650, 210, '#ECECEC'); P(700, 300, 550, 140, '#1E2A3A');
+        if (s * 3800 > 30) fit(o.used ? 'KÄYTY' : 'AUTOLIIKE', cx, by - 1790 * s, s * 340, 3500 * s, COL.white);
+        break; }
+      case 'jää': { // musta jää: kiiltävä läikkä tiessä
+        P(-o.w * 2000, -10, o.w * 4000, 50, sea.snow ? 'rgba(190,220,255,0.75)' : 'rgba(160,200,240,0.55)');
+        P(-o.w * 1200, 20, o.w * 1400, 18, 'rgba(255,255,255,0.8)');
+        break; }
+      case 'penkka': { // lumipenkka tien reunassa
+        P(-520, 0, 1040, 240, '#F2F2F8'); P(-400, 240, 800, 100, '#FFFFFF'); P(-520, 0, 1040, 40, '#C4C4D4');
+        break; }
       case 'poro': {
         const nightFar = sea.dark > 0.6 && n > 45, f = o.vx < 0 ? -1 : 1, c = '#8C7B66';
         if (!nightFar) {
@@ -866,6 +1006,14 @@ const Drive = (() => {
         break; }
     }
   }
+  function fit(txt, x, y, size, maxW, col) {
+    g.fillStyle = col; g.textAlign = 'center';
+    g.font = `${Math.max(5, Math.round(size))}px VT323`;
+    const w = g.measureText(txt).width;
+    if (w > maxW) g.font = `${Math.max(5, Math.round(size * maxW / w))}px VT323`;
+    g.fillText(txt, x, y); g.textAlign = 'left';
+  }
+  const PENK = [{ k:'penkka', x:-1.22 }, { k:'penkka', x:1.22 }];
   function drawSprites(sea) {
     const base = Math.floor(st.pos / SEG);
     const byIdx = {};
@@ -874,6 +1022,7 @@ const Drive = (() => {
       const seg = segs[base + n];
       if (!seg || seg.p1.camera.z <= CAMD) continue;
       let list = st.ramp ? seg.sprites.filter(o => !rampHides(seg, o)) : seg.sprites;
+      if (sea.snow && seg.i % 3 === 0) list = list.concat(st.ramp ? PENK.filter(o => !rampHides(seg, o)) : PENK);
       if (byIdx[seg.i]) list = list.concat(byIdx[seg.i]);
       if (!list.length) continue;
       const sc = seg.p1.screen, s = sc.scale * W / 2;
@@ -1086,6 +1235,22 @@ const Drive = (() => {
       g.fillStyle = gr; g.fillRect(0, 0, W, H);
     }
   }
+  // sade ja lumisade: hiukkaset ruudun koordinaateissa, vauhti venyttää niitä kohti reunoja
+  function drawWeather(dt) {
+    const w = weather();
+    if (!w.kind) { st.fx.length = 0; return; }
+    const N = w.kind === 'lumi' ? 70 : 90, sp = st.speed / (120 * KMH);
+    while (st.fx.length < N) st.fx.push({ x: Math.random() * W, y: Math.random() * H, z: 0.4 + Math.random() * 0.6 });
+    g.fillStyle = w.kind === 'lumi' ? 'rgba(255,255,255,0.85)' : 'rgba(170,190,230,0.6)';
+    for (const p of st.fx) {
+      const dx = (p.x - W / 2) / (W / 2);
+      if (w.kind === 'lumi') { p.y += dt * (25 + 40 * sp) * p.z; p.x += dt * (dx * 60 * sp + Math.sin(p.y / 9) * 8); }
+      else { p.y += dt * (160 + 80 * sp) * p.z; p.x += dt * dx * 40 * sp; }
+      if (p.y > H || p.x < 0 || p.x > W) { p.x = Math.random() * W; p.y = -2; }
+      if (w.kind === 'lumi') g.fillRect(p.x | 0, p.y | 0, p.z > 0.8 ? 2 : 1, p.z > 0.8 ? 2 : 1);
+      else g.fillRect(p.x | 0, p.y | 0, 1, 3 + (p.z * 3 | 0));
+    }
+  }
   function drawDark(sea) {
     if (!sea.dark) return;
     const gr = g.createRadialGradient(W / 2, H * 0.9, 20, W / 2, H * 0.75, 190);
@@ -1111,7 +1276,7 @@ const Drive = (() => {
     return `${T.name}: ${Math.round(T.done)}/${T.km} KM · KELLO ${hhmm(T.t)}/${T.hours}.00 · ARVIO ${hhmm(eta)}${eta > T.hours ? ' MYÖHÄSSÄ' : ''}`;
   }
   function drawHud() {
-    hudSet('month', `KK ${S.m}/${LAST} · ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)}`);
+    hudSet('month', `KK ${S.m}/${LAST} · ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)} · ${keliTxt()}`);
     hudSet('cash', `KASSA ${eur(S.cash)}`);
     hudSet('cashCls', S.cash < 0 ? 'neg' : '', 'className');
     hudSet('bar', Math.min(100, st.monthT / MONTH_S * 100).toFixed(1) + '%', 'width');
@@ -1123,7 +1288,10 @@ const Drive = (() => {
     hudSet('car', st.veh.name + (st.veh.tsa ? ' (työsuhdeauto)' : ''));
     hudSet('en', energyHud());
     const gh = st.trip ? tripHud() : gigHud();
-    const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + st.toasts.map(t => {
+    let lh = '';
+    { const lot = st.dyn.find(d => d.lot && !d.used);
+      if (lot) { const d = lot.at - Math.floor((st.pos + PZ) / SEG); if (d < 150 && d >= -STOP_WIN) lh = d > STOP_WIN ? `AUTOLIIKE ${gpsDown() ? 'TULOSSA' : d * 5 + ' M'} · PYSÄHDY PIHAAN OIKEAAN REUNAAN` : 'AUTOLIIKE · PYSÄHDY TÄHÄN'; } }
+    const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + (lh ? `<p class="gig">${escH(lh)}</p>` : '') + st.toasts.map(t => {
       const c = t.t[0] === '!' ? 'r' : t.t[0] === '+' ? 'g' : '';
       return `<p class="${c}">${escH(c ? t.t.slice(1) : t.t)}</p>`;
     }).join('');
@@ -1136,6 +1304,9 @@ const Drive = (() => {
     hudSet('ramp', ramp);
     hudSet('hint', st.hint ? '← → ohjaa · ↓ jarru · P tauko' : '');
     hudSet('pause', st.userPause ? 'flex' : 'none', 'display');
+    hudSet('quick', quickHtml(), 'innerHTML'); // sama sisältö koko pikavalinnan ajan, joten napit eivät vaihdu kesken painalluksen
+    hudSet('quickD', st.quick && !st.paused ? 'block' : 'none', 'display');
+    if (st.quick) { const b = document.getElementById('q-bar'); if (b) b.style.width = Math.max(0, st.quick.t / st.quick.T * 100).toFixed(1) + '%'; }
     if (st.flash > 0) { g.fillStyle = `rgba(255,255,255,${st.flash})`; g.fillRect(0, 0, W, H); }
   }
   function render() {
@@ -1160,6 +1331,7 @@ const Drive = (() => {
     drawSprites(sea);
     drawDark(sea);
     drawCar(sea);
+    drawWeather(st.paused || st.userPause ? 0 : st.dt || 0);
     drawHud();
   }
 
@@ -1167,12 +1339,15 @@ const Drive = (() => {
   function frame(now) {
     if (!st.active) return;
     st.raf = requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - st.last) / 1000); st.last = now;
+    const dt = Math.min(0.05, (now - st.last) / 1000); st.last = now; st.dt = dt;
     if (!st.paused && !st.userPause) {
-      update(dt);
+      update(st.quick ? dt * 0.4 : dt); // pikavalinnan ajan peli hidastuu
+      if (!st.active) return;
+      if (!st.paused) quickUpdate(dt);
       if (!st.active) return;
       st.toasts.forEach(t => t.life -= dt); st.toasts = st.toasts.filter(t => t.life > 0);
     }
+    { const E = st.veh && !st.veh.bus ? eSpec() : null; Snd.engine(st.speed / KMH, !!(E && E.ev), !st.paused && !st.userPause && !!E); }
     st.shake = Math.max(0, st.shake - dt); st.flash = Math.max(0, st.flash - dt * 2);
     if (st.hint && st.monthT > 8) st.hint = false;
     render();
@@ -1183,10 +1358,11 @@ const Drive = (() => {
   function init() {
     cv = document.getElementById('road'); g = cv.getContext('2d');
     const $ = id => document.getElementById(id);
-    Object.assign(hud, { en:$('h-en'), month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
+    Object.assign(hud, { quick:$('quick'), quickD:$('quick').style, en:$('h-en'), month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
     if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
+      if (st.quick && /^[1-9]$/.test(e.key)) { quickPick(+e.key - 1); e.preventDefault(); return; }
       if (KEYMAP[e.key]) { st.keys[KEYMAP[e.key]] = true; e.preventDefault(); }
       else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { st.userPause = !st.userPause; e.preventDefault(); }
       else if (e.key === 'ArrowUp') e.preventDefault();
@@ -1201,6 +1377,7 @@ const Drive = (() => {
       b.addEventListener('contextmenu', e => e.preventDefault());
     });
     cv.addEventListener('pointerdown', () => { if (st.userPause) st.userPause = false; });
+    $('quick').addEventListener('pointerdown', e => { const b = e.target.closest('button[data-i]'); if (!b) return; e.preventDefault(); if (!st.paused && !st.userPause) quickPick(+b.dataset.i); });
     document.addEventListener('visibilitychange', () => { if (document.hidden && st.active && !st.paused) st.userPause = true; });
   }
 
@@ -1210,11 +1387,15 @@ const Drive = (() => {
     if (st.S !== S) { st.S = S; st.pos = 0; st.x = 0.5; st.hint = true; }
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
+    st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
     st.x = 0.5;
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
     if (S.trip) tripBegin();
+    else { const sea = season();
+      if (S.summer > 0 && (sea.snow || sea.temp <= 0)) toast('!Kesärenkaat ja ' + (sea.snow ? 'lunta tiellä' : 'pakkasta') + ': jarrutusmatka pitenee, ja auto liukuu mutkissa.', 6);
+      else if (weather().ice) toast(`Keli ${keliTxt().replace(' · LIUKASTA', '')}: tie on liukas. Varo mustaa jäätä.`, 5); }
     document.body.classList.add('driving'); document.body.classList.remove('paused');
     window.scrollTo(0, 0);
     st.last = performance.now();
@@ -1233,12 +1414,13 @@ const Drive = (() => {
     st.last = performance.now();
   }
   function stop() {
-    st.active = false; st.paused = false; st.keys = {};
+    st.active = false; st.paused = false; st.keys = {}; st.quick = null;
+    Snd.engine(0, false, false);
     cancelAnimationFrame(st.raf);
     document.body.classList.remove('driving', 'paused');
   }
   return {
-    start, resume, stop, rangeOf,
+    start, resume, stop, rangeOf, hold, quick,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
     _st: st, _vehicle: vehicle, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
