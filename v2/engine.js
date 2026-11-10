@@ -430,6 +430,7 @@ function sideMenu() {
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
   if (!S.trailer) ch.push(['Osta peräkärry Huutokaupat.comista (muuttokeikkoja varten)', trailerBuy]);
   else ch.push([`Myy peräkärry (noin ${eur(trailerValue())})`, trailerSell]);
+  if (S.trailer && !vanOK() && !trailerOK() && !S.gigs) ch.push([`Pimeät muuttokeikat peräkärryllä (${d ? C(d.c).name + ': ei vetokoukkua' : 'ei toimivaa autoa'})`, ()=>{}, true]);
   if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (asiakkaat tien varressa, 150–400 €/keikka)' : 'Pimeät muuttokeikat peräkärryllä (asiakkaat tien varressa, 100–300 €/keikka)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok." Asiakkaat odottavat tien varressa MUUTTO-kyltin kohdalla: pysähdy ja odota, kun kuorma kannetaan. Purkupaikalla sama juttu.' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua.') : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
   ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
