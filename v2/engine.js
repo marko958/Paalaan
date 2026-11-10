@@ -187,6 +187,12 @@ const val = car => {
 };
 const working = () => S.cars.filter(c => !c.broken);
 const vanOK = () => S.cars.find(c => C(c.c).fl.includes('V') && !c.broken);
+// 2.0: peräkärry. Vetokoukutonta autoa ei voi käyttää kärryn kanssa.
+const NO_TOW = ['Dacia Spring','Fiat 500e','BMW i3','Renault Zoe','Nissan Leaf','Hyundai Ioniq 2019','Toyota Prius','Porsche Taycan','Audi e-tron GT','Audi RS e-tron GT','Lucid Air','Rolls-Royce Spectre'];
+const towOK = car => !!car && !NO_TOW.some(n => C(car.c).name.startsWith(n));
+const trailerOK = () => S.trailer && towOK(drivenCar());
+// muuttokeikkojen kalusto: pakettiauto tai peräkärry ajossa olevan auton perässä
+const gigRig = () => vanOK() ? {van:vanOK(), car:vanOK()} : trailerOK() ? {trailer:true, car:drivenCar()} : null;
 const slots = () => S.cars.length + (S.tsa || S.tsaWait ? 1 : 0);
 const totalVal = () => S.cars.reduce((s,c)=>s+val(c),0);
 const totalLoan = () => S.cars.reduce((s,c)=>s+(c.loan?c.loan.bal:0),0) + S.vippi + S.residual;
@@ -229,9 +235,10 @@ function monthTick() {
   S.cars.forEach(car => { if (car.loan) { cash -= car.loan.pay; R.push(['-', `Lainan erä: ${C(car.c).name}`, car.loan.pay]); }});
   const rc = runCosts(); rc.lines.forEach(l => R.push(['-', l[0], l[1]])); cash -= rc.sum;
   if (S.gigs) {
-    const van = vanOK();
-    if (van) { const g = ri(2,7)*100; cash += g; S.black += g; van.tire -= 1; van.base *= 0.995; R.push(['+', 'Pimeät muuttokeikat (käteinen, ei kirjanpitoon)', g]); }
-    else R.push(['!', 'Muuttokeikat jäivät väliin: pakettiauto ei ole ajokunnossa', 0]);
+    const rig = gigRig();
+    if (rig && rig.van) { const g = ri(2,7)*100; cash += g; S.black += g; rig.car.tire -= 1; rig.car.base *= 0.995; R.push(['+', 'Pimeät muuttokeikat (käteinen, ei kirjanpitoon)', g]); }
+    else if (rig) { const g = ri(1,5)*100; cash += g; S.black += g; rig.car.tire -= 1; rig.car.base *= 0.993; if (rig.car.soh!==undefined) rig.car.soh -= 0.2; S.trailer.wear++; R.push(['+', 'Pimeät muuttokeikat peräkärryllä (käteinen, ei kirjanpitoon)', g]); }
+    else R.push(['!', S.trailer ? 'Muuttokeikat jäivät väliin: ajossa olevassa autossa ei ole vetokoukkua tai se ei kulje' : 'Muuttokeikat jäivät väliin: pakettiauto ei ole ajokunnossa', 0]);
   }
   const dc = drivenCar();
   // 2.0: keikkatulot tulevat vain tiellä ajetuista keikoista (drive.js kirjaa ne S.gig-olioon)
@@ -320,7 +327,7 @@ function monthTick() {
   // viat
   working().forEach(car => {
     const k = C(car.c);
-    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb + (car.skip ? 0.03 : 0) + (k.fl.includes('F') ? 0.08 : 0) + (k.fl.includes('V') && S.gigs ? 0.03 : 0) + (car === drivenCar() && S.taxi ? 0.04 : 0);
+    const p = (k.type==='b' ? (k.price<5000?0.10:0.06) : k.type==='h' ? 0.05 : 0.035) + 0.04*car.mb + (car.skip ? 0.03 : 0) + (k.fl.includes('F') ? 0.08 : 0) + ((k.fl.includes('V') || (S.trailer && !vanOK() && car === drivenCar())) && S.gigs ? 0.03 : 0) + (car === drivenCar() && S.taxi ? 0.04 : 0);
     if (RND() < p) Q.push(()=>faultEvent(car));
   });
   // ennakoidut tapahtumat
@@ -404,12 +411,32 @@ function sideMenu() {
     S.taxi = !S.taxi; if (S.taxi) S.wolt = false;
     sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Asiakkaat viittovat tien varressa: pysähdy kohdalle ja vie heidät perille.' : 'Taksivalo talliin.', S.taxi ? '!Tähdet tulevat ajotavasta: ulosajot ja tieltä suistumiset vievät tähtiä, ja huonoilla tähdillä kyytejä tulee harvemmin. Akku ja renkaat kuluvat, ja vikoja tulee useammin.' : ''], sideMenu); }, !S.taxi && !taxiOK(d)]);
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
-  if (vanOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : 'Pimeät muuttokeikat pakulla (+200–700 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : ''], sideMenu); }]);
+  if (!S.trailer) ch.push(['Osta peräkärry Huutokaupat.comista (muuttokeikkoja varten)', trailerBuy]);
+  else ch.push([`Myy peräkärry (noin ${eur(trailerValue())})`, trailerSell]);
+  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (+200–700 €/kk)' : 'Pimeät muuttokeikat peräkärryllä (+100–500 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
   ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
   ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
   ch.push(['Takaisin', menu]);
   scr('SIVUTULOT', ['Lisätuloja ja riskejä. Sinulla on kassassa ' + eur(S.cash) + '.'], ch);
+}
+// ---------- PERÄKÄRRY ----------
+function trailerValue() { return S.trailer ? Math.max(100, r100(S.trailer.paid * 0.7 * Math.pow(0.95, S.trailer.wear))) : 0; }
+function trailerBuy() {
+  const pool = [['Tukevat laidat, rekisteriote hukassa', 0], ['Valot toimivat, kun potkaisee pistoketta', 0], ['Pressu mukana, yksi lokasuoja puuttuu', 0],
+    ['Lähes uusi, myyjä muuttaa Espanjaan', 300], ['Vanerilaidat, ruostetta aisassa', -100], ['Kuomullinen, kuomu vuotaa', 100]];
+  const offers = [0,1,2].map(() => { const t = pool.splice(Math.floor(RND()*pool.length), 1)[0]; return {d:t[0], price: Math.max(200, ri(3,9)*100 + t[1])}; });
+  const d = drivenCar();
+  const lines = ['Huutokaupat.com: peräkärryjä. Huuto on voittava, toimitus noudettuna.'];
+  if (!towOK(d)) lines.push(`!Ajossa olevassa autossa (${d ? C(d.c).name : 'ei autoa'}) ei ole vetokoukkua. Kärryllä ajetaan vain autolla, jossa koukku on.`);
+  lines.push('Kärryn kanssa ajetaan enintään 80 km/h.');
+  scr('PERÄKÄRRY', lines, offers.map(o => [`${o.d}: ${eur(o.price)}`, ()=>{ payOrVippi(o.price); S.trailer = {paid:o.price, wear:0, d:o.d};
+    sayTo('PERÄKÄRRY', [`+Peräkärry pihassa: ${o.d.toLowerCase()}.`, 'Muuttokeikat saa päälle Sivutulot-valikosta. Keikat tuovat pakua vähemmän, mutta kärry on halpa.'], sideMenu); }]).concat([['Takaisin', sideMenu]]));
+}
+function trailerSell() {
+  const v = trailerValue(); S.cash += v; S.trailer = null;
+  if (S.gigs && !vanOK()) S.gigs = false;
+  sayTo('PERÄKÄRRY', [`Myit peräkärryn ${eur(v)}:lla Marketplacessa. Ostaja kysyi kolme kertaa, onko se vielä myynnissä.`], sideMenu);
 }
 function flipStart() {
   const pool = CARS.map((_,i)=>i).filter(i=>C(i).price<=9000 && !C(i).fl.includes('N'));
@@ -475,7 +502,7 @@ function randomEvent() {
   const month = (S.m-1)%12;
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
-    ['korotus',S.layoff?0:4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)+3*S.boss],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&vanOK()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && !S.tsaWait && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
+    ['korotus',S.layoff?0:4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)+3*S.boss],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&gigRig()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && !S.tsaWait && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
     ['kolhu',(S.tsa||drivenCar())?(S.wolt?1.5:0)+(S.taxi?2:0)+(S.parking?0.75:3)+(S.slip?3:0):0],['peura',0], // 2.0: peurat ovat tiellä (drive.js)
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb||c.minor)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0):0],
   ];
@@ -488,7 +515,10 @@ function randomEvent() {
 function fire(k) {
   if (k==='verottaja') { const b = Math.max(1000, r100(S.black*0.55)); const tot = S.black; S.black = 0; payOrVippi(b);
     return say('VEROTTAJAN KIRJE', [`!Verohallinto kiinnostui Marketplace-ilmoituksistasi ("Muutot ja kuljetukset, edullisesti, käteinen ok").`, `Ilmoittamattomia tuloja ${eur(tot)}. Jälkivero ja veronkorotus yhteensä ${eur(b)}.`, 'Keikkoja voi jatkaa. Verottaja ei unohda, mutta se ei myöskään lue jokaista ilmoitusta.']); }
-  if (k==='muuttokolhu') { const van = vanOK(); const p = pick([['Pianon kulma naarmutti tavaratilan seinän',300,0.98],['Asiakkaan peruutustutka ei ollut sinun autossasi: lyhtypylväs',1200,0.94],['Pakkaamaton akvaario kaatui. Tavaratila haisee',400,0.97],['Kolmannen kerroksen asiakas ei maksanut',0,1]]);
+  if (k==='muuttokolhu') { const rig = gigRig(); if (!rig) return next(); const van = rig.car;
+    if (rig.trailer && RND() < 0.5) { const q = pick([['Kärryn lokasuoja irtosi moottoritiellä, ja takana tullut sai siitä kolhun. Korvasit käteisellä', 350],['Kuorma siirtyi mutkassa ja kärry heilahti ojaan. Hinaus', 250],['Kärryn valot eivät toimineet. Poliisi pysäytti: rikesakko', 100],['Sohva lensi kärrystä, koska liinat olivat Biltemasta ja vanhat', 200]]);
+      payOrVippi(q[1]); S.trailer.wear++; return say('MUUTTOKEIKKA', [`!${q[0]}: ${eur(q[1])}.`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
+    const p = pick([['Pianon kulma naarmutti tavaratilan seinän',300,0.98],['Asiakkaan peruutustutka ei ollut sinun autossasi: lyhtypylväs',1200,0.94],['Pakkaamaton akvaario kaatui. Tavaratila haisee',400,0.97],['Kolmannen kerroksen asiakas ei maksanut',0,1]]);
     if (p[1]) payOrVippi(p[1]); van.base *= p[2];
     return say('MUUTTOKEIKKA', [`!${p[0]}.${p[1]?' Kulut '+eur(p[1])+'.':' Menetit keikan tulot.'}`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
   // 2.0: nopeuskamerat ovat tiellä (drive.js). Pysäköintimaksut tulevat postissa seuraavaan tiliotteeseen.
