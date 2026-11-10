@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v36 (10.11. klo 20.10) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v37 (10.11. klo 21.00) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -234,6 +234,7 @@ function newState(t) {
     M: {all:1, ev:1, tesla:1, ice:1}, rate: 0, bubble: 0, spike: 0,
     camp: null, residual: 0, elon: 0, parking: false, pend: [], spikeAmt: 80, jail: 0, tsa: null, boss: 0, gigs: false, black: 0, wolt: false, taxi: false, taxiLic: false, flip: null, inv: {tsla:0, doge:0}, kimppa: false, kimppaPaid: 0, kimppaWon: 0,
     scrap: null, summer: 0, rested: 0, lappiY: 0,
+    job: 'toimisto', trial: 0, jobApp: null,
     target: t, stock: null, auctionDone: false, log: [], over: false,
   };
 }
@@ -261,6 +262,88 @@ const isOldIce = car => C(car.c).type !== 'e' && modelAge(car.c) >= 10;
 const quarterEnd = () => [2,5,8,11].includes((S.m-1)%12);
 const isDiesel = car => !!car && C(car.c).fl.includes('D');
 const vanOK = () => S.cars.find(c => C(c.c).fl.includes('V') && !c.broken);
+// ---------- TYÖPAIKAT ----------
+// inc = autobudjetti €/kk, risk = lomautusriskin kerroin, km = työmatka suuntaansa, raise = korotusten kerroin, p = haun onnistuminen
+const JOBS = {
+  toimisto: {name:'Toimistotyö', inc:700, risk:1, km:25, raise:1, p:0.7, d:'Tavallinen toimistotyö. Pomo on mulkero.'},
+  accucar: {name:'AccuCar, sähköautokorjaaja', inc:850, risk:0.8, km:20, raise:1, p:0.55, d:'Henkilökuntaetuna sähköauton korjaukset ja akkutyöt −70 %, ja piilovian näkee ennen ostoa. Polttomoottoriautolla töihin tulo naurattaa työkavereita.'},
+  myyja: {name:'Käytettyjen autojen myyjä', inc:550, risk:1.3, km:20, raise:0.5, p:0.8, d:'Pohjapalkan päälle provisio 0–600 €/kk, hintakuplan aikana enemmän. Vaihtohyvitys +5 %. Kun kupla puhkeaa, provisiot romahtavat.'},
+  eta: {name:'Etätyö IT-firmassa', inc:900, risk:1.6, km:0, raise:1, p:0.4, d:'Ei työmatkaa, joten lyhyt toimintamatka ei haittaa. Yt-neuvotteluja on usein, varsinkin korkojen noustessa.'},
+  varikko: {name:'Kaupungin varikko', inc:750, risk:0.3, km:15, raise:0.4, p:0.45, d:'Lomautusriski on hyvin pieni. Palkankorotuksia harvoin, eikä työsuhdeautoja ole.'},
+  lataus: {name:'Latausverkon huoltoteknikko', inc:950, risk:1, km:60, raise:1, p:0.6, d:'Lataus on ilmaista, eivätkä sähkön hintapiikit koske. Ajoa on paljon, ja auto kuluu nopeammin. Vaatii sähköauton, jonka toimintamatka on vähintään 300 km.'},
+  pankki: {name:'Pankin rahoitusneuvoja', inc:950, risk:0.8, km:20, raise:1, p:0.45, d:'Henkilöstöetuna uusien lainojen korko −1 %. Maksuhäiriömerkintä tai pikavippi johtaa potkuihin.'},
+  kuusamo: {name:'Työmaa Kuusamossa', inc:1100, risk:1, km:120, raise:1, p:0.8, d:'Paras palkka. Pitkä työmatka pohjoiseen: talvella pakkanen, porot ja harvat laturit. Esan palju lämpenee työmaaporukalle kerran kvartaalissa.'},
+};
+const job = () => JOBS[S.job || 'toimisto'];
+const onTrial = () => (S.trial || 0) > S.m;
+const payCap = () => S.income * (onTrial() ? 0.5 : 0.6); // rahoittaja: koeajalla erät enintään 50 % tulosta
+const staffDisc = car => S.job === 'accucar' && car && C(car.c).type === 'e' ? 0.3 : 1; // AccuCarin henkilökuntaetu −70 %
+const quarter = () => Math.floor((S.m - 1) / 3);
+function evRangeKm(car) {
+  const k = C(car.c); if (k.type !== 'e') return 0;
+  const es = evSpec(k);
+  let r = es ? es[1] : k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
+  if (car.soh >= 0) r *= Math.max(0.5, car.soh / 100);
+  return Math.round(r);
+}
+const commuteF = () => { const k = job().km; return k === 0 ? 0.6 : k >= 100 ? 1.5 : k >= 60 ? 1.25 : 1; }; // työmatkan vaikutus kuukauden kulutukseen
+function jobReq(id) {
+  const d = drivenCar();
+  if (id === 'lataus' && (!d || C(d.c).type !== 'e' || evRangeKm(d) < 300)) return 'vaatii sähköauton, jonka toimintamatka on vähintään 300 km';
+  if (id === 'pankki' && (S.mark > 0 || S.vippi > 0)) return 'maksuhäiriömerkintä tai pikavippi';
+  return '';
+}
+function jobMenu() {
+  const J = job(), q = quarter(), lines = [`Nykyinen työ: ${J.name}, autobudjetti ${eur(S.income)}/kk.`, J.d];
+  if (onTrial()) lines.push(`!Koeaikaa jäljellä ${S.trial - S.m} kk.`);
+  if (S.jobQ !== q) { S.jobQ = q; const ids = Object.keys(JOBS).filter(i => i !== (S.job || 'toimisto')); S.jobList = []; while (S.jobList.length < 3) { const i = pick(ids); if (!S.jobList.includes(i)) S.jobList.push(i); } }
+  const ch = [];
+  if (S.jobApp) lines.push(`Hakemus vireillä: ${JOBS[S.jobApp.id].name}. Vastaus tulee ensi kuussa.`);
+  else if (S.jobApplied === q) lines.push('Hait jo tällä kvartaalilla. Uusia paikkoja tulee seuraavalla kvartaalilla.');
+  else {
+    lines.push('Avoimet paikat tällä kvartaalilla (voit hakea yhteen):');
+    S.jobList.forEach(id => { const X = JOBS[id], r = jobReq(id);
+      ch.push([`${X.name} · ${eur(X.inc)}/kk${id === 'accucar' && !S.sfs ? ' · koulutus 300 €' : ''}${r ? ' · ' + r : ''}`, ()=>jobDetail(id), !!r]); });
+  }
+  ch.push(['Takaisin', menu]);
+  scr('TYÖPAIKAT', lines, ch);
+}
+function jobDetail(id) {
+  const X = JOBS[id];
+  scr(X.name.toUpperCase(), [`Autobudjetti ${eur(X.inc)}/kk.`, X.d, X.km ? `Työmatka noin ${X.km} km suuntaansa.` : 'Ei työmatkaa.',
+    '!Uudessa työssä on koeaika 6 kk: lomautusriski on suurempi, ja rahoittaja hyväksyy eriä enintään 50 % tulosta.', 'Palkankorotukset ja työsuhdeauto jäävät vanhaan työpaikkaan, mutta niin jää vanha pomokin.'], [
+    ['Lähetä hakemus', ()=>{ S.jobApp = {id, m:S.m}; S.jobApplied = quarter(); sayTo('HAKEMUS', ['Hakemus lähetetty. Vastaus tulee ensi kuussa.'], menu); }],
+    ['Takaisin', jobMenu],
+  ]);
+}
+function jobResult() {
+  const A = S.jobApp; S.jobApp = null;
+  if (!A) return next();
+  const X = JOBS[A.id], r = jobReq(A.id);
+  let p = X.p; if (A.id === 'accucar' && drivenCar() && C(drivenCar().c).type === 'e') p += 0.2;
+  if (r || RND() >= p) return say('HAKEMUS', [`!${X.name}: "Kiitos hakemuksestasi. Valitsimme tällä kertaa toisen hakijan."`, r ? `Syy: ${r}.` : 'Uusia paikkoja tulee seuraavalla kvartaalilla.']);
+  scr('PAIKKA AUKESI!', [`+${X.name}: sinut valittiin! Autobudjetti ${eur(X.inc)}/kk.`, X.d], [['Ota paikka vastaan', ()=>startJob(A.id, X.inc)], ['Kieltäydy', ()=>say('HAKEMUS', ['Kieltäydyit. Nykyinen pomo ei saa koskaan tietää.'])]]);
+}
+function headhunter() {
+  const ids = Object.keys(JOBS).filter(i => i !== (S.job || 'toimisto') && i !== 'toimisto');
+  const id = pick(ids), X = JOBS[id], inc = X.inc + 100, r = jobReq(id);
+  scr('HEADHUNTER SOITTI', [`+"Meillä olisi sinulle paikka: ${X.name}. Neuvottelin valmiiksi ${eur(inc)}/kk."`, X.d, '!Koeaika 6 kk.'].concat(r ? [`!Ei onnistu nyt: ${r}.`] : []),
+    [['Ota paikka vastaan', ()=>startJob(id, inc), !!r], ['Ei kiitos', ()=>say('HEADHUNTER', ['"Soitellaan." Ei soitella.'])]]);
+}
+function startJob(id, inc) {
+  const X = JOBS[id], lines = [`+Uusi työ: ${X.name}. Autobudjetti ${eur(inc)}/kk.`];
+  if (id === 'accucar' && !S.sfs) { payOrVippi(300); S.sfs = true; lines.push('Sähkötyöturvallisuuskoulutus käyty: 300 €.'); }
+  S.job = id; S.income = inc; S.boss = 0; S.trial = S.m + 6; S.jobApp = null;
+  lines.push('!Koeaika 6 kk: lomautusriski on suurempi, ja rahoittaja hyväksyy eriä enintään 50 % tulosta.', '+Uusi pomo ei tiedä vanhoista kolhuista mitään.');
+  if (S.tsa) Q.unshift(()=>tsaReturn('TYÖSUHDEAUTO PALAUTETAAN', 'Vanha työnantaja haluaa autonsa takaisin.', false));
+  if (S.tsaWait) S.tsaWait = null;
+  say('UUSI TYÖPAIKKA', lines);
+}
+function fired(title, why) {
+  S.job = 'toimisto'; S.income = JOBS.toimisto.inc; S.trial = S.m + 6; S.boss = 0; S.layoff = Math.max(S.layoff, 1);
+  if (S.tsa) Q.unshift(()=>tsaReturn('TYÖSUHDEAUTO PALAUTETAAN', 'Työsuhdeauto palautetaan.', false));
+  say(title, [why, `Löysit vuokrafirman kautta toimistotyön (${eur(S.income)}/kk), mutta ensimmäinen kuukausi menee puolella palkalla.`]);
+}
 const slots = () => S.cars.length + (S.tsa ? 1 : 0);
 const totalVal = () => S.cars.reduce((s,c)=>s+val(c),0);
 const totalLoan = () => S.cars.reduce((s,c)=>s+(c.loan?c.loan.bal:0),0) + S.vippi + S.residual;
@@ -270,7 +353,7 @@ const shortR = car => C(car.c).fl.includes('S') || (C(car.c).type==='e' && car.s
 // ajettava auto: toimintamatkaltaan riittävä ensin, sitten halvin
 const driveOrder = () => working().slice().sort((a,b)=>(shortR(a)-shortR(b)) || (C(a.c).run-C(b.c).run));
 const drivenCar = () => S.tsa ? null : (driveOrder()[0] || null);
-const shortCommute = () => { if (S.tsa) return false; const d = driveOrder()[0]; return d && shortR(d); };
+const shortCommute = () => { if (S.tsa || job().km === 0) return false; const d = driveOrder()[0]; return !!d && (shortR(d) || (job().km >= 60 && C(d.c).type === 'e' && evRangeKm(d) < 2.5 * job().km)); };
 
 function runCosts() {
   // ajettava auto = toimiva, jolla pienimmät kulut; muut seisovat (vakuutus 40 €)
@@ -281,7 +364,7 @@ function runCosts() {
   S.cars.forEach(car => {
     const k = C(car.c);
     if (car === w[0]) {
-      let r = k.run + (k.type==='e' && S.spike>0 && !k.fl.includes('F') ? (S.spikeAmt||80) : 0);
+      let r = k.run + (k.type==='e' && S.spike>0 && !k.fl.includes('F') && S.job !== 'lataus' ? (S.spikeAmt||80) : 0);
       sum += r; lines.push([`Käyttökulut: ${k.name}`, r]);
     } else { sum += 20; lines.push([`Seisonnassa (vakuutus puolitettu, ei veroa): ${k.name}`, 20]); }
   });
@@ -297,6 +380,7 @@ function monthTick() {
   const R = []; // raportti
   const inc = S.layoff>0 ? Math.round(S.income/2) : S.income;
   R.push(['+', `Autobudjetti${S.layoff>0?' (LOMAUTETTU)':''}`, inc]);
+  S.provisio = 0; if (S.job === 'myyja' && !(S.layoff>0)) { const pv = r100(rnd(0,600) * (S.bubble>0 ? 1.6 : S.M.all < 0.9 ? 0.3 : 1)); if (pv) R.push(['+', 'Myyntiprovisio', pv]); S.provisio = pv; }
   if (S.layoff>0) S.layoff--;
   let cash = S.cash + inc;
   S.cars.forEach(car => { if (car.loan) { cash -= car.loan.pay; R.push(['-', `Lainan erä: ${C(car.c).name}`, car.loan.pay]); }});
@@ -324,7 +408,15 @@ function monthTick() {
   if (cash>0 && S.vippi>0) { const p = Math.min(cash, S.vippi); cash -= p; S.vippi -= p; R.push(['-','Pakkolyhennys pikavippiin', p]); }
   if (cash<0 && invTotal()>0) R.push(['!','KASSA MIINUKSELLA: päätä seuraavaksi, realisoidaanko sijoituksia', -cash]);
   else if (cash<0) { const v = -cash + 60; S.vippi += v; cash = 0; S.mark = 12; R.push(['!','PIKAVIPPI MYÖNNETTY (sis. avausmaksu 60 €)', v]); }
-  S.cash = cash;
+  S.cash = cash + (S.provisio || 0); S.provisio = 0;
+  // työpaikka: AccuCarin pihalla polttomoottoriauto, pankin luottotiedot, koeaika, Kuusamon palju, hakemukset
+  { const d = drivenCar();
+    if (S.job === 'accucar' && d && C(d.c).type !== 'e') { if (S.boss < 4) S.boss++; R.push(['!', 'AccuCarin pihalla polttomoottoriauto: työkaverit nauravat, ja pomo pani merkille', 0]); }
+    if (S.job === 'lataus' && (!d || C(d.c).type !== 'e')) R.push(['!', 'Latausverkon huoltokeikat ajetaan sähköautolla: nyt kollega joutui paikkaamaan', 0]);
+    if (S.job === 'pankki' && (S.mark > 0 || S.vippi > 0)) Q.push(()=>fired('PANKKI IRTISANOI', '!Pankin luottotietotarkastus löysi maksuhäiriön. Rahoitusneuvojalla ei saa olla pikavippejä.'));
+    else if (onTrial() && ((S.late||0) >= 2 || shortCommute()) && RND() < 0.15) Q.push(()=>fired('KOEAIKAPURKU', '!Myöhästelit koeajalla liian monta kertaa. Työsuhde purettiin koeajalla.'));
+    if (S.job === 'kuusamo' && S.m % 3 === 0) { S.rested = Math.max(S.rested || 0, S.m + 3); R.push(['+', 'Esan palju lämpesi työmaaporukalle: lomautusriski pienenee kvartaaliksi', 0]); }
+    if (S.jobApp && S.m > S.jobApp.m) Q.push(jobResult); }
   if (S.mark>0) S.mark--;
   if (S.tsa) { S.tsa.left--; if (S.tsa.left<=0) Q.push(()=>tsaReturn('SOPIMUS PÄÄTTYI', 'Työsuhdeauton sopimus päättyi.', true)); }
   if (totalLoan() > totalVal() && totalLoan() > 0) S.jail++;
@@ -343,7 +435,7 @@ function monthTick() {
   // arvonlasku ja myynnit
   S.cars.forEach(car => {
     const k = C(car.c);
-    car.base *= (1 - k.dep/12 * (car === drivenCar() ? 1 : 0.6)) * (car.broken ? 0.99 : 1); // seisonnassa ei kerry kilometrejä
+    car.base *= (1 - k.dep/12 * (car === drivenCar() ? (S.job === 'lataus' ? 1.3 : 1) : 0.6)) * (car.broken ? 0.99 : 1); // seisonnassa ei kerry kilometrejä
     car.base = Math.max(car.base, 300 / Math.max(0.3, mult(car)));
   });
   // akun heikkeneminen
@@ -455,12 +547,14 @@ function menu() {
   if (S.cars.some(c=>c.broken || c.minor || c.mixed)) ch.push(['Korjaamo', repairMenu]);
   ch.push([S.parking ? 'Luovu kolmesta autopaikasta' : 'Vuokraa kolme autopaikkaa (105 €/kk)', toggleParking]);
   if (S.tsa) ch.push(['Luovu työsuhdeautosta (500 € sopimussakko)', ()=>{ payOrVippi(500); tsaReturn('LUOVUIT AUTOSTA', 'Palautit työsuhdeauton kesken sopimuksen. Sopimussakko 500 €.', false); }]);
+  ch.push([`Työpaikat (${job().name})`, jobMenu]);
   ch.push(['Sivutulot ja sijoitukset', sideMenu]);
   ch.push(['Omat autot ja lainat', info]);
   ch.push([S.m>=LAST ? 'PAALAAN! (pelin loppu)' : 'PAALAAN! (seuraava kuukausi)', paalaan]);
   const lines = [];
   if (S.camp) lines.push(`+KAMPANJA: ${C(S.camp.id).name}, ylihyvitys ${eur(S.camp.amt)} vaihtoautosta (voimassa ${KK[(S.camp.until-1)%12]}kuun loppuun)`);
   if (S.layoff>0) lines.push(`!Lomautusta jäljellä ${S.layoff} kk`);
+  if (onTrial()) lines.push(`Koeaikaa jäljellä ${S.trial - S.m} kk (${job().name}).`);
   if (quarterEnd()) lines.push('+Kvartaalin loppu: liikkeet tekevät tavoitteitaan, ja uusiin autoihin on 0 %-kampanjoita.');
   else if ([1,4,7,10].includes((S.m-1)%12)) lines.push('Ensi kuussa kvartaali vaihtuu: uusien autojen 0 %-kampanjat tulevat silloin.');
   if (S.scrap) lines.push(S.scrap.kind === 'valtio' ? '+ROMUTUSPALKKIO: yli 10 v polttomoottoriauto 2 000 € (2 500 € sähköautoon vaihdettaessa). Määräraha voi loppua.' : `+ROMUTUSBONUS: ${C(S.scrap.id).name} 3 000 € halvemmalla, kun vaihdat yli 10 v polttomoottoriauton`);
@@ -546,6 +640,7 @@ function info() {
   lines.push(`Pikavippi: ${eur(S.vippi)}${S.mark?' · maksuhäiriö (korot kalliimpia)':''}`);
   if (S.parking) lines.push('Kolme autopaikkaa vuokralla (105 €/kk)');
   lines.push(`Kimppaan maksettu ${eur(S.kimppaPaid)}, voitettu ${eur(S.kimppaWon)}`);
+  lines.push(`Työ: ${job().name}, autobudjetti ${eur(S.income)}/kk${onTrial() ? ', koeaika ' + (S.trial - S.m) + ' kk' : ''}`);
   lines.push(`Tavoite: ${TARGETS[S.target].name}${ownsTarget()?' (PIHASSA!)':''}`);
   say('OMAT AUTOT', lines);
 }
@@ -556,8 +651,8 @@ function randomEvent() {
   const month = (S.m-1)%12;
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
-    ['korotus',S.layoff?0:4],['lomautus',S.layoff||pend('lomautus')?0:Math.max(1,(shortCommute()?12:3)+3*S.boss-(S.rested>S.m?2:0))],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&vanOK()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
-    ['kolhu',(S.tsa||drivenCar())?(S.wolt?1.5:0)+(S.taxi?2:0)+(S.parking?0.75:3)+(S.slip?3:0):0],['peura',(S.tsa||drivenCar())?(month>=8&&month<=11?4:1.5):0],
+    ['korotus',S.layoff?0:4*job().raise],['lomautus',S.layoff||pend('lomautus')?0:Math.max(1,((shortCommute()?12:3)+3*S.boss-(S.rested>S.m?2:0))*(job().risk+(S.job==='eta'?0.3*Math.max(0,S.rate):0))*(onTrial()?1.5:1))],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&vanOK()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(S.job!=='varikko' && !S.tsa && S.m>3)?(S.income>=800?5:3):0],['headhunter',onTrial()?0:1.5],
+    ['kolhu',(S.tsa||drivenCar())?(S.wolt?1.5:0)+(S.taxi?2:0)+(S.parking?0.75:3)+(S.slip?3:0):0],['peura',(S.tsa||drivenCar())?(month>=8&&month<=11?4:1.5)*(S.job==='kuusamo'?1.5:1):0],
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb||c.minor)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0):0],
     ['romutus', !S.scrap && S.cars.some(isOldIce) ? 3 : 0], ['vienti', S.cars.some(c=>C(c.c).type!=='e') ? 1.5 : 0], ['kayttovoima', S.cars.some(c=>C(c.c).type!=='e') ? 1.5 : 0],
     ['reissu', drivenCar() && !S.tsa ? 2 : 0], ['lappi', [0,1].includes(month) && S.lappiY !== Math.floor((S.m-1)/12) ? 8 : 0],
@@ -586,7 +681,7 @@ function fire(k) {
   if (k==='vakuutus') { S.insPlus = (S.insPlus||0) + 10; return say('VAKUUTUSYHTIÖN KIRJE', ['!Vakuutusmaksut nousevat indeksikorotuksella 10 €/kk autoa kohden.', 'Kilpailutus olisi pitänyt tehdä viime vuonna.']); }
   if (k==='varkaus') { payOrVippi(320); return say('LATAUSKAAPELI VIETIIN', ['!Joku katkaisi latauskaapelin julkisella laturilla ja vei kuparit. Uusi kaapeli 320 €.']); }
   if (k==='tsa') return tsaOffer();
-  if (k==='tyopaikka') { S.income += 100; return tsaReturn('UUSI TYÖPAIKKA', '+Sait paremman työpaikan (+100 €/kk), mutta työsuhdeauto jää vanhalle firmalle.', false); }
+  if (k==='headhunter') return headhunter();
   if (k==='elon') { S.elon = 12; S.M.ev *= 0.88; S.M.tesla *= 0.78; const hadInv = S.inv.tsla || S.inv.doge; S.inv.tsla *= 0.8; S.inv.doge *= RND()<0.5 ? 1.7 : 0.5;
     if (hadInv) Q.unshift(()=>say('SALKKU', [`Elonin twiitti liikutti myös salkkua: TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)}.`]));
     return say('ELON TWIITTASI', ['!"Hinnanalennus kaikkiin malleihin. Lol."','Teslojen käytettyjen hinnat romahtivat noin 25 %, muiden sähköautojen noin 12 %.','Hinnat palautuvat hiljalleen. Ostajalle hyvä hetki, omistajalle ei.']); }
@@ -678,7 +773,7 @@ function svcExtra(car, okText) {
   if (RND() >= 1/3) return say('HUOLTO', [okText]);
   const k = C(car.c);
   const it = pick(SVC_EXTRA.all.concat(SVC_EXTRA[k.type]));
-  const cost = Math.round(it[1] * tierMult(k) * rnd(0.85, 1.3) / 10) * 10;
+  const cost = Math.round(it[1] * tierMult(k) * rnd(0.85, 1.3) * staffDisc(car) / 10) * 10;
   scr('HUOLLOSSA LÖYTYI', [okText, `!Huoltomies soitti: "${it[0]} pitäisi hoitaa." Lisälasku ${eur(cost)}.`], [
     [`Korjaa samalla (${eur(cost)})`, ()=>{ payOrVippi(cost); say('HUOLTO', ['Korjattu samalla käynnillä.']); }],
     ['Jätä korjaamatta (näkyy myyntihinnassa ja katsastuksessa)', ()=>{ car.minor = (car.minor||0) + cost; say('HUOLTO', ['Kuitattu huoltokirjaan: "Asiakas ei halunnut korjausta."']); }],
@@ -745,7 +840,7 @@ function tripRange(car, rental) {
   let range = es ? es[1] : k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
   if (car.soh !== undefined) range *= Math.max(0.5, car.soh / 100);
   const kw = es ? es[2] : k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
-  return {ev:true, range, kw, hp: hasHeatPump(k), free: k.fl.includes('F')};
+  return {ev:true, range, kw, hp: hasHeatPump(k), free: k.fl.includes('F') || S.job === 'lataus'};
 }
 function tripCons(E, kmh, cold, box, lap) {
   const r = Math.max(30, kmh) / 90;
@@ -841,13 +936,13 @@ function lappiOffer() {
 }
 function saksaOffer() {
   const pool = CARS.map((_,i)=>i).filter(i => { const k = C(i); return k.type==='e' && !k.fl.includes('N') && !k.fl.includes('V') && k.price >= 20000 && k.price <= 85000 && !/harmaatuonti/.test(k.name); });
-  const id = pick(pool), soh = genSoh(id), fi = listPrice(id, soh), de = Math.max(3000, r100(fi - ri(60,85)*100)), k = C(id);
+  const id = pick(pool), soh = genSoh(id), fi = listPrice(id, soh), de = Math.max(3000, r100(fi - ri(60,85)*100)), k = C(id), odoFake = RND() < 0.15;
   const total = de + 250, rate = S.mark ? 14.9 : 12.9, pay = annuity(total, rate/1200, 60);
-  const other = S.cars.reduce((s,c)=>s+(c.loan?c.loan.pay:0),0), aff = other + pay <= S.income*0.6;
+  const other = S.cars.reduce((s,c)=>s+(c.loan?c.loan.pay:0),0), aff = other + pay <= payCap();
   const go = loan => { if (!loan) S.cash -= total;
     const car = {c:id, base:0, loan, broken:0, mb:0, sale:0, soh, held:0, rims2: RND() < 0.5};
     car.base = fi * 0.93 / mult(car); setWarranty(car, false); car.dealer = 0; car.warr = S.m; if (RND() < 0.5) car.bwarr = S.m;
-    if (RND() < 0.15) car.odo = S.m + ri(3,8);
+    if (odoFake) car.odo = S.m + ri(3,8);
     car.reg = S.m + 999; // ajetaan kotiin siirtokilvillä, rekisteröidään perillä
     S.cars.push(car);
     const winter = [11,0,1,2].includes((S.m-1)%12), kk = mountCost(k), fr = r100(600*tierMult(k));
@@ -864,7 +959,7 @@ function saksaOffer() {
     [`Hae se kulutusluotolla ${pct(rate)}, 60 kk · ${eur(pay)}/kk${aff?'':' · HYLÄTTY (maksukyky)'}`, ()=>go({bal:total, r:rate/1200, n:60, B:0, pay}), !aff],
     ['Ei kiitos', next]];
   scr('HALPA AUTO SAKSASSA', [`Mobile.de: ${k.name}${soh!==undefined && soh<100 ? ', akku ' + soh + ' %' : ''}. Hinta ${eur(de)}.`, `Suomessa sama auto maksaa noin ${eur(fi)}.`,
-    '!Hae se itse: lento Müncheniin, 800 km Autobahnia ja lautta Travemündestä. Suomessa odottavat rekisteröinti, vastaanottotarkastus ja mahdollinen yksittäishyväksyntä.', '!Takuu ei välttämättä päde Suomessa, eikä mittarilukemaa voi tarkistaa.'], ch);
+    '!Hae se itse: lento Müncheniin, 800 km Autobahnia ja lautta Travemündestä. Suomessa odottavat rekisteröinti, vastaanottotarkastus ja mahdollinen yksittäishyväksyntä.', '!Takuu ei välttämättä päde Suomessa, eikä mittarilukemaa voi tarkistaa.'].concat(S.job === 'accucar' ? [odoFake ? '!AccuCarin kautta tilattu huoltohistoria: mittaria on viilattu.' : '+AccuCarin kautta tilattu huoltohistoria: mittarilukema täsmää.'] : []), ch);
 }
 // matkan tulos ajotilasta: res = {ok, late, broken, towed, crashed}
 function tripDone(T, res) {
@@ -908,7 +1003,7 @@ function tripDone(T, res) {
 }
 function batteryFail(car) {
   if (!S.cars.includes(car) || car.battFail) return next();
-  const k = C(car.c), cost = battCost(k);
+  const k = C(car.c), cost = r100(battCost(k) * staffDisc(car));
   if (cost === 0) { car.soh = 100; car.held = 0; car.w85 = car.w80 = false; return say('AKKUVUOKRA', [`${k.name}: akku vikaantui.`, '+Akku on vuokralla, joten Renault vaihtoi sen veloituksetta. Akkuvuokra kerrankin kannatti.']); }
   if (bwarrLeft(car) && !wVoid(car)) { car.soh = 100; car.held = 0; car.w85 = car.w80 = false;
     return say('AKKUTAKUU', [`${k.name}: ajovoima-akku vikaantui.`, '+Akkutakuu on voimassa: uusi akku asennettiin veloituksetta. Säästit ' + eur(cost) + '.']); }
@@ -931,7 +1026,7 @@ function faultEvent(car) {
   if (k.fl.includes('F') && RND() < 0.6) { const g = pick(FFAULTS); fault = g[0]; cost = g[1]; }
   else if (RND() < 0.5) { const g = pick(GENFAULTS[k.type]); fault = g[0]; cost = g[1] * tierMult(k); }
   if (/^Lämpöpumppu/.test(fault) && !hasHeatPump(k)) { fault = 'PTC-lämmitin hajosi: lasit huurtuvat, ja sisällä on pakkasta'; cost = 750 * tierMult(k); } // ei lämpöpumppua
-  car.broken = Math.round(cost*rnd(0.9,1.3)/10)*10; car.lastFault = fault;
+  car.broken = Math.round(cost*rnd(0.9,1.3)*staffDisc(car)/10)*10; car.lastFault = fault;
   let txt = `${k.name}: ${fault}. Korjausarvio ${eur(car.broken)}.`;
   if (HEATER.test(fault)) txt += coldSeason() ? ' Pakkasella tuulilasi jäätyy sisäpuolelta, eikä autolla voi ajaa.' : ' Kesällä pärjää ilman lämmitystä, mutta pakkasilla autolla ei voi ajaa.';
   if (car.mb && RND() < 0.4) { car.broken *= 2; txt = `${k.name}: mikrobetonipaikka lohkesi ja vei mukanaan muutakin. Korjausarvio ${eur(car.broken)} (tuplana).`; }
@@ -1118,7 +1213,7 @@ function carDetail(s) {
   const ch = [];
   S.cars.forEach(car => {
     const camp = S.camp && S.camp.id===s.c ? S.camp.amt : 0;
-    const h = r100(val(car)*0.88) + camp;
+    const h = r100(val(car)*(S.job === 'myyja' ? 0.93 : 0.88)) + camp;
     ch.push([`Osta, vaihtoon ${C(car.c).name} (hyvitys ${eur(h)}, laina ${eur(car.loan?car.loan.bal:0)})`, ()=>{ car.scrapBonus = false; car.scrapped = false; finance(s, car, h); }]);
     // romutuspalkkio vaihdossa: valtio 2 500 € sähköautoon, merkkiliike 3 000 € kampanja-autoon
     if (S.scrap && isOldIce(car) && !car.broken) {
@@ -1135,7 +1230,7 @@ function carDetail(s) {
 // uusien autojen 0 %-kampanjat tulevat kvartaalin lopussa. 0 % = listahinta, avausmaksu ja kuukausimaksut; vaihtoehtona käteisalennus.
 function rateOffers(isNew, s) {
   const base = isNew ? pick([2.9,3.9,4.9]) : pick([3.9,5.9,8]);
-  const adj = r => Math.max(0, Math.min(9, S.mark ? Math.max(r+2,5.9) : r + S.rate));
+  const adj = r => Math.max(0, Math.min(9, S.mark ? Math.max(r+2,5.9) : r + S.rate - (S.job === 'pankki' ? 1 : 0)));
   const zeroP = isNew ? Math.min(0.95, (quarterEnd() ? 0.8 : 0.15) + 0.1 * Math.max(0, S.rate)) : 0;
   const zero = isNew && !S.mark && RND() < zeroP;
   const disc = isNew && s ? Math.max(1000, r100(s.price * Math.max(0.03, 0.07 - 0.01 * S.rate))) : 0;
@@ -1183,7 +1278,7 @@ function loanTerms(s, trade, h, need, nv, R, d) {
   const cap = nv * (S.mark ? 1.15 : 1.4);
   const ok = L <= cap;
   const other = S.cars.filter(c=>c!==trade && c.loan).reduce((s,c)=>s+c.loan.pay,0);
-  const maxPay = S.income * 0.6 - other;
+  const maxPay = payCap() - other;
   const lines = [`${C(s.c).name}`, `Käsiraha ${eur(d)}, lainaa ${eur(L)} (${Math.round(L/nv*100)} % auton arvosta).`];
   if (!ok) lines.push(`!Rahoitusyhtiö hylkää: laina saa olla enintään ${Math.round(cap/nv*100)} % auton arvosta.`);
   lines.push(`Maksukyky: kaikki erät yhteensä enintään 60 % tulosta, eli tähän lainaan enintään ${eur(Math.max(0,maxPay))}/kk.`);
@@ -1252,7 +1347,7 @@ function auction() {
   const V = listPrice(id, soh) * 0.95;
   const crazy = RND()<0.12;
   const A = {id, V, soh, est: r100(V*rnd(0.9,1.1)), bid: Math.max(100, r100(V*0.35)), lead:'opp', max: crazy ? V*rnd(1.05,1.2) : V*rnd(0.6,0.95), hidden: RND()<0.35};
-  auctionRound(A, [`Kohde: ${C(id).name}`, `Myyjän arvio ${eur(A.est)}. Ei takuuta, ei koeajoa.`].concat(soh!==undefined ? [`Myyjän ilmoittama akun kunto ${soh} % (ei tarkistettu)`] : []));
+  auctionRound(A, [`Kohde: ${C(id).name}`, `Myyjän arvio ${eur(A.est)}. Ei takuuta, ei koeajoa.`].concat(S.job === 'accucar' ? [A.hidden ? '!AccuCarin diagnoosilaite: kohteessa on piilovika.' : '+AccuCarin diagnoosilaite: ei piilovikoja.'] : []).concat(soh!==undefined ? [`Myyjän ilmoittama akun kunto ${soh} % (ei tarkistettu)`] : []));
 }
 function auctionRound(A, pre) {
   const lines = (pre||[]).concat([`Korkein tarjous ${eur(A.bid)} (${A.lead==='me'?'SINÄ':'muu huutaja'})`]);
@@ -1280,7 +1375,7 @@ function auctionWin(A) {
   ch.push([`Maksa käteisellä ${eur(total)}`, ()=>auctionPay(A, total, null), S.cash < total]);
   const pay = annuity(total, rate/1200, 36);
   const other = S.cars.reduce((s,c)=>s+(c.loan?c.loan.pay:0),0);
-  const aff = other + pay <= S.income*0.6;
+  const aff = other + pay <= payCap();
   ch.push([`Kulutusluotto ${pct(rate)}, 36 kk · ${eur(pay)}/kk${aff?'':' · HYLÄTTY (maksukyky)'}`, ()=>auctionPay(A, total, {bal:total, r:rate/1200, n:36, B:0, pay}), !aff]);
   ch.push(['En pysty maksamaan (sakko 300 €)', ()=>{ payOrVippi(300); S.mark = 12; say('HUUTOKAUPPA', ['!Kauppa purettiin. Sakko 300 € ja maksuhäiriömerkintä.']); }]);
   scr('VOITIT HUUTOKAUPAN!', [`${C(A.id).name} hintaan ${eur(A.bid)} + 3 % huutokauppapalkkio.`], ch);

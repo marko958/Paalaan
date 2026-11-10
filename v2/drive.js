@@ -106,7 +106,7 @@ const Drive = (() => {
       bare: m === 10, // marraskuu: ruskea maa, lehdettömät koivut
       dark: [10, 11, 0].includes(m) ? 0.72 : [1, 9].includes(m) ? 0.35 : 0,
       deerPerMonth: north ? 0 : m >= 8 && m <= 11 ? 4 : 2,
-      poroPerMonth: lap ? 7 : north ? 5 : 0,
+      poroPerMonth: lap ? 7 : north ? 5 : S.job === 'kuusamo' && !st.trip ? 2 : 0,
       holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
     };
   }
@@ -179,7 +179,7 @@ const Drive = (() => {
     let range = es ? es[1] : k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
     if (car && car.soh !== undefined) range *= Math.max(0.5, car.soh / 100);
     const kw = es ? es[2] : k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
-    return { ev:true, range, obj, kw, cap: range * 0.17, hp: hasHeatPump(k), free: k.fl.includes('F') || !!(T && T.kind === 'vapaa') };
+    return { ev:true, range, obj, kw, cap: range * 0.17, hp: hasHeatPump(k), free: k.fl.includes('F') || !!(T && T.kind === 'vapaa') || S.job === 'lataus' };
   }
   function eSpec() {
     const v = st.veh;
@@ -198,7 +198,7 @@ const Drive = (() => {
     if (E.ev && lap) f /= 0.85;
     return f;
   }
-  const consNow = (E, kmh) => consF(E, kmh, coldNow(), towing(), st.veh.box, season().lap) / E.range; // osuus akusta tai tankista per km
+  const consNow = (E, kmh) => consF(E, kmh, coldNow(), towing(), st.veh.box, season().lap) / E.range * (st.trip ? 1 : commuteF()); // osuus akusta tai tankista per km
   function rangeOf(car, cold, kmh) { const E = eSpecFor(C(car.c), car, null); return Math.round(E.range / consF(E, kmh || 100, cold === 'cold', false, false, false) / 10) * 10; }
   const energy = E => (E.obj.energy === undefined ? 1 : E.obj.energy);
   function scheduleStation() {
@@ -239,7 +239,7 @@ const Drive = (() => {
     if (c.cost > 0) payOrVippi(c.cost);
     toast(c.E.ev ? `+Ladattu ${Math.round(c.start * 100)} → ${Math.round(energy(c.E) * 100)} % · ${Math.round(c.kwh)} kWh · ${c.cost ? eur(c.cost) : 'ilmainen'}` : `+Tankattu ${Math.round(c.l)} l · ${c.cost ? eur(c.cost) : 'firma maksaa'}`, 4);
     // työmatkalla pitkä latausstoppi myöhästyttää (työsuhdeautolla ja matkoilla ei)
-    if (!st.trip && !st.veh.tsa && c.E.ev && c.t > 3 && st.lateM !== S.m) { st.lateM = S.m; S.late = (S.late || 0) + 1; toast('!OLET MYÖHÄSSÄ PALAVERISTA! Pomo merkitsi sen muistiin.', 5); }
+    if (!st.trip && !st.veh.tsa && job().km > 0 && c.E.ev && c.t > 3 && st.lateM !== S.m) { st.lateM = S.m; S.late = (S.late || 0) + 1; toast('!OLET MYÖHÄSSÄ PALAVERISTA! Pomo merkitsi sen muistiin.', 5); }
   }
   function towTo(title, lines, cost, extraH) {
     st.speed = 0; st.paused = true; st.keys = {};
