@@ -70,6 +70,7 @@ const CARS = [
  ['Renault Fluence Z.E. 2012',3500,'e',230,.15,'S','Latauslaite hajosi, eikä varaosia enää saa',1600],
  ['Ford Focus Electric 2014',4500,'e',160,.14,'S','Latausportin lukko ja latauslaite hajosivat',1300],
  ['Elcat Cityvan 1997',3000,'e',110,.03,'SV','Lyijyakusto loppu: 12 akkua vaihtoon',1800],
+ ['Fiat Topolino 2024',8000,'e',70,.12,'S','Oviaukon köysi katkesi, ja sade tuli sisään',250],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
@@ -83,9 +84,10 @@ const EXTRA_FAULTS = [
  ['Audi e-tron 55', [['Etumoottori hajosi: moottoriremppa', 9000], ['Katto- ja taka-antennit hapettuivat: radio, GPS ja puhelin pimeinä', 1200], ['Latausluukun moottori ja lukitus hajosivat taas', 1100]]],
 ];
 // sähköautot, joissa ei ole lämpöpumppua (lämmitys PTC-vastuksella)
-const NO_HEATPUMP = ['Renault Fluence','Ford Focus Electric','Elcat','Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
+const NO_HEATPUMP = ['Fiat Topolino','Renault Fluence','Ford Focus Electric','Elcat','Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
 // erikoiset sähköautot [nimen alku, toimintamatka km, suurin latausteho kW]: ei pikalatausta
-const EV_SPEC = [['Renault Fluence',130,3.7],['Ford Focus Electric',140,6.6],['Elcat',70,3]];
+// neljäs kenttä: huippunopeus km/h, jos auto on hidas
+const EV_SPEC = [['Renault Fluence',130,3.7],['Ford Focus Electric',140,6.6],['Elcat',70,3,72],['Fiat Topolino',75,2.3,45]];
 const evSpec = k => EV_SPEC.find(([n]) => k.name.startsWith(n));
 const hasHeatPump = k => k.type === 'e' && !NO_HEATPUMP.some(n => k.name.startsWith(n));
 // lämmitysvika: kesällä autolla voi ajaa, talvella (marras–maalis) ei
@@ -114,7 +116,7 @@ const BATT = [
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
  ['Mercedes EQS (uusi)',40000],['Mercedes EQS',35000],['Maybach',60000],['BMW i7',40000],['Porsche Macan',30000],['Tesla Model S Plaid',22000],
  ['Lucid Air',50000],['Lotus Eletre',45000],['Polestar 3',15000],['Rolls-Royce Spectre',90000],['Tesla Cybertruck',35000],['Tesla Model S 85',14000],
- ['Toyota Proace',20000],['Renault Fluence',0],['Ford Focus Electric',9000],['Elcat',2500],['Audi e-tron 55',25000],['Citroën ë-SpaceTourer',14000],['Kia PV5',16000],
+ ['Toyota Proace',20000],['Renault Fluence',0],['Ford Focus Electric',9000],['Elcat',2500],['Fiat Topolino',4000],['Audi e-tron 55',25000],['Citroën ë-SpaceTourer',14000],['Kia PV5',16000],
 ];
 function battCost(k) { const b = BATT.find(([n]) => k.name.startsWith(n)); return b ? b[1] : (k.price > 50000 ? 30000 : 12000); }
 // ---------- TAKUUT ----------
@@ -216,7 +218,7 @@ const val = car => {
 const working = () => S.cars.filter(c => !c.broken && !(c.reg > S.m)); // reg: harmaatuonti odottaa rekisteröintiä
 const vanOK = () => S.cars.find(c => C(c.c).fl.includes('V') && !c.broken);
 // 2.0: peräkärry. Vetokoukutonta autoa ei voi käyttää kärryn kanssa.
-const NO_TOW = ['Renault Fluence','Ford Focus Electric','Dacia Spring','Fiat 500e','BMW i3','Renault Zoe','Nissan Leaf','Hyundai Ioniq 2019','Toyota Prius','Porsche Taycan','Audi e-tron GT','Audi RS e-tron GT','Lucid Air','Rolls-Royce Spectre'];
+const NO_TOW = ['Fiat Topolino','Renault Fluence','Ford Focus Electric','Dacia Spring','Fiat 500e','BMW i3','Renault Zoe','Nissan Leaf','Hyundai Ioniq 2019','Toyota Prius','Porsche Taycan','Audi e-tron GT','Audi RS e-tron GT','Lucid Air','Rolls-Royce Spectre'];
 // alpha 17: vetomassat [nimen alku, suurin perävaunu kg, auton kokonaismassa kg] (pelilukuja, suuntaa antavia)
 const TOW = [
  ['Ford Mondeo',1500,1950],['Opel Astra',1200,1750],['Toyota Avensis',1600,1950],['Volvo V70',1800,2200],['VW Passat',2000,2150],['Audi A6',2100,2350],['BMW 530d',2000,2400],['Mitsubishi Outlander',1500,2300],
@@ -1145,7 +1147,7 @@ function carDetail(s) {
   if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${battCost(k)?' · uusi akku '+eur(battCost(k)):' · akku vuokralla'}${s.soh<80?': toimintamatka on jo heikko':''}`);
   lines.push(s.rims2 ? '+Mukana kahdet renkaat vanteilla: renkaanvaihdot hoituvat hotellissa 90 €:lla tai itse.' : `Vain yhdet vanteet: jokainen renkaanvaihto on rengastyötä (${eur(mountCost(k))}), tai osta toiset vanteet (${eur(rimsCost(k))}).${staggered(k) ? ' Porrastetut kiekot.' : ''}`);
   { const t = towSpec({c:s.c}); lines.push(t.kg ? `Vetomassa ${t.kg.toLocaleString('fi-FI')} kg, kokonaismassa ${t.mass.toLocaleString('fi-FI')} kg.` : 'Ei vetokoukkua.'); }
-  { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${/^Elcat/.test(k.name) ? ' Huippunopeus noin 70 km/h. Suomalainen sähköpaku, joka kerää jo museoarvoa.' : ''}`); }
+  { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${es[3] ? ` Huippunopeus ${es[3] === 72 ? 'noin 70' : es[3]} km/h.` : ''}${/^Elcat/.test(k.name) ? ' Suomalainen sähköpaku, joka kerää jo museoarvoa.' : /^Fiat Topolino/.test(k.name) ? ' Mopoauto: ajamiseen riittää AM-kortti, ja vakuutus on halpa. Ovien tilalla on köydet.' : ''}`); }
   if (/^Elcat/.test(k.name)) lines.push('+Pieni pakettiauto: muuttokeikat onnistuvat, kunhan kuorma on kevyt ja matka lyhyt. Arvo pysyy, koska keräilijät haluavat näitä.');
   else if (k.fl.includes('V')) lines.push(`+Kova alennus listahinnasta (${eur(k.price)}). Iso pakettiauto: voit alkaa tehdä muuttokeikkoja.`, '!Pakettiautojen jälleenmyyntiarvo laskee nopeasti.');
   if (k.fl.includes('F')) lines.push('+Ilmaiset superit siirtyvät autolle: käyttökulut vain vakuutus, sähkön hintapiikit eivät koske.', '!650 000 km: vikoja tulee moninkertaisesti, ja ne ovat kalliita. Akku on vaihdettu kerran.');

@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v33 (10.11. klo 19.00) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v34 (10.11. klo 19.20) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -105,6 +105,7 @@ const CARS = [
  ['Renault Fluence Z.E. 2012',3500,'e',230,.15,'S','Latauslaite hajosi, eikä varaosia enää saa',1600],
  ['Ford Focus Electric 2014',4500,'e',160,.14,'S','Latausportin lukko ja latauslaite hajosivat',1300],
  ['Elcat Cityvan 1997',3000,'e',110,.03,'SV','Lyijyakusto loppu: 12 akkua vaihtoon',1800],
+ ['Fiat Topolino 2024',8000,'e',70,.12,'S','Oviaukon köysi katkesi, ja sade tuli sisään',250],
 ];
 const GENFAULTS = {
   b: [['Pakoputki irtosi',350],['Jakohihna vaihtoon',900],['Kytkin luistaa',1200],['Moottorin vikavalo palaa',300],['Iskunvaimennin vuotaa',500],['Akku kuoli pakkasella',180],['Näätä söi johtosarjan',700],['Lambda-anturi hajosi',250]],
@@ -117,9 +118,10 @@ const EXTRA_FAULTS = [
  ['Tesla Model 3', [['Akkukotelo ruostui, ja kosteus pääsi akkuun: eristysvika, auto ei käynnisty', 4200], ['Jarruputket ruostuivat suolatuilla teillä', 900]]],
 ];
 // sähköautot, joissa ei ole lämpöpumppua (lämmitys PTC-vastuksella)
-const NO_HEATPUMP = ['Renault Fluence','Ford Focus Electric','Elcat','Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
+const NO_HEATPUMP = ['Fiat Topolino','Renault Fluence','Ford Focus Electric','Elcat','Nissan Leaf','BMW i3','Peugeot e-208','Dacia Spring','Fiat 500e','MG4','VW ID.3','Tesla Model 3','Polestar 2','Volvo XC40','Tesla Model S 85'];
 // erikoiset sähköautot [nimen alku, toimintamatka km, suurin latausteho kW]: ei pikalatausta
-const EV_SPEC = [['Renault Fluence',130,3.7],['Ford Focus Electric',140,6.6],['Elcat',70,3]];
+// neljäs kenttä: huippunopeus km/h, jos auto on hidas
+const EV_SPEC = [['Renault Fluence',130,3.7],['Ford Focus Electric',140,6.6],['Elcat',70,3,72],['Fiat Topolino',75,2.3,45]];
 const evSpec = k => EV_SPEC.find(([n]) => k.name.startsWith(n));
 const hasHeatPump = k => k.type === 'e' && !NO_HEATPUMP.some(n => k.name.startsWith(n));
 // lämmitysvika: kesällä autolla voi ajaa, talvella (marras–maalis) ei
@@ -147,7 +149,7 @@ const BATT = [
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
  ['Mercedes EQS (uusi)',40000],['Mercedes EQS',35000],['Maybach',60000],['BMW i7',40000],['Porsche Macan',30000],['Tesla Model S Plaid',22000],
  ['Lucid Air',50000],['Lotus Eletre',45000],['Polestar 3',15000],['Rolls-Royce Spectre',90000],['Tesla Cybertruck',35000],['Tesla Model S 85',14000],
- ['Toyota Proace',20000],['Renault Fluence',0],['Ford Focus Electric',9000],['Elcat',2500],
+ ['Toyota Proace',20000],['Renault Fluence',0],['Ford Focus Electric',9000],['Elcat',2500],['Fiat Topolino',4000],
 ];
 function battCost(k) { const b = BATT.find(([n]) => k.name.startsWith(n)); return b ? b[1] : (k.price > 50000 ? 30000 : 12000); }
 // ---------- TAKUUT ----------
@@ -760,8 +762,8 @@ function startTrip(T) {
     fast.map(v => [`${v} km/h`, ()=>tripResolve(T, v)]));
 }
 function tripResolve(T, kmh) {
-  const car = tripDrive(T), slow = car && !T.rental && /^Elcat/.test(C(car.c).name);
-  if (slow) kmh = Math.min(kmh, 70);
+  const car = tripDrive(T), vtop = car && !T.rental && evSpec(C(car.c)) && evSpec(C(car.c))[3], slow = !!vtop && kmh > vtop;
+  if (slow) kmh = Math.min(kmh, vtop);
   const E = T.tsa ? tripRange({c:S.tsa.c}) : tripRange(car, T.rental);
   if (T.tsa && S.tsa.kind === 'vapaa') E.free = true;
   const lap = T.road === 'lappi', cold = lap || coldSeason(), lines = [];
@@ -782,7 +784,7 @@ function tripResolve(T, kmh) {
   if (!E.ev) cost += E.free ? 0 : Math.min(need, start) * E.range * 0.07 * 1.95;
   if (lap && E.diesel && !T.rental && T.gel) { towed = true; h += 2; payOrVippi(400); lines.push('!−30 °C ja tankissa oli kesälaatua. Diesel hyytyi, ja hinaus lämpimään halliin maksoi 400 €.'); }
   if (cost > 0) payOrVippi(cost);
-  if (slow) lines.push('!Elcat ei kulje yli 70 km/h. Rekat ohittelivat koko matkan.');
+  if (slow) lines.push(`!${C(car.c).name.split(' ')[0] === 'Fiat' ? 'Topolino' : 'Elcat'} ei kulje yli ${kmh} km/h. Rekat ohittelivat koko matkan.`);
   lines.unshift(`Ajoit ${kmh} km/h. ${stops ? `${E.ev ? 'Latausstoppeja' : 'Tankkauksia'} ${stops}, ${E.ev ? 'sähköä' : 'polttoainetta'} ${eur(cost)}.` : `Perille ilman ${E.ev ? 'latausstoppeja' : 'tankkausta'}${cost ? ', polttoainetta ' + eur(cost) : ''}.`} Matka-aika ${Math.floor(h)} h ${Math.round((h % 1) * 60)} min.`);
   // sattumukset: kova vauhti lisää riskiä
   const risk = (lap ? 0.1 : 0.05) * Math.pow(kmh / 90, 2);
@@ -1086,7 +1088,7 @@ function carDetail(s) {
     lines.push(`Takuu: ${w ? 'tehdastakuu '+w+' kk' : 'tehdastakuu päättynyt'}${bw ? ', akkutakuu '+bw+' kk' : ''}${k.fl.includes('N') ? '' : ', liikkeen virhevastuu 6 kk'}${/^Toyota/.test(k.name)&&age<10?' (Toyota: merkkihuolto pidentää)':''}`); }
   if (s.soh!==undefined) lines.push(`${s.soh<80?'!':''}Akun kunto ${s.soh} %${battCost(k)?' · uusi akku '+eur(battCost(k)):' · akku vuokralla'}${s.soh<80?': toimintamatka on jo heikko':''}`);
   lines.push(s.rims2 ? '+Mukana kahdet renkaat vanteilla: renkaanvaihdot hoituvat hotellissa 90 €:lla tai itse.' : `Vain yhdet vanteet: jokainen renkaanvaihto on rengastyötä (${eur(mountCost(k))}), tai osta toiset vanteet (${eur(rimsCost(k))}).${staggered(k) ? ' Porrastetut kiekot.' : ''}`);
-  { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${/^Elcat/.test(k.name) ? ' Huippunopeus noin 70 km/h. Suomalainen sähköpaku, joka kerää jo museoarvoa.' : ''}`); }
+  { const es = evSpec(k); if (es) lines.push(`!Ei pikalatausta: lataus enintään ${String(es[2]).replace('.', ',')} kW, toimintamatka noin ${es[1]} km.${es[3] ? ` Huippunopeus ${es[3] === 72 ? 'noin 70' : es[3]} km/h.` : ''}${/^Elcat/.test(k.name) ? ' Suomalainen sähköpaku, joka kerää jo museoarvoa.' : /^Fiat Topolino/.test(k.name) ? ' Mopoauto: ajamiseen riittää AM-kortti, ja vakuutus on halpa. Ovien tilalla on köydet.' : ''}`); }
   if (/^Elcat/.test(k.name)) lines.push('+Pieni pakettiauto: muuttokeikat onnistuvat, kunhan kuorma on kevyt ja matka lyhyt. Arvo pysyy, koska keräilijät haluavat näitä.');
   else if (k.fl.includes('V')) lines.push(`+Kova alennus listahinnasta (${eur(k.price)}). Iso pakettiauto: voit alkaa tehdä muuttokeikkoja.`, '!Pakettiautojen jälleenmyyntiarvo laskee nopeasti.');
   if (k.fl.includes('F')) lines.push('+Ilmaiset superit siirtyvät autolle: käyttökulut vain vakuutus, sähkön hintapiikit eivät koske.', '!650 000 km: vikoja tulee moninkertaisesti, ja ne ovat kalliita. Akku on vaihdettu kerran.');
