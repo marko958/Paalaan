@@ -187,7 +187,7 @@ const val = car => {
 };
 const working = () => S.cars.filter(c => !c.broken);
 const vanOK = () => S.cars.find(c => C(c.c).fl.includes('V') && !c.broken);
-const slots = () => S.cars.length + (S.tsa ? 1 : 0);
+const slots = () => S.cars.length + (S.tsa || S.tsaWait ? 1 : 0);
 const totalVal = () => S.cars.reduce((s,c)=>s+val(c),0);
 const totalLoan = () => S.cars.reduce((s,c)=>s+(c.loan?c.loan.bal:0),0) + S.vippi + S.residual;
 const ownsTarget = () => S.cars.some(c => TARGETS[S.target].ids.includes(c.c));
@@ -365,6 +365,8 @@ function monthName() { const y = 2027 + Math.floor((S.m-1)/12); return `KK ${S.m
 
 function menu() {
   if (Drive.active) Drive.stop();
+  let tsaNew = null;
+  if (S.tsaWait) { S.tsa = S.tsaWait; S.tsaWait = null; tsaNew = S.tsa; }
   if (S.cash < 0 && invTotal() > 0) return deficitPrompt();
   if (S.cash < 0) { fixNeg(); if (S.vippi > 3000) return repossess(); }
   const ch = [];
@@ -386,6 +388,7 @@ function menu() {
   if (S.pend.length) lines.push('!Huhuja ilmassa: ' + S.pend.map(p=>({elon:'Elon',korkoup:'koronnosto',lomautus:'yt-neuvottelut'})[p.k]).join(', '));
   if (!working().length) lines.push('!Sinulla ei ole toimivaa autoa.');
   else if (shortCommute() && !S.layoff) lines.push('!Työmatka-auton toimintamatka ei riitä. Pomo on huomannut myöhästelyt.');
+  if (tsaNew) lines.unshift(`+Haettu firman pihasta: työsuhdeauto ${C(tsaNew.c).name}. Luontoisetu ${eur(tsaNew.cost)}/kk. Omat autosi jäävät seisontaan.`);
   lines.push('Mitä tehdään?');
   scr(monthName(), lines, ch);
 }
@@ -471,7 +474,7 @@ function randomEvent() {
   const month = (S.m-1)%12;
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
-    ['korotus',S.layoff?0:4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)+3*S.boss],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&vanOK()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
+    ['korotus',S.layoff?0:4],['lomautus',S.layoff||pend('lomautus')?0:(shortCommute()?12:3)+3*S.boss],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&vanOK()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(!S.tsa && !S.tsaWait && S.m>3)?(S.income>=800?5:3):0],['tyopaikka',S.tsa?1:0],
     ['kolhu',(S.tsa||drivenCar())?(S.wolt?1.5:0)+(S.taxi?2:0)+(S.parking?0.75:3)+(S.slip?3:0):0],['peura',0], // 2.0: peurat ovat tiellä (drive.js)
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb||c.minor)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0):0],
   ];
@@ -725,7 +728,10 @@ function tsaTerms(i) {
   const ch = [];
   [['vapaa',12],['käyttö',12]].forEach(([kind,n]) => {
     ch.push([`${kind==='vapaa'?'Vapaa autoetu':'Käyttöetu'}, ${n} kk · ${eur(tsaCost(i,kind))}/kk${kind==='käyttö'?(k.type==='e'?' (sis. omat lataukset)':' (sis. omat tankkaukset)'):''}`,
-      ()=>{ S.tsa = {c:i, kind, cost:tsaCost(i,kind), left:n, dmg:[], mb:0, ev:k.type==='e'};
+      ()=>{ const T = {c:i, kind, cost:tsaCost(i,kind), left:n, dmg:[], mb:0, ev:k.type==='e'};
+        // 2.0: kesken ajon auto ei vaihdu alta, vaan odottaa firman pihassa seuraavaan liittymään asti
+        if (Drive.active) { S.tsaWait = T; return say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, 'Saat sen alle, kun seuraavan kerran poistut tieltä liittymästä. Siihen asti ajat omalla autollasi, eikä luontoisetua vielä peritä.', `Sen jälkeen luontoisetu ${eur(T.cost)}/kk vähennetään autobudjetista.`]); }
+        S.tsa = T;
         say('TYÖSUHDEAUTO', [`+${k.name} odottaa firman parkkipaikalla.`, `Luontoisetu ${eur(S.tsa.cost)}/kk vähennetään autobudjetista. Omat autosi ovat seisonnassa: vakuutus puolittuu, vero pysähtyy ja arvonlasku hidastuu.`, 'Työsuhdeautolla et voi myöhästellä latausten takia, joten lomautusriski on normaali.']); }]);
   });
   ch.push(['Takaisin', tsaOffer]);
