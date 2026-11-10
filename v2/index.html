@@ -43,7 +43,9 @@
   #h-hint { position:absolute; left:0; right:0; bottom:44%; text-align:center; }
   #h-ramp { position:absolute; left:8px; right:8px; bottom:26%; text-align:center; color:var(--yel); font-size:1.15em; animation:blink 0.8s steps(2) infinite; }
   .h-bot { position:absolute; left:8px; right:8px; bottom:4px; display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
-  #h-speed { font-size:1.6em; white-space:nowrap; } #h-car { max-width:34%; text-align:right; }
+  #h-speed { font-size:1.6em; white-space:nowrap; } #h-speed.over { color:#FF8A80; }
+  .h-sp { display:flex; align-items:center; gap:8px; }
+  #h-lim { display:inline-flex; align-items:center; justify-content:center; width:2.1em; height:2.1em; border-radius:50%; background:#fff; border:0.3em solid #D02020; color:#000; text-shadow:none; font-size:1em; box-sizing:border-box; } #h-car { max-width:34%; text-align:right; }
   #h-pause { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); font-size:1.8em; }
   .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
   .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
@@ -67,7 +69,7 @@
         <div id="h-msgs"></div>
         <div id="h-hint"></div>
         <div id="h-ramp"></div>
-        <div class="h-bot"><span id="h-speed"></span><span id="h-car"></span></div>
+        <div class="h-bot"><span class="h-sp"><span id="h-lim"></span><span id="h-speed"></span></span><span id="h-car"></span></div>
         <div id="h-pause">TAUKO · P jatkaa</div>
       </div>
     </div>
@@ -83,7 +85,7 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 5 (10.11. klo 11.40) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 6 (10.11. klo 14.19) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a></div>
 </div>
 <script src="drive.js"></script>
 <script src="engine.js"></script>
