@@ -113,8 +113,9 @@ Ominaisuudet johdetaan nykyisistä `CARS`-tiedoista, joten uutta autotietokantaa
 ## 9. Toteutusjärjestys
 
 1. ✅ **Tieprototyyppi** (2.0 alpha 1): tie, ohjaus, peurat, kuukausien vaihtuminen (30 s) ja liittymä takaisin valikkoon. Tapahtumat aukeavat toistaiseksi ikkunana tien päälle.
+   - ✅ 2.0 alpha 2: törmäykset puihin, paaluihin ja kyltteihin (vauhdin mukaan kolhu, kova vaurio tai lunastus), mallikohtaiset autot takaa, kuopat ja kivet tiellä (lommo pohjaan, vakuutuscase, arvo romahtaa).
 2. **Tapahtumat:** törmäykset vahingoiksi, nopeusriippuvainen lunastus ja pelin päättyminen, pikavalinnat ja jono.
 3. **Energia:** mittari, lataus- ja huoltoasemat, myöhästymiset ja YT-mittari.
 4. **Autoliikkeet ja mainostaulut tien varressa.**
-5. **Wolt- ja taksikeikat.**
+5. ✅ **Wolt- ja taksikeikat** (2.0 alpha 2, aikaistettu).
 6. **Viimeistely:** vuodenajat, pimeys, äänet, puhelinohjaus ja tasapainotus.

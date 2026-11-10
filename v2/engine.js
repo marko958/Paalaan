@@ -233,8 +233,12 @@ function monthTick() {
     else R.push(['!', 'Muuttokeikat jäivät väliin: pakettiauto ei ole ajokunnossa', 0]);
   }
   const dc = drivenCar();
-  if (S.wolt) { if (dc) { const w = ri(15,40)*10; cash += w; dc.base *= 0.996; dc.tire -= 1; if (dc.soh!==undefined) dc.soh -= 0.15; R.push(['+', 'Wolt- ja Foodora-keikat', w]); } else R.push(['!', 'Wolt-keikat jäivät väliin: ei autoa', 0]); }
-  if (S.taxi) { if (taxiOK(dc)) { const w = ri(50,110)*10; cash += w; dc.base *= 0.985; dc.tire -= 2; if (dc.soh!==undefined) dc.soh -= 0.4; R.push(['+', 'Taksin ajo (verotettu)', w]); } else R.push(['!', 'Taksi seisoi: ajossa ei ole taksiksi kelpaavaa autoa', 0]); }
+  // 2.0: keikkatulot tulevat vain tiellä ajetuista keikoista (drive.js kirjaa ne S.gig-olioon)
+  { const G = S.gig || {}; S.gig = null;
+    if (G.woltN) { cash += G.wolt; R.push(['+', `Wolt-toimitukset (${G.woltN} kpl)`, G.wolt]); }
+    else if (S.wolt) R.push(['!', 'Wolt-keikat päällä, mutta yhtään toimitusta ei ajettu', 0]);
+    if (G.taxiN) { cash += G.taxi; R.push(['+', `Taksikyydit (${G.taxiN} kpl, verotettu)`, G.taxi]); }
+    else if (S.taxi) R.push(['!', 'Taksivalo päällä, mutta yhtään kyytiä ei ajettu', 0]); }
   if (S.flip) { S.flip.left--; if (S.flip.left<=0) { const f = S.flip; S.flip = null; cash += f.sale; R.push([f.sale>=f.cost?'+':'!', `Flippikohde ${f.name} myyty (${f.sale>=f.cost?'voittoa':'tappiota'} ${eur(Math.abs(f.sale-f.cost))})`, f.sale]); } }
   if (S.inv.tsla) S.inv.tsla = Math.max(0, S.inv.tsla * (1 + rnd(-0.11, 0.13)));
   if (S.inv.doge) S.inv.doge = Math.max(0, S.inv.doge * (1 + rnd(-0.28, 0.32)));
@@ -389,12 +393,12 @@ function menu() {
 const taxiOK = car => car && C(car.c).type==='e' && !C(car.c).fl.includes('S') && !C(car.c).fl.includes('V') && C(car.c).price >= 15000;
 function sideMenu() {
   const d = drivenCar(), ch = [];
-  ch.push([S.wolt ? 'Lopeta Wolt-keikat' : 'Wolt- ja Foodora-kuskiksi iltaisin (+150–400 €/kk)', ()=>{ S.wolt = !S.wolt; if (S.wolt) S.taxi = false;
-    sayTo('RUOKALÄHETTI', [S.wolt ? '+Iltaisin ruokaa kuljettamaan. Tulot ovat verotettuja, joten verottaja ei kiinnostu.' : 'Lopetit illat Woltilla.', S.wolt ? '!Auto, renkaat ja akku kuluvat. Väsyneenä tulee kolhuja ja sakkoja.' : ''], sideMenu); }, !S.wolt && !d]);
-  ch.push([S.taxi ? 'Lopeta taksin ajo' : S.taxiLic ? 'Aja taksia (+500–1 100 €/kk)' : 'Hanki taksilupa (800 €) ja aja taksia', ()=>{
+  ch.push([S.wolt ? 'Lopeta Wolt-keikat' : 'Ruokalähetiksi (noudot ja toimitukset ajaessa, 60–120 €/toimitus)', ()=>{ S.wolt = !S.wolt; if (S.wolt) S.taxi = false;
+    sayTo('RUOKALÄHETTI', [S.wolt ? '+Ruokaa kuljettamaan. Tien varressa näkyy ravintoloita: pysähdy kohdalle oikeaan reunaan, niin tilaus tulee kyytiin. Vie se perille ennen kuin se jäähtyy.' : 'Lopetit ruokalähettinä.', S.wolt ? '!Jos kolaroit matkalla, keitto kaatuu eikä toimituksesta makseta. Auto ja renkaat kuluvat.' : ''], sideMenu); }, !S.wolt && !d]);
+  ch.push([S.taxi ? 'Lopeta taksin ajo' : S.taxiLic ? 'Aja taksia (asiakkaat viittovat tien varressa, 150–400 €/kyyti)' : 'Hanki taksilupa (800 €) ja aja taksia', ()=>{
     if (!S.taxi && !S.taxiLic) { payOrVippi(800); S.taxiLic = true; }
     S.taxi = !S.taxi; if (S.taxi) S.wolt = false;
-    sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Tulot ovat hyvät, mutta kilometrejä kertyy hurjasti.' : 'Taksivalo talliin.', S.taxi ? '!Akku ja renkaat kuluvat moninkertaisesti, ja vikoja tulee useammin.' : ''], sideMenu); }, !S.taxi && !taxiOK(d)]);
+    sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Asiakkaat viittovat tien varressa: pysähdy kohdalle ja vie heidät perille.' : 'Taksivalo talliin.', S.taxi ? '!Tähdet tulevat ajotavasta: ulosajot ja tieltä suistumiset vievät tähtiä, ja huonoilla tähdillä kyytejä tulee harvemmin. Akku ja renkaat kuluvat, ja vikoja tulee useammin.' : ''], sideMenu); }, !S.taxi && !taxiOK(d)]);
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
   if (vanOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : 'Pimeät muuttokeikat pakulla (+200–700 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
@@ -524,15 +528,17 @@ function omen(k) {
   if (k==='lomautus' && shortCommute()) lines.push('!Myöhästelysi ovat pomon tiedossa.');
   say(OMENS[k][0], lines);
 }
-function damageEvent(k) {
-  if (S.tsa) return tsaDamage(k);
+// 2.0: o = {title, txt, total}: ajotilan ulosajot ja kovat kolarit (total = pakollinen lunastus)
+function damageEvent(k, o) {
+  o = o || {};
+  if (S.tsa) return tsaDamage(k, o);
   const car = drivenCar();
   if (!car) return next();
   const kk = C(car.c);
   const lux = kk.price > 50000;
   const omav = k==='peura' ? (lux?800:500) : (lux?500:300);
-  const t = k==='peura' ? 'PEURA!' : 'KOLHU';
-  const txt = k==='peura' ? `Peura loikkasi ${kk.name}n keulaan.` : (S.parking ? `${kk.name}: joku pysäköi kolmen paikan keskelle kahden paikan väliin ja avasi oven silti kylkeen.` : `${kk.name}: parkkipaikalla joku avasi oven kylkeen.`);
+  const t = o.title || (k==='peura' ? 'PEURA!' : 'KOLHU');
+  const txt = o.txt || (k==='peura' ? `Peura loikkasi ${kk.name}n keulaan.` : (S.parking ? `${kk.name}: joku pysäköi kolmen paikan keskelle kahden paikan väliin ja avasi oven silti kylkeen.` : `${kk.name}: parkkipaikalla joku avasi oven kylkeen.`));
   const ch = [
     [`Vakuutus: omavastuu ${eur(omav)}`, ()=>{ payOrVippi(omav); say(t,['Korjattu kunnolla. Arvo säilyi.']); }],
     [`Mikrobetoni (${eur(k==='peura'?60:40)}): arvo −${k==='peura'?25:20} %`, ()=>{ S.cash -= (k==='peura'?60:40); car.base *= (k==='peura'?0.75:0.8); car.mb++; fixNeg(); say(t,['Mikrobetonia, hiekkapaperia ja spraymaalia. Melkein huomaamaton.', mbWarn(car)]); }],
@@ -540,10 +546,10 @@ function damageEvent(k) {
   if (k==='kolhu') ch.push(['Jätä korjaamatta (arvo −6 %)', ()=>{ car.base *= 0.94; say(t,['Kolhu jää muistoksi.']); }]);
   else ch.push(['Jätä korjaamatta: auto ei kulje (korjaus 3 000 €)', ()=>{ car.broken = 3000; say(t,['!Auto seisoo pihassa.']); }]);
   const lines = [txt];
-  if (k==='peura' && RND() < 0.4) {
+  if (k==='peura' && (o.total || RND() < 0.4)) {
     const uus = car.newBuy && S.m - (car.bought||0) <= 24;
     const pay = r100(uus ? car.paid : val(car)) - omav;
-    lines.push(`Vauriot ylittävät korjauskynnyksen: vakuutusyhtiö tarjoaa lunastusta${uus ? ' uusarvolla, koska auto on ostettu uutena alle kaksi vuotta sitten' : ' markkinahintaan'}.`);
+    lines.push(o.total ? `!Auto on romu. Vakuutusyhtiö lunastaa sen${uus ? ' uusarvolla, koska auto on ostettu uutena alle kaksi vuotta sitten' : ' markkinahintaan'}.` : `Vauriot ylittävät korjauskynnyksen: vakuutusyhtiö tarjoaa lunastusta${uus ? ' uusarvolla, koska auto on ostettu uutena alle kaksi vuotta sitten' : ' markkinahintaan'}.`);
     ch.unshift([`Lunastus: vakuutus maksaa ${eur(pay)} (omavastuu vähennetty)`, ()=>{
       const L = car.loan ? car.loan.bal : 0, net = pay - L;
       S.cars.splice(S.cars.indexOf(car), 1);
@@ -553,6 +559,7 @@ function damageEvent(k) {
       else { S.residual += -net; out.push(`!Laina oli lunastushintaa suurempi. Jäännösvelkaa jäi ${eur(-net)}.`); }
       if (!working().length && !S.tsa) out.push('!Sinulla ei ole nyt autoa. Taksit maksavat 850 €/kk.');
       say('LUNASTUS', out); }]);
+    if (o.total) ch.length = 1;
   }
   scr(t, lines, ch);
 }
@@ -745,10 +752,32 @@ function tsaReturn(title, text, offerNew) {
   if (offerNew && RND()<0.6) Q.unshift(tsaOffer);
   say(title, lines);
 }
-function tsaDamage(k) {
+// 2.0: kuoppa tai kivi tiellä → lommo pohjaan. Auto kulkee, mutta arvo romahtaa, ellei vakuutus korvaa.
+function dentEvent(what, kmh) {
+  const t = 'KOLAHDUS!';
+  if (S.tsa) return tsaDamage('kolhu', {title:t, txt:`Työsuhdeauto (${C(S.tsa.c).name}) osui ${what} ${kmh} km/h:n vauhdissa. Pohjassa on lommo.`});
+  const car = drivenCar();
+  if (!car) return next();
+  const k = C(car.c), ev = k.type==='e';
+  const drop = ev ? 0.55 : 0.85, pct = Math.round((1-drop)*100);
+  const omav = k.price > 50000 ? 800 : 500;
+  const lines = [`${k.name} osui ${what} ${kmh} km/h:n vauhdissa. Pohjasta kuului ruma kolahdus.`,
+    ev ? 'Akkukotelossa on lommo. Auto kulkee ja akku toimii normaalisti.' : 'Öljypohjassa ja alustassa on lommo. Auto kulkee normaalisti.',
+    ev ? `!Akkulommo näkyy kuitenkin jokaisessa kuntotarkastuksessa. Ostajat ja rahoittajat kaikkoavat, ja arvo romahtaa (−${pct} %).` : `!Lommo näkyy kuntotarkastuksessa, ja arvo laskee (−${pct} %).`];
+  if (car.dent) lines.push(`!Pohjassa on jo ${car.dent} vanha${car.dent>1?'a':''} lommo${car.dent>1?'a':''}.`);
+  const hit = () => { car.base *= drop; car.dent = (car.dent||0) + 1; };
+  scr(t, lines, [
+    [`Vakuutuscase: omavastuu ${eur(omav)}`, ()=>{ payOrVippi(omav);
+      if (RND() < 0.5) say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', ev ? `+Korvauspäätös: myönteinen. Akkukotelo vaihdettiin (${eur(battCost(k))}), ja arvo säilyi.` : '+Korvauspäätös: myönteinen. Pohja korjattiin, ja arvo säilyi.']);
+      else { hit(); say('VAKUUTUSCASE', ['Vakuutusyhtiö lähetti tarkastajan, joka mittasi lommon.', '!Korvauspäätös: kielteinen. "Lommo ei vaikuta ajoneuvon toimintaan."', `!Omavastuu meni, ja arvo romahti silti (−${pct} %).`, 'Vakuutuslautakuntaan voi valittaa. Käsittelyaika on noin 14 kuukautta.']); } }],
+    [`Jätä (auto toimii, arvo −${pct} %)`, ()=>{ hit(); say(t, ['Ajetaan näin. Lommo jää muistoksi, ja jokainen ostaja löytää sen.']); }],
+  ]);
+}
+function tsaDamage(k, o) {
+  o = o || {};
   const T = S.tsa, name = C(T.c).name;
-  const t = k==='peura' ? 'PEURA!' : 'KOLHU';
-  const txt = k==='peura' ? `Peura loikkasi työsuhdeauton (${name}) keulaan.` : `${name}: joku avasi oven työsuhdeauton kylkeen.`;
+  const t = o.title || (k==='peura' ? 'PEURA!' : 'KOLHU');
+  const txt = o.txt || (k==='peura' ? `Peura loikkasi työsuhdeauton (${name}) keulaan.` : `${name}: joku avasi oven työsuhdeauton kylkeen.`);
   const dsl = T.kind==='vapaa' ? 0 : (k==='peura' ? 120 : 60); // käyttöetu: vara-Scalan dieselit omasta pussista
   scr(t, [txt, T.kind==='vapaa' ? 'Vapaassa autoedussa firma maksaa omavastuun ja kaikki ajokulut, jos ilmoitat vahingosta.' : 'Käyttöedussa firma maksaa omavastuun, mutta ajokulut ovat sinun: korjauksen ajan tankkaat vara-auton itse.', '!Pomo on mulkero, joka miettii jo lomautuksia. Jokainen ilmoitettu kolhu nostaa lomautusriskiä.'], [
     [dsl ? `Ilmoita työnantajalle (käyttöetu: vara-auton dieselit ${eur(dsl)})` : 'Ilmoita työnantajalle (vapaa autoetu: firma maksaa kaiken)', ()=>{ payOrVippi(dsl + 48); S.boss++; say(t, ['Korjattiin firman sopimuskorjaamolla. Firma maksoi omavastuun.', '+Korjauksen ajaksi saat leasingyhtiöltä ilmaiseksi vara-autoksi Skoda Scalan.', dsl ? `!Käyttöetu: Scalan dieselit maksat itse, ${eur(dsl)}.` : '', '!Tästä ei kyllä selvitä ryyppäämättä: Coopin kaljat 48 €' + (dsl ? '.' : ', vaikka autosta ei kuluja tullutkaan.'), '!Pomo kirjasi vahingon ylös ja mulkaisi. Seuraavissa yt-neuvotteluissa sinulla on yksi miinus lisää.'].filter(Boolean)); }],
@@ -1040,7 +1069,7 @@ function status() {
   const ratio = v>0 ? l/v : (l>0?9:0);
   return {month: S.m, cash: S.cash, income: S.layoff?Math.round(S.income/2):S.income, vippi: S.vippi, v, l, ratio,
     pay: S.cars.reduce((s,c)=>s+(c.loan?c.loan.pay:0),0), target: TARGETS[S.target].name, own: ownsTarget(),
-    cars: S.cars.map(c=>({name:C(c.c).name + (c.soh!==undefined?` (akku ${Math.round(c.soh)} %)`:''), v:val(c), l:c.loan?c.loan.bal:0, broken:!!c.broken, mb:c.mb})).concat(S.tsa?[{name:C(S.tsa.c).name+' (TSA)', v:0, l:0, broken:false, mb:S.tsa.mb}]:[])};
+    cars: S.cars.map(c=>({name:C(c.c).name + (c.soh!==undefined?` (akku ${Math.round(c.soh)} %)`:''), v:val(c), l:c.loan?c.loan.bal:0, broken:!!c.broken, mb:c.mb, dent:c.dent})).concat(S.tsa?[{name:C(S.tsa.c).name+' (TSA)', v:0, l:0, broken:false, mb:S.tsa.mb}]:[])};
 }
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { start, setUI:u=>{UI=u;}, setRnd:f=>{RND=f;}, getS:()=>S, status, eur };
@@ -1056,7 +1085,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
     const r = st.ratio, N = 20, fill = Math.min(N, Math.round(Math.min(r,2)/2*N));
     let bar = ''; for (let i=0;i<N;i++) bar += (i<fill ? '█' : (i===N/2 ? '|' : '·'));
     const jail = st.l > st.v && st.l > 0;
-    const cars = st.cars.map(c => `${esc(c.name)}${c.mb?' [MB]':''}${c.broken?' [RIKKI]':''}`).join(' + ') || 'ei autoa';
+    const cars = st.cars.map(c => `${esc(c.name)}${c.mb?' [MB]':''}${c.dent?' [LOMMO]':''}${c.broken?' [RIKKI]':''}`).join(' + ') || 'ei autoa';
     el.innerHTML =
       `<div class="row"><span>KK ${st.month}/84</span><span>KASSA ${eur(st.cash)}</span><span>TULO ${eur(st.income)}</span></div>`+
       `<div class="row"><span>ERÄT ${eur(st.pay)}/kk</span><span>${st.vippi>0?'<span class="jail">VIPPI '+eur(st.vippi)+'</span>':'VIPPI 0 €'}</span></div>`+
