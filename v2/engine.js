@@ -424,7 +424,7 @@ function sideMenu() {
   if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
   if (!S.trailer) ch.push(['Osta peräkärry Huutokaupat.comista (muuttokeikkoja varten)', trailerBuy]);
   else ch.push([`Myy peräkärry (noin ${eur(trailerValue())})`, trailerSell]);
-  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (+200–700 €/kk)' : 'Pimeät muuttokeikat peräkärryllä (+100–500 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : ''], sideMenu); }]);
+  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? 'Lopeta pimeät muuttokeikat' : vanOK() ? 'Pimeät muuttokeikat pakulla (+200–700 €/kk)' : 'Pimeät muuttokeikat peräkärryllä (+100–500 €/kk)', ()=>{ S.gigs = !S.gigs; sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua.') : ''], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
   ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
   ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
@@ -527,8 +527,8 @@ function fire(k) {
   if (k==='verottaja') { const b = Math.max(1000, r100(S.black*0.55)); const tot = S.black; S.black = 0; payOrVippi(b);
     return say('VEROTTAJAN KIRJE', [`!Verohallinto kiinnostui Marketplace-ilmoituksistasi ("Muutot ja kuljetukset, edullisesti, käteinen ok").`, `Ilmoittamattomia tuloja ${eur(tot)}. Jälkivero ja veronkorotus yhteensä ${eur(b)}.`, 'Keikkoja voi jatkaa. Verottaja ei unohda, mutta se ei myöskään lue jokaista ilmoitusta.']); }
   if (k==='muuttokolhu') { const rig = gigRig(); if (!rig) return next(); const van = rig.car;
-    if (rig.trailer && RND() < 0.5) { const q = pick([['Kärryn lokasuoja irtosi moottoritiellä, ja takana tullut sai siitä kolhun. Korvasit käteisellä', 350],['Kuorma siirtyi mutkassa ja kärry heilahti ojaan. Hinaus', 250],['Kärryn valot eivät toimineet. Poliisi pysäytti: rikesakko', 100],['Sohva lensi kärrystä, koska liinat olivat Biltemasta ja vanhat', 200]]);
-      payOrVippi(q[1]); S.trailer.wear++; return say('MUUTTOKEIKKA', [`!${q[0]}: ${eur(q[1])}.`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
+    if (rig.trailer) { const q = pick([['Kärryn lokasuoja irtosi moottoritiellä, ja takana tullut sai siitä kolhun. Korvasit käteisellä', 350],['Kuorma siirtyi mutkassa ja kärry heilahti ojaan. Hinaus', 250],['Kärryn valot eivät toimineet, ja poliisi pysäytti. Rikesakko', 100],['Sohva lensi kärrystä, koska liinat olivat Biltemasta ja vanhat', 200],['Pianon kulma halkaisi kärryn vanerilaidan', 150],['Kolmannen kerroksen asiakas ei maksanut', 0]]);
+      if (q[1]) payOrVippi(q[1]); S.trailer.wear++; return say('MUUTTOKEIKKA', [q[1] ? `!${q[0]}: ${eur(q[1])}.` : `!${q[0]}. Menetit keikan tulot.`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
     const p = pick([['Pianon kulma naarmutti tavaratilan seinän',300,0.98],['Asiakkaan peruutustutka ei ollut sinun autossasi: lyhtypylväs',1200,0.94],['Pakkaamaton akvaario kaatui. Tavaratila haisee',400,0.97],['Kolmannen kerroksen asiakas ei maksanut',0,1]]);
     if (p[1]) payOrVippi(p[1]); van.base *= p[2];
     return say('MUUTTOKEIKKA', [`!${p[0]}.${p[1]?' Kulut '+eur(p[1])+'.':' Menetit keikan tulot.'}`, 'Pimeillä keikoilla ei ole vakuutusta.']); }
