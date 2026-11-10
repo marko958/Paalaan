@@ -1,0 +1,14 @@
+name: C64-budjetti
+# Tarkistaa, mahtuuko 1.0 (index.html) yhdellä kasettilatauksella C64:n muistiin.
+on:
+  push:
+    paths: ['index.html', 'tools/c64budjetti.py', '.github/workflows/c64budjetti.yml']
+  pull_request:
+    paths: ['index.html', 'tools/c64budjetti.py', '.github/workflows/c64budjetti.yml']
+jobs:
+  budjetti:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: C64-kasettibudjetti
+        run: python3 tools/c64budjetti.py
