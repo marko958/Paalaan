@@ -1,6 +1,10 @@
 # PAALAAN! – kehitysideoita (lisää optimoitavaa pelaajalle)
 
-> **Toteutettu 2.0 alpha 17:ssä** (yksinkertaistettuina): energiamittari ja latausasemat, vetomassat, kärrytyypit ja ajokortit (B/B96/BE), romukeikat autotrailerilla, dieselin DPF-tukos kärryn kanssa (60 %), kahdet renkaat / toiset vanteet ja rengashotellin sekoittamat porrastetut kiekot, 0 %-kampanjat vs. käteisalennus, romutuspalkkio ja polttomoottoriautojen jälkimarkkina, reissut (Kuopio, Levi, harmaatuonti Saksasta). Alla alkuperäiset ideat; toteutus poikkeaa niistä paikoin.
+> **Toteutettu 2.0 alpha 17:ssä** (yksinkertaistettuina): energiamittari ja latausasemat, vetomassat, kärrytyypit ja ajokortit (B/B96/BE), romukeikat autotrailerilla, dieselin DPF-tukos kärryn kanssa (60 %), kahdet renkaat / toiset vanteet ja rengashotellin sekoittamat porrastetut kiekot, 0 %-kampanjat vs. käteisalennus, romutuspalkkio ja polttomoottoriautojen jälkimarkkina, reissut (Kuopio, Levi, harmaatuonti Saksasta). 
+>
+> **1.0 (beta v32):** samat ideat tekstinä niiltä osin kuin ajotilaa ei tarvita: kahdet renkaat ja hotellin kiekkojokeri, 0 %-kampanjat, romutus ja polttomoottorimarkkina, reissut (vauhti valitaan, peli laskee lataukset, ajan ja sattumukset). 1.0:ssa ei ole peräkärryä, joten vetomassat ja DPF ovat vain 2.0:ssa.
+>
+> Alla alkuperäiset ideat; toteutus poikkeaa niistä paikoin.
 
 Ideat on kirjoitettu 2.0:n päälle: ne käyttävät olemassa olevia rakenteita (`S.trailer`, `towOK`, `tireSwap`, `tireEvent`, `CAMPAIGNS`, `rateOffers`, `S.rate`, `runCosts`, `drive.js`:n `limitOf`). Jokaisessa on sama kaava: **pelaajalla on kaksi tai kolme järkevää vaihtoehtoa, eikä yksikään voita aina.** Paras valinta riippuu autosta, vuodenajasta, kassasta ja lainasta.
 
