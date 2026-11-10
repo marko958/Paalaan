@@ -255,7 +255,12 @@ const Drive = (() => {
       if (st.gigT <= 0) { st.gigT = 3 + Math.random() * 4; gigSpawn(kind); }
       return;
     }
-    if (kind !== G.kind) { gigClear(); return toast('!Keikka peruttiin: tällä autolla ei voi ajaa sitä.'); }
+    if (kind !== G.kind) {
+      gigClear();
+      if (G.phase === 'pickup') return toast('Keikka peruttiin: tällä autolla sitä ei voi ajaa.');
+      if (G.kind === 'taxi') { S.taxiStars = (S.taxiStars === undefined ? 5 : S.taxiStars) * 0.7 + 0.3; return toast('!Asiakas jäi tien varteen. Kyydistä ei makseta, ja tähtiä tuli yksi.'); }
+      return toast('!Ruoka ei päässyt perille. Toimituksesta ei makseta.');
+    }
     const cur = Math.floor(z1 / SEG);
     G.t += dt;
     if (G.phase === 'deliver' && (st.x < -1 || st.x > 1)) G.off += dt;
