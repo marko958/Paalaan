@@ -816,7 +816,7 @@ function tripOffer() {
 }
 function lappiOffer() {
   S.lappiY = Math.floor((S.m-1)/12);
-  const car = S.tsa ? null : drivenCar(), base = {kind:'lappi', name:'LEVI', km:600, hours:9, road:'lappi'};
+  const car = S.tsa ? null : drivenCar(), base = {kind:'lappi', name:'LEVI', km:600, hours:10, road:'lappi'};
   const ch = [];
   if (car) ch.push([`Omalla autolla (${C(car.c).name})`, ()=>startTrip(Object.assign({}, base, {gel: isDiesel(car) && RND() < 0.3 ? ri(150,450) : 0}))]);
   else if (S.tsa) ch.push([`Työsuhdeautolla (${C(S.tsa.c).name})`, ()=>startTrip(Object.assign({}, base))]);
@@ -824,7 +824,7 @@ function lappiOffer() {
   ch.push(['Autojunalla 380 € (varma, ei ajoa)', ()=>{ payOrVippi(380); tripDone({kind:'lappi', train:true}, {ok:true}); }]);
   ch.push(['Jäädään kotiin (0 €)', ()=>{ S.wolt = S.taxi = S.gigs = false; say('HIIHTOLOMA', ['!Puoliso ei puhu sinulle. Sivukeikat jäävät tauolle, koska joku muu hoitaa nyt lapset.', 'Keikat saa takaisin päälle Sivutulot-valikosta.']); }]);
   const r = car && rangeTxt(car);
-  scr('HIIHTOLOMA LEVILLÄ', ['+Mökki on varattu Leviltä. Matkaa 600 km, ja avaimet pitää hakea 9 tunnin päästä ennen kuin vuokraamo sulkee.',
+  scr('HIIHTOLOMA LEVILLÄ', ['+Mökki on varattu Leviltä. Matkaa 600 km, ja avaimet pitää hakea 10 tunnin päästä ennen kuin vuokraamo sulkee.',
     '!Lapin tiellä on −30 °C, porot seisovat tiellä eivätkä väistä, ja latausasemia on harvassa. Osa on rikki.',
     r ? `${C(car.c).name}: toimintamatka pakkasella ${r}${hasHeatPump(C(car.c)) ? '' : ' (ei lämpöpumppua, lämmitys syö akkua)'}.` : '',
     car && isDiesel(car) ? '!Diesel: jos tankissa on kesälaatua, se voi hyytyä pakkasessa.' : '',

@@ -7,7 +7,7 @@
 | Asia | Päätös |
 |---|---|
 | Kuukauden pituus | **30 sekuntia ajoa.** Koko peli (84 kk) kestää noin 42 minuuttia, jos ajaa putkeen. |
-| 1.0-versio | Jää ennalleen omaksi versiokseen osoitteeseen https://marko958.github.io/Paalaan/ |
+| 1.0-versio | Pysyy omana versionaan osoitteessa https://marko958.github.io/Paalaan/. 1.0 pidetään kevyenä tekstipelinä (yksi HTML-tiedosto, ei canvasia eikä reaaliaikaa), jotta sen voi portata kevyille järjestelmille. 2.0:n ominaisuudet, jotka eivät vaadi ajotilaa, portataan 1.0:aan tekstinä: esim. reissuilla valitaan vauhti, ja peli laskee lataukset ja ajan. |
 | 2.0:n osoite | https://marko958.github.io/Paalaan/v2/ |
 | Peurakolari | Vahinko riippuu vauhdista. Kova kolari johtaa **lunastukseen**. Jos uutta autoa ei saa ostettua tai rahoitettua, **peli päättyy**. |
 | Wolt ja taksi | Ajotilassa **oikeita kyytejä ja toimituksia**. |
