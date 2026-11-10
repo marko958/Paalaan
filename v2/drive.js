@@ -16,6 +16,9 @@ const Drive = (() => {
   const RAMP_LEAD_S = 6;      // liittymäkyltit näkyvät näin monta sekuntia ennen kuun vaihdetta
   const RAMP_LEN = 45;        // liittymäkaistan pituus segmentteinä
   const RAMP_W = 0.9;         // liittymäkaistan leveys tien puolikkaina
+  // alpha 17: energia ja matkat. Aika on tiivistetty: F pelisekuntia per oikea sekunti.
+  // Matka ja aika ovat keskenään johdonmukaiset, joten 100 km/h:ssa 100 km vie tunnin pelikelloa.
+  const F_NORMAL = 200, F_TRIP = 300;
 
   const COL = {
     black:'#000000', white:'#FFFFFF', grey1:'#444444', grey2:'#6C6C6C', grey3:'#959595',
@@ -28,7 +31,7 @@ const Drive = (() => {
   const st = {
     active:false, paused:false, userPause:false, S:null,
     pos:0, x:0.5, speed:0, gig:null, gigT:3, monthT:0, ramp:null, dyn:[], toasts:[], keys:{}, veh:null,
-    skyOff:0, shake:0, flash:0, last:0, raf:0, hint:true,
+    skyOff:0, shake:0, flash:0, last:0, raf:0, hint:true, trip:null, kmTot:0, nextSt:40, chg:null, eWarn:0, lateM:0,
   };
 
   // ---------- satunnaisuus tielle (toistettava segmentin mukaan) ----------
@@ -95,21 +98,27 @@ const Drive = (() => {
   // ---------- vuodenaika ----------
   function season() {
     const m = (S.m - 1) % 12; // 0 = tammikuu
+    const lap = !!(st.trip && st.trip.road === 'lappi');
     return {
-      m,
-      snow: [11, 0, 1, 2].includes(m),
+      m, lap,
+      snow: lap || (!autobahn() && [11, 0, 1, 2].includes(m)),
       autumn: [8, 9].includes(m),
       bare: m === 10, // marraskuu: ruskea maa, lehdettömät koivut
       dark: [10, 11, 0].includes(m) ? 0.72 : [1, 9].includes(m) ? 0.35 : 0,
-      deerPerMonth: m >= 8 && m <= 11 ? 4 : 2,
+      deerPerMonth: lap ? 0 : m >= 8 && m <= 11 ? 4 : 2,
+      poroPerMonth: lap ? 7 : 0,
       holesPerMonth: [2, 3, 4].includes(m) ? 7 : 3, // kelirikko keväällä
     };
   }
 
   const winterLimits = () => [9, 10, 11, 0, 1, 2].includes((S.m - 1) % 12); // talvinopeusrajoitukset loka–maalis
   // peräkärry perässä, kun muuttokeikat ovat päällä eikä pakua ole
-  const towing = () => !!(S.gigs && !vanOK() && trailerOK());
-  const limitOf = lim => { const l = lim === 'H' ? (winterLimits() ? 80 : 100) : lim; return towing() ? Math.min(80, l) : l; };
+  const towing = () => st.trip ? !!st.trip.trailer : !!(S.gigs && !vanOK() && trailerOK());
+  const autobahn = () => !!(st.trip && st.trip.road === 'autobahn');
+  const limitOf = lim => {
+    const l = autobahn() ? (lim === 'H' ? Infinity : lim === 80 ? 120 : 80) : lim === 'H' ? (winterLimits() ? 80 : 100) : lim;
+    return towing() ? Math.min(80, l) : l; };
+  const limTxt = l => l === Infinity ? '—' : String(l);
 
   // ---------- nopeuskamerat ----------
   function camFine(over) {
@@ -130,7 +139,10 @@ const Drive = (() => {
 
   // ---------- ajoneuvo ----------
   function vehicle() {
-    const T = S.tsa, car = T ? null : drivenCar();
+    const TR = st.trip;
+    if (TR && TR.rental) { const r = TR.rental; return { bus:false, rental:r, name:r.name, vmax:r.vmax, acc:15, spec: /paku/i.test(r.name) ? { b:'van', w:1.08, c:'#ECECEC', tl:'vertical' } : { b:'suv', c:'#3A3F44', tl:'corner', x:['rails'] }, mb:0, minor:0, box:false }; }
+    const tripCar = TR && TR.car && S.cars.includes(TR.car) ? TR.car : null;
+    const T = tripCar ? null : S.tsa, car = tripCar || (T ? null : drivenCar());
     if (!T && !car) return { bus:true, name:'Bussi', vmax:80, acc:8, color:COL.yellow, mb:0, minor:0 };
     const id = T ? T.c : car.c, k = C(id);
     let vmax = 120 + 25 * Math.log2(Math.max(1, k.price / 4000));
@@ -143,13 +155,143 @@ const Drive = (() => {
     const minor = car ? (car.minor || 0) : 0;
     if (minor) { vmax *= 0.92; acc *= 0.85; }
     if (!T && towing()) { vmax = Math.min(vmax, 120); acc *= 0.75; }
-    return { bus:false, tsa:!!T, name:k.name, vmax, acc, spec:modelSpec(k), mb: T ? T.mb : car.mb, minor };
+    if (car && car.dpf) { vmax = Math.min(vmax, 60); acc *= 0.5; } // DPF tukossa: vikatila
+    return { bus:false, tsa:!!T, car, name:k.name, vmax, acc, spec:modelSpec(k), mb: T ? T.mb : car.mb, minor, box: !!(TR && TR.box) };
   }
   function refreshVehicle() {
     const prev = st.veh, v = vehicle();
     if (prev && !prev.bus && v.bus) toast('!Auto jäi tien varteen. Matka jatkuu bussilla.');
     else if (prev && prev.name !== v.name && !v.bus) toast(`+Alla on nyt ${v.name}.`);
     st.veh = v;
+  }
+
+  // ---------- energia (alpha 17) ----------
+  const fNow = () => st.trip ? F_TRIP : F_NORMAL;
+  const kmPerU = () => fNow() / 3600 / KMH;
+  const coldNow = () => !!(st.trip && st.trip.road === 'lappi') || coldSeason();
+  function eSpecFor(k, car, T) {
+    const obj = T || car;
+    if (k.type !== 'e') { const range = k.type === 'h' ? 900 : 750; return { ev:false, range, obj, tank: range * (k.fl.includes('D') ? 0.06 : 0.07), free: !!(T && T.kind === 'vapaa') }; }
+    let range = k.fl.includes('S') ? 160 : k.fl.includes('V') ? 300 : k.fl.includes('B') ? 320 : Math.min(560, 280 + k.price / 350);
+    if (car && car.soh !== undefined) range *= Math.max(0.5, car.soh / 100);
+    const kw = k.fl.includes('S') ? 46 : k.price < 15000 ? 50 : /Ioniq 5|EV6|Taycan|e-tron GT|Macan|Lucid|Lotus|PV5/.test(k.name) ? 240 : k.price >= 50000 ? 200 : 125;
+    return { ev:true, range, obj, kw, cap: range * 0.17, hp: hasHeatPump(k), free: k.fl.includes('F') || !!(T && T.kind === 'vapaa') };
+  }
+  function eSpec() {
+    const v = st.veh;
+    if (!v || v.bus) return null;
+    if (v.rental) return { ev:false, range:v.rental.range, obj:v.rental, tank:v.rental.range * 0.08 };
+    const T = v.tsa ? S.tsa : null;
+    return eSpecFor(C(T ? T.c : v.car.c), v.car, T);
+  }
+  // kulutuskerroin: ilmanvastus kasvaa vauhdin neliönä; kattoboksi, kärry, pakkanen ja Lapin pakkanen päälle
+  function consF(E, kmh, cold, tow, box, lap) {
+    const r = Math.max(30, kmh) / 90;
+    let f = 0.45 + 0.55 * r * r;
+    if (box) f *= 1 + 0.15 * r * r;
+    if (tow) f *= E.ev ? 1.5 : 1.3;
+    if (E.ev && cold) f /= E.hp ? 0.8 : 0.67;
+    if (E.ev && lap) f /= 0.85;
+    return f;
+  }
+  const consNow = (E, kmh) => consF(E, kmh, coldNow(), towing(), st.veh.box, season().lap) / E.range; // osuus akusta tai tankista per km
+  function rangeOf(car, cold, kmh) { const E = eSpecFor(C(car.c), car, null); return Math.round(E.range / consF(E, kmh || 100, cold === 'cold', false, false, false) / 10) * 10; }
+  const energy = E => (E.obj.energy === undefined ? 1 : E.obj.energy);
+  function scheduleStation() {
+    const r = st.trip && st.trip.road, [a, b] = r === 'lappi' ? [110, 190] : r ? [50, 90] : [35, 70];
+    st.nextSt = st.kmTot + a + Math.random() * (b - a);
+  }
+  function spawnStation() {
+    const at = Math.floor((st.pos + PZ) / SEG) + 110, r = st.trip && st.trip.road;
+    if (st.ramp && at > st.ramp.start - 25 && at < st.ramp.end + 15) { st.nextSt = st.kmTot + 3; return; }
+    const kw = r === 'autobahn' ? (Math.random() < 0.8 ? 300 : 150) : r === 'lappi' ? (Math.random() < 0.5 ? 50 : 150) : (Math.random() < 0.6 ? 150 : 50);
+    st.dyn.push({ k:'asema', station:true, z:at * SEG, x:1.9, at, kw, broken: Math.random() < (r === 'lappi' ? 0.3 : 0.08), queue: Math.random() < (r === 'autobahn' ? 0.35 : 0.2) ? 2 + Math.random() * 4 : 0 });
+    st.nextSt = Infinity;
+  }
+  function stationUpdate(dt, z1) {
+    const cur = Math.floor(z1 / SEG);
+    if (st.kmTot >= st.nextSt) spawnStation();
+    const o = st.dyn.find(d => d.station);
+    if (!o) { if (st.nextSt === Infinity) { if (st.chg) chargeEnd(); scheduleStation(); } return; }
+    if (cur > o.at + STOP_WIN) { if (st.chg) chargeEnd(); st.dyn.splice(st.dyn.indexOf(o), 1); scheduleStation(); return; }
+    const E = eSpec();
+    const near = Math.abs(cur - o.at) <= STOP_WIN, stopped = st.speed < 15 * KMH && st.x > 0.25;
+    if (!E || !(near && stopped)) { if (st.chg) chargeEnd(); return; }
+    if (E.ev && o.broken) { if (!st.chg) { st.chg = { o, E, broken:true }; toast('!LATURI RIKKI: "Out of order". Seuraava asema on kauempana.', 4); } return; }
+    if (!st.chg) st.chg = { o, E, start: energy(E), kwh:0, l:0, cost:0, t:0, q: o.queue };
+    const c = st.chg;
+    c.t += dt;
+    if (c.q > 0) { c.q -= dt; return; }
+    let e = energy(E);
+    if (e >= 0.999) return;
+    if (E.ev) { const kw = Math.min(E.kw, o.kw) * (e > 0.8 ? 0.35 : 1), kwh = kw * dt * fNow() / 3600;
+      e = Math.min(1, e + kwh / E.cap); c.kwh += kwh; c.cost += E.free ? 0 : kwh * (o.kw >= 150 ? 0.52 : 0.39); }
+    else { const add = Math.min(1 - e, dt * 0.3); e += add; c.l += add * E.tank; c.cost += E.free ? 0 : add * E.tank * 1.95; }
+    E.obj.energy = e;
+  }
+  function chargeEnd() {
+    const c = st.chg; st.chg = null;
+    if (!c || c.broken || (!c.kwh && !c.l)) return;
+    if (c.cost > 0) payOrVippi(c.cost);
+    toast(c.E.ev ? `+Ladattu ${Math.round(c.start * 100)} → ${Math.round(energy(c.E) * 100)} % · ${Math.round(c.kwh)} kWh · ${c.cost ? eur(c.cost) : 'ilmainen'}` : `+Tankattu ${Math.round(c.l)} l · ${c.cost ? eur(c.cost) : 'firma maksaa'}`, 4);
+    // työmatkalla pitkä latausstoppi myöhästyttää (työsuhdeautolla ja matkoilla ei)
+    if (!st.trip && !st.veh.tsa && c.E.ev && c.t > 3 && st.lateM !== S.m) { st.lateM = S.m; S.late = (S.late || 0) + 1; toast('!OLET MYÖHÄSSÄ PALAVERISTA! Pomo merkitsi sen muistiin.', 5); }
+  }
+  function towTo(title, lines, cost, extraH) {
+    st.speed = 0; st.paused = true; st.keys = {};
+    if (st.trip) { st.trip.towed = true; st.trip.t += extraH || 1.5; }
+    else if (!st.veh.tsa) S.late = (S.late || 0) + 1;
+    gigCrash();
+    Q.unshift(() => { payOrVippi(cost); say(title, lines.concat([`Hinaus ${eur(cost)}.`, st.trip ? '!Matka-aikaa kului hinauksessa.' : '!Myöhästyit töistä, ja pomo huomasi.'])); });
+    setTimeout(() => { if (st.active) openEvents(); }, 450);
+  }
+  function outOfEnergy(E) {
+    const lap = !!(st.trip && st.trip.road === 'lappi');
+    E.obj.energy = E.ev ? 0.35 : 0.4;
+    towTo(E.ev ? 'AKKU LOPPUI' : 'TANKKI LOPPUI', [E.ev ? `!${st.veh.name} pysähtyi tien varteen: akku 0 %.${coldNow() ? ' Pakkanen söi viimeiset kilometrit.' : ''}` : `!${st.veh.name} yski ja sammui: tankki tyhjä.`,
+      E.ev ? `Hinausauto vei auton ${lap ? 'Rovaniemelle' : 'lähimmälle laturille'} ja latasi sen 35 %:iin.` : 'Hinausauto toi kanisterin ja vei lähimmälle asemalle.'], lap ? 600 : 250);
+  }
+
+  // ---------- matkat (alpha 17) ----------
+  function tripBegin() {
+    const T = S.trip; st.trip = T;
+    T.done = T.done || 0; T.t = T.t || 0;
+    if (st.gig) toast('!Keikka jäi kesken, kun lähdit matkalle.');
+    st.dyn = st.dyn.filter(d => !d.gig && !d.station); st.gig = null; st.ramp = null; st.chg = null;
+    refreshVehicle();
+    const E = eSpec();
+    if (E) E.obj.energy = T.car ? 0.8 : 1; // kotona ladattu täyteen; Saksan auton myyjä latasi 80 %:iin
+    const car = st.veh.car;
+    if (T.trailer && isDiesel(car) && Math.random() < 0.6) T.dpfAt = 40 + Math.random() * 200;
+    st.kmTot = 0; scheduleStation(); st.nextSt = Math.min(st.nextSt, 30);
+    toast(`+MATKA ALKAA: ${T.name}, ${T.km} km, aikaa ${T.hours} h. ${E && E.ev ? 'Akku' : 'Tankki'} ${Math.round(energy(E || {obj:{}}) * 100)} %.`, 6);
+  }
+  function tripUpdate(dt, km) {
+    const T = st.trip;
+    T.t += dt * F_TRIP / 3600; T.done += km;
+    if (T.dpfAt && T.done >= T.dpfAt && st.veh.car) { T.dpfAt = 0; st.veh.car.dpf = 1; refreshVehicle(); toast('!DPF-VALO! Dieselin hiukkassuodatin tukkeutui kärryn vedossa. Auto on vikatilassa: enintään 60 km/h.', 6); }
+    if (T.gel && T.done >= T.gel) { T.gel = 0; return towTo('DIESEL HYYTYI', ['!−30 °C ja tankissa oli kesälaatua. Polttoainesuodatin täyttyi parafiinista, ja moottori sammui.', 'Hinausauto vei auton lämpimään halliin sulamaan.'], 400, 2); }
+    if (st.veh.bus || (T.car && !S.cars.includes(T.car))) return tripEnd({ ok:false, towed:true, late:true, broken:!!T.cargo });
+    if (T.done >= T.km) tripEnd({ ok:true, late: T.t > T.hours, towed: !!T.towed, broken: !!T.broken });
+  }
+  function tripEnd(res) {
+    const T = st.trip; st.trip = null;
+    if (S.trip === T) S.trip = null;
+    st.dyn = st.dyn.filter(d => !d.station); st.chg = null; st.kmTot = 0; scheduleStation();
+    st.speed = Math.min(st.speed, 50 * KMH);
+    toast(res.late ? `!Perillä: ${T.name}, mutta myöhässä (${hhmm(T.t)} h)` : `+Perillä: ${T.name} (${hhmm(T.t)} h)`, 5);
+    Q.unshift(() => tripDone(T, res));
+    st.paused = true;
+    setTimeout(() => { if (st.active) openEvents(); }, 300);
+  }
+  const hhmm = h => `${Math.floor(h)}.${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`;
+  // vahinkotapahtuma oikealle autolle: vuokra-autosta laskuttaa vuokraamo, Saksan autolla vahinko osuu siihen
+  function dmg(k, opt) {
+    opt = opt || {};
+    if (st.veh.rental) return () => { const c = opt.total ? 1500 : k === 'peura' ? 800 : 300; payOrVippi(c);
+      say(opt.title || (k === 'peura' ? 'PEURA!' : 'KOLHU'), [opt.txt || 'Vuokra-autoon tuli vaurio.', `!Vuokraamo laskuttaa omavastuun ${eur(c)}. Oma auto säästyi.`]); };
+    if (st.trip && st.trip.car) opt.car = st.trip.car;
+    return () => damageEvent(k, opt);
   }
 
   // ---------- ilmoitukset ----------
@@ -202,6 +344,10 @@ const Drive = (() => {
     if (r < 0.65) { const s = Math.random() < 0.5 ? -1 : 1; st.dyn.push({ k:'peura', z, x: s * (1.6 + Math.random() * 0.6), vx: -s * (0.55 + Math.random() * 0.5), wake: 70 + Math.random() * 40 }); }
     else st.dyn.push({ k:'peura', z, x: (Math.random() - 0.5) * 1.6, vx: 0, wake: 999 });
   }
+  function spawnPoro() {
+    const z = st.pos + PZ + DRAW * (0.6 + Math.random() * 0.3) * SEG;
+    st.dyn.push({ k:'poro', z, x:(Math.random() - 0.5) * 1.5, vx:(Math.random() - 0.5) * 0.12, wake:999 });
+  }
   // ---------- kuopat ja kivet ----------
   // ---------- muu liikenne ----------
   const TRAFFIC_COL = ['#A8ADB4', '#1F2633', '#7A1F24', '#ECECEC', '#2F6DB5', '#3A3F44', '#2E5B4C', '#9B6739'];
@@ -220,7 +366,7 @@ const Drive = (() => {
     const name = st.veh.name;
     const txt = on ? `${name} ajoi vastaantulevien kaistalle, ja nokat kohtasivat ${kmh} km/h:n yhteisnopeudella.` : `${name} ajoi edellä menevän auton perään ${kmh} km/h:n nopeuserolla.`;
     crashStop(); gigCrash();
-    Q.unshift(() => damageEvent(kmh >= 50 ? 'peura' : 'kolhu', { title: on ? 'NOKKAKOLARI!' : 'PERÄÄNAJO!', txt: txt + (on ? ' Syy on sinun.' : ' Peräänajaja on aina syyllinen.'), total: kmh >= 100 }));
+    Q.unshift(dmg(kmh >= 50 ? 'peura' : 'kolhu', { title: on ? 'NOKKAKOLARI!' : 'PERÄÄNAJO!', txt: txt + (on ? ' Syy on sinun.' : ' Peräänajaja on aina syyllinen.'), total: kmh >= 100 }));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
 
@@ -236,15 +382,19 @@ const Drive = (() => {
     if (kmh < 30) { st.speed *= 0.6; return toast(d.k === 'kuoppa' ? 'Kolahti kuoppaan, mutta pohja kesti.' : 'Raapaisit kiveä hiljaa. Ei vahinkoa.'); }
     st.speed *= 0.4; st.paused = true;
     gigCrash();
-    Q.unshift(() => dentEvent(d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen', kmh));
+    if (st.veh.rental) Q.unshift(dmg('kolhu', { title:'KOLAHDUS!', txt:`Vuokra-auto osui ${d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen'} ${kmh} km/h:n vauhdissa.` }));
+    else Q.unshift(() => dentEvent(d.k === 'kuoppa' ? 'isoon kuoppaan' : 'kiveen', kmh, st.trip && st.trip.car));
     setTimeout(() => { if (st.active) openEvents(); }, 350);
   }
   function hitDeer(d) {
     st.dyn.splice(st.dyn.indexOf(d), 1);
     const kmh = st.speed / KMH;
-    if (kmh < 35) { st.speed *= 0.4; st.shake = 0.3; return toast('Peura säikähti ja loikkasi metsään. Huh.'); }
+    const poro = d.k === 'poro';
+    if (kmh < 35) { st.speed *= 0.4; st.shake = 0.3; return toast(poro ? 'Poro katsoi sinua, ja sinä poroa. Se siirtyi lopulta metrin.' : 'Peura säikähti ja loikkasi metsään. Huh.'); }
     crashStop(); gigCrash();
-    Q.unshift(() => damageEvent('peura', kmh >= 100 ? { total:true, txt:`Peura osui keulaan ${Math.round(kmh)} km/h:n vauhdissa.` } : {}));
+    if (poro) (S.post = S.post || []).push(['Paliskunta: poron korvaus', 450]);
+    const ptxt = poro ? { title:'PORO!', txt:`Poro seisoi keskellä tietä eikä väistänyt. Osuma ${Math.round(kmh)} km/h:n vauhdissa. Paliskunta laskuttaa poron (450 €).` } : {};
+    Q.unshift(dmg('peura', kmh >= 100 ? Object.assign(ptxt, { total:true, txt: ptxt.txt || `Peura osui keulaan ${Math.round(kmh)} km/h:n vauhdissa.` }) : ptxt));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
 
@@ -260,6 +410,7 @@ const Drive = (() => {
   }
   const rampHides = (seg, o) => st.ramp && seg.i >= st.ramp.start - 2 && seg.i <= st.ramp.end + 2 && o.x > 0.9 && o.x < 2.6;
   function crashStop() {
+    if (st.trip && st.trip.cargo) st.trip.broken = true; // kolarissa kuorma menee rikki
     st.speed = 0; st.shake = 0.6; st.flash = 0.5;
     st.paused = true; // fysiikka seis heti, paneeli aukeaa hetken päästä
     st.tow = true; // hinataan takaisin tielle, kun tapahtumaikkuna suljetaan
@@ -272,7 +423,7 @@ const Drive = (() => {
     const opt = kmh >= 100 ? { title:'ULOSAJO!', txt, total:true }
       : { title:'ULOSAJO!', txt: txt + (kmh >= 50 ? ' Keula on mytyssä.' : ' Puskuri ja pelti saivat osansa.') };
     crashStop(); gigCrash();
-    Q.unshift(() => damageEvent(kmh >= 50 ? 'peura' : 'kolhu', opt));
+    Q.unshift(dmg(kmh >= 50 ? 'peura' : 'kolhu', opt));
     setTimeout(() => { if (st.active) openEvents(); }, 450);
   }
 
@@ -282,14 +433,14 @@ const Drive = (() => {
   const STOP_WIN = 8; // pysähdysikkuna segmentteinä kohteen molemmin puolin
   const LOAD_S = 3; // muuttokuorman kantaminen ja purku (s)
   // muuttokeikka vaatii, että ajossa on paku tai vetokoukullinen auto ja peräkärry
-  const muuttoOK = d => !!d && (C(d.c).fl.includes('V') || (!!S.trailer && towOK(d)));
+  const muuttoOK = d => !!d && (C(d.c).fl.includes('V') || (!!S.trailer && towOK(d) && licOK(d)));
   function gigKinds() {
     const d = drivenCar();
-    if (S.tsa || !d) return [];
+    if (S.tsa || !d || st.trip) return [];
     const k = [];
     if (S.wolt) k.push('wolt');
     if (S.taxi && taxiOK(d)) k.push('taxi');
-    if (S.gigs && muuttoOK(d)) k.push('muutto');
+    if (S.gigs && muuttoOK(d)) k.push(!C(d.c).fl.includes('V') && TT() === TRAILERS.auto ? 'romu' : 'muutto');
     return k;
   }
   const gigMarkers = () => st.dyn.filter(o => o.gig);
@@ -299,16 +450,24 @@ const Drive = (() => {
     if (st.ramp && at > st.ramp.start - 20 && at < st.ramp.end + 10) return;
     const food = FOOD[Math.floor(Math.random() * FOOD.length)];
     st.gig = { kind, phase:'pickup', at, food, t:0, off:0, crash:0 };
-    st.dyn.push(kind === 'wolt' ? { k:'ravintola', z:at * SEG, x:1.75, t:food, gig:true } : kind === 'muutto' ? { k:'muutto', z:at * SEG, x:2.0, gig:true } : { k:'asiakas', z:at * SEG, x:1.3, gig:true });
+    const d = drivenCar();
+    if ((kind === 'muutto' || kind === 'romu') && !C(d.c).fl.includes('V')) { // kärryn kuorma: paino näkyy ennen noutoa
+      const T = TT(); let kg = T.cargo[0] + Math.random() * (T.cargo[1] - T.cargo[0]);
+      if (Math.random() < 0.2) kg *= 1.35; // "pari laatikkoa vaan"
+      st.gig.kg = Math.round(kg / 10) * 10; st.gig.total = T.own + st.gig.kg;
+      st.gig.over = st.gig.total > Math.min(towSpec(d).kg, T.max);
+    }
+    st.dyn.push(kind === 'wolt' ? { k:'ravintola', z:at * SEG, x:1.75, t:food, gig:true } : kind === 'muutto' ? { k:'muutto', z:at * SEG, x:2.0, gig:true } : kind === 'romu' ? { k:'romu', z:at * SEG, x:2.0, gig:true } : { k:'asiakas', z:at * SEG, x:1.3, gig:true });
   }
   function gigBook(kind, pay) {
     S.gig = S.gig || {};
     S.gig[kind] = (S.gig[kind] || 0) + pay; S.gig[kind + 'N'] = (S.gig[kind + 'N'] || 0) + 1;
     if (kind === 'muutto') { S.black += pay; if (S.trailer && !C(drivenCar().c).fl.includes('V')) S.trailer.wear++; }
+    if (kind === 'romu' && S.trailer) S.trailer.wear++;
     const car = drivenCar();
     if (car) { // kuluminen per keikka
-      car.base *= kind === 'wolt' ? 0.999 : kind === 'muutto' ? 0.997 : 0.996;
-      car.tire -= kind === 'wolt' ? 0.25 : kind === 'muutto' ? 0.5 : 0.6;
+      car.base *= kind === 'wolt' ? 0.999 : kind === 'muutto' || kind === 'romu' ? 0.997 : 0.996;
+      car.tire -= kind === 'wolt' ? 0.25 : kind === 'muutto' || kind === 'romu' ? 0.5 : 0.6;
       if (car.soh !== undefined) car.soh -= kind === 'wolt' ? 0.04 : 0.12;
     }
   }
@@ -323,7 +482,7 @@ const Drive = (() => {
     if (!kinds.includes(G.kind)) {
       gigClear();
       if (G.phase === 'pickup') return toast('Keikka peruttiin: tällä autolla sitä ei voi ajaa.');
-      if (G.kind === 'muutto') return toast('!Kuorma jäi kesken matkan. Asiakas ei maksa.');
+      if (G.kind === 'muutto' || G.kind === 'romu') return toast('!Kuorma jäi kesken matkan. Asiakas ei maksa.');
       if (G.kind === 'taxi') { S.taxiStars = (S.taxiStars === undefined ? 5 : S.taxiStars) * 0.7 + 0.3; return toast('!Asiakas jäi tien varteen. Kyydistä ei makseta, ja tähtiä tuli yksi.'); }
       return toast('!Ruoka ei päässyt perille. Toimituksesta ei makseta.');
     }
@@ -331,35 +490,46 @@ const Drive = (() => {
     G.t += dt;
     if (G.phase === 'deliver' && (st.x < -1 || st.x > 1)) G.off += dt;
     const near = Math.abs(cur - G.at) <= STOP_WIN, stopped = st.speed < 15 * KMH && st.x > 0.25;
-    if (G.kind === 'muutto') { // kuorma kannetaan ja puretaan: pitää seistä kohdalla hetki
+    if (G.kind === 'muutto' || G.kind === 'romu') { // kuorma kannetaan ja puretaan: pitää seistä kohdalla hetki
       if (near && stopped) { G.load = (G.load || 0) + dt; if (G.load < LOAD_S) return; G.load = 0; }
       else { G.load = 0; }
       if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
     } else if (near && stopped) return G.phase === 'pickup' ? gigPickup(G, cur) : gigFinish(G, false);
     if (cur > G.at + STOP_WIN) {
-      if (G.phase === 'pickup') { gigClear(); return toast(G.kind === 'wolt' ? 'Ohitit ravintolan. Tilaus meni toiselle kuskille.' : G.kind === 'muutto' ? 'Ohitit muuttoasiakkaan. Hän soitti toiselle Marketplace-kuskille.' : 'Ohitit asiakkaan. Hän tilasi kilpailijan.'); }
+      if (G.phase === 'pickup') { gigClear(); return toast(G.kind === 'wolt' ? 'Ohitit ravintolan. Tilaus meni toiselle kuskille.' : G.kind === 'romu' ? 'Ohitit romun. Joku muu haki sen.' : G.kind === 'muutto' ? 'Ohitit muuttoasiakkaan. Hän soitti toiselle Marketplace-kuskille.' : 'Ohitit asiakkaan. Hän tilasi kilpailijan.'); }
       if (G.kind === 'wolt') { gigClear(); return toast('!Ohitit asiakkaan oven. Tilaus peruttiin, ei palkkiota.'); }
       return gigFinish(G, true);
     }
   }
   function gigPickup(G, cur) {
     st.dyn = st.dyn.filter(o => !o.gig);
-    const dist = G.kind === 'wolt' ? 220 + Math.floor(Math.random() * 220) : G.kind === 'muutto' ? 350 + Math.floor(Math.random() * 350) : 450 + Math.floor(Math.random() * 450);
+    const dist = G.kind === 'wolt' ? 220 + Math.floor(Math.random() * 220) : G.kind === 'muutto' || G.kind === 'romu' ? 350 + Math.floor(Math.random() * 350) : 450 + Math.floor(Math.random() * 450);
     G.phase = 'deliver'; G.at = cur + dist; G.t = 0;
     G.limit = dist * SEG / (85 * KMH) + 6;
     const van = C(drivenCar().c).fl.includes('V');
-    G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : G.kind === 'muutto' ? (van ? ri(30, 80) : ri(20, 60)) * 5 : ri(30, 80) * 5;
-    if (G.kind === 'muutto') G.limit = Infinity;
+    G.pay = G.kind === 'wolt' ? ri(12, 24) * 5 : G.kind === 'muutto' ? (van ? ri(30, 80) * 5 : Math.round((60 + G.kg * 0.25) / 5) * 5) : G.kind === 'romu' ? Math.round((100 + G.kg * 0.12) / 5) * 5 : ri(30, 80) * 5;
+    if (G.kind === 'muutto' || G.kind === 'romu') G.limit = Infinity;
+    // diesel ja kärry: hiukkassuodatin tukkeutuu 60 %:n todennäköisyydellä per keikka
+    const dc = drivenCar();
+    if (G.kg && isDiesel(dc) && !dc.dpf && !dc.dpfDel && Math.random() < 0.6) { dc.dpf = 1; refreshVehicle(); toast('!DPF-VALO! Dieselin hiukkassuodatin tukkeutui raskaan kärryn vedossa. Auto on vikatilassa: enintään 60 km/h.', 6); }
     G.dest = DEST[Math.floor(Math.random() * DEST.length)];
     if (G.kind === 'taxi' && C(drivenCar().c).fl.includes('B')) { G.pay = Math.round(G.pay * 1.6 / 5) * 5; G.big = true; } // tila-auto: isot porukat
     st.dyn.push({ k:'kohde', z:G.at * SEG, x:1.45, t: G.kind === 'wolt' ? 'TOIMITUS' : G.kind === 'muutto' ? 'PURKU' : 'KOHDE', gig:true });
+    if (G.kind === 'romu') return toast(`+Romu vinssattu traileriin (${G.kg.toLocaleString('fi-FI')} kg). Vie se purkamolle, max 80 km/h.${G.over ? ' YLIPAINO: koukku ei ole tähän tehty.' : ''}`, 4);
+    if (G.kind === 'muutto' && G.kg) return toast(`+Kärry täynnä: ${G.kg.toLocaleString('fi-FI')} kg sohvaa ja laatikoita. Vie ne perille, max 80 km/h.${G.over ? ' YLIPAINO!' : ''}`, 4);
     if (G.kind === 'muutto') return toast(van ? '+Paku täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille.' : '+Kärry täynnä: sohva, 40 laatikkoa ja kuntopyörä. Vie ne perille, max 80 km/h.', 4);
     toast(G.kind === 'wolt' ? `+${G.food} kyytiin. Vie se perille ennen kuin se jäähtyy.` : G.big ? `+8 hengen porukka kyytiin: "${G.dest}, ja äkkiä!" (tila-autolla isompi taksa)` : `+Asiakas kyytiin: "${G.dest}, ja äkkiä!"`, 4);
   }
   function gigFinish(G, missed) {
     const late = G.t > G.limit;
     let pay, msg;
-    if (G.kind === 'muutto') {
+    if ((G.kind === 'muutto' || G.kind === 'romu') && G.over && Math.random() < 0.35) {
+      pay = 0; (S.post = S.post || []).push(['Poliisin punnitus: perävaunun ylikuorma (rikesakko)', 250]);
+      msg = `!Poliisin punnitus! Yhdistelmä painoi ${G.total.toLocaleString('fi-FI')} kg, ja ${C(drivenCar().c).name} saa vetää vähemmän. Sakko 250 € tulee postissa, ja kuorma jäi tienvarteen.`;
+    } else if (G.kind === 'romu') {
+      pay = missed ? Math.round(G.pay / 2) : G.pay;
+      msg = missed ? `!Ajoit purkamon ohi. Toinen purkamo maksoi vain ${eur(pay)}.` : `+Romu purkamolla: ${eur(pay)} tilille.`;
+    } else if (G.kind === 'muutto') {
       pay = missed ? Math.round(G.pay / 2) : G.pay;
       msg = missed ? `!Ajoit purkupaikan ohi. Asiakas kantoi itse loppumatkan ja maksoi puolet (${eur(pay)}).` : `+Muutto valmis: ${eur(pay)} käteistä, ei kuittia.`;
     } else if (G.kind === 'wolt') {
@@ -379,6 +549,7 @@ const Drive = (() => {
   function gigCrash() {
     const G = st.gig;
     if (!G || G.phase !== 'deliver') return;
+    if (G.kind === 'romu') { gigClear(); Q.push(() => say('ROMU LEVISI', ['!Kolarissa romu irtosi trailerista ja jäi ojaan. Purkamo ei maksa ojasta.'])); return; }
     if (G.kind === 'muutto') { gigClear(); Q.push(() => say('KUORMA LEVISI', ['!Kolarissa kuorma levisi pitkin tietä. Asiakas ei maksa, ja hänen kuntopyöränsä on nyt ojassa.'])); return; }
     if (G.kind === 'wolt') { gigClear(); Q.push(() => say('KEITTO KAATUI', ['!Tilaus levisi pitkin takapenkkiä. Toimitus peruttiin, eikä siitä makseta.'])); }
     else G.crash++;
@@ -390,9 +561,10 @@ const Drive = (() => {
     if (!G) return null;
     const d = Math.max(0, G.at - Math.floor((st.pos + PZ) / SEG)) * 5;
     const dist = gpsDown() ? 'GPS: EI SIGNAALIA' : d >= 1000 ? `${(d / 1000).toFixed(1).replace('.', ',')} KM` : `${d} M`;
-    if (G.kind === 'muutto') {
-      if (G.load > 0) return `MUUTTO: ${G.phase === 'pickup' ? 'KANNETAAN KUORMAA' : 'PURETAAN'}… ${Math.ceil(LOAD_S - G.load)} S`;
-      return G.phase === 'pickup' ? `MUUTTO: ASIAKAS ${dist} · PYSÄHDY KOHDALLE` : `MUUTTO: PURKUPAIKKA ${dist} · PYSÄHDY KOHDALLE`;
+    if (G.kind === 'muutto' || G.kind === 'romu') {
+      const nm = G.kind === 'romu' ? 'ROMU' : 'MUUTTO', kg = G.kg ? ` ${G.kg.toLocaleString('fi-FI')} KG${G.over ? ' (YLIPAINO!)' : ''}` : '';
+      if (G.load > 0) return `${nm}: ${G.phase === 'pickup' ? (G.kind === 'romu' ? 'VINSSATAAN' : 'KANNETAAN KUORMAA') : 'PURETAAN'}… ${Math.ceil(LOAD_S - G.load)} S`;
+      return G.phase === 'pickup' ? `${nm}${kg}: ${G.kind === 'romu' ? 'NOUTO' : 'ASIAKAS'} ${dist} · PYSÄHDY KOHDALLE` : `${nm}: ${G.kind === 'romu' ? 'PURKAMO' : 'PURKUPAIKKA'} ${dist} · PYSÄHDY KOHDALLE`;
     }
     if (G.phase === 'pickup') return G.kind === 'wolt' ? `WOLT: NOUDA ${G.food} ${dist} · PYSÄHDY KOHDALLE` : `TAKSI: ASIAKAS VIITTOO ${dist} · PYSÄHDY KOHDALLE`;
     if (G.kind === 'wolt') { const left = Math.ceil(G.limit - G.t); return `WOLT: ${G.food} PERILLE ${dist} · ${left > 0 ? left + ' S' : 'MYÖHÄSSÄ'}`; }
@@ -409,18 +581,21 @@ const Drive = (() => {
     const rightEdge = onRamp ? 1 + RAMP_W : 1;
     const off = st.x < -1 || st.x > rightEdge;
 
+    // huono pito: kesärenkaat talvikelillä tai rengashotellin sekoittamat kiekot
+    const slick = !v.bus && ((S.summer > 0 && (season().snow || season().bare)) || !!(v.car && v.car.mixed));
     if (v.bus) st.speed += (Math.min(maxU, 80 * KMH) - st.speed) * Math.min(1, dt * 0.8);
-    else if (keys.brake) st.speed -= 70 * KMH * dt;
+    else if (keys.brake) st.speed -= (slick ? 46 : 70) * KMH * dt;
     else st.speed += v.acc * KMH * dt * (1 - 0.6 * st.speed / maxU);
     if (off && st.speed > 45 * KMH) { st.speed -= 90 * KMH * dt; st.shake = Math.max(st.shake, 0.08); }
     st.speed = Math.max(0, Math.min(maxU, st.speed));
 
     const sp = st.speed / (160 * KMH);
-    const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0));
+    const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0)) * (slick ? 0.65 : 1);
     if (keys.left) st.x -= steer;
     if (keys.right) st.x += steer;
     if (v.minor) st.x += dt * 0.05 * sp; // korjaamaton vika vetää sivulle
-    st.x -= steer * sp * pseg.curve * 0.32;
+    if (v.car && v.car.mixed) st.x += dt * 0.1 * sp * Math.sin(performance.now() / 650); // kolme leveää ja yksi kapea: auto vaeltaa
+    st.x -= steer * sp * pseg.curve * (slick ? 0.46 : 0.32);
     st.x = Math.max(-2.6, Math.min(2.8, st.x));
     st.skyOff += pseg.curve * sp * dt * 6;
 
@@ -428,9 +603,23 @@ const Drive = (() => {
     const z1 = st.pos + PZ;
     ensure(Math.floor(z1 / SEG));
 
+    // energia: akku tai tankki kuluu ajetuista kilometreistä
+    const km = st.speed * dt * kmPerU();
+    st.kmTot += km;
+    const E = eSpec();
+    if (E) {
+      const e = energy(E) - km * consNow(E, st.speed / KMH);
+      E.obj.energy = Math.max(0, e);
+      if (e <= 0.2 && !st.eWarn) { st.eWarn = 1; toast(E.ev ? '!Akku 20 %. Etsi latausasema.' : '!Tankki varalla. Etsi asema.', 4); }
+      if (e > 0.3) st.eWarn = 0;
+      if (e <= 0) return outOfEnergy(E);
+    }
+    if (st.trip) { tripUpdate(dt, km); if (!st.active || st.paused) return; }
+
     // peurat
     const sea = season();
     if (!v.bus && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
+    if (!v.bus && Math.random() < dt * sea.poroPerMonth / MONTH_S) spawnPoro();
     if (!v.bus && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard();
     const busy = pseg.lim === 50 || pseg.lim === 60 ? 1.6 : 1; // taajamassa enemmän liikennettä
     if (Math.random() < dt * 0.12 * busy) spawnTraffic(false);
@@ -444,8 +633,8 @@ const Drive = (() => {
         if (rel < -150 || rel > DRAW * SEG * 1.2) st.dyn.splice(st.dyn.indexOf(d), 1);
         continue;
       }
-      if (d.k === 'peura') {
-        if ((d.z - z1) / SEG < d.wake) d.x += d.vx * dt;
+      if (d.k === 'peura' || d.k === 'poro') {
+        if ((d.z - z1) / SEG < d.wake || d.k === 'poro') d.x += d.vx * dt;
         if (Math.abs(d.x) > 3) { st.dyn.splice(st.dyn.indexOf(d), 1); continue; }
         if (!v.bus && d.z >= z0 && d.z < z1 + 1 && Math.abs(d.x - st.x) < 0.15 + CAR_HW) { hitDeer(d); return; }
       }
@@ -463,6 +652,8 @@ const Drive = (() => {
     }
 
     if (!v.bus) gigUpdate(dt, z1);
+    stationUpdate(dt, z1);
+    if (st.trip) return; // matkalla kuukausi ei vaihdu eikä liittymää tule
 
     // kuukausi ja liittymä
     st.monthT += dt;
@@ -588,7 +779,7 @@ const Drive = (() => {
       case 'raja': { // nopeusrajoitusmerkki
         P(-35, 0, 70, 1000, COL.grey3);
         P(-330, 1000, 660, 660, '#D02020'); P(-380, 1060, 760, 540, '#D02020'); P(-270, 1080, 540, 500, '#FFFFFF'); P(-210, 1040, 420, 580, '#FFFFFF');
-        if (s * 660 > 9) { g.fillStyle = COL.black; g.textAlign = 'center'; g.font = `${Math.max(5, Math.round(s * 420))}px VT323`; g.fillText(String(limitOf(o.lim)), cx, by - 1180 * s); g.textAlign = 'left'; }
+        if (s * 660 > 9) { g.fillStyle = COL.black; g.textAlign = 'center'; g.font = `${Math.max(5, Math.round(s * 420))}px VT323`; g.fillText(limTxt(limitOf(o.lim)), cx, by - 1180 * s); g.textAlign = 'left'; }
         break; }
       case 'valvonta': { // automaattinen liikennevalvonta -merkki
         P(-35, 0, 70, 1000, COL.grey3);
@@ -628,6 +819,31 @@ const Drive = (() => {
       case 'kivi': {
         P(-260, 0, 520, 160, '#5E5E62'); P(-200, 160, 400, 90, '#6E6E72'); P(-120, 250, 220, 50, '#7E7E82');
         P(-160, 180, 80, 40, '#9A9A9E'); if (sea.snow) P(-180, 250, 300, 40, '#FFFFFF');
+        break; }
+      case 'asema': { // lataus- ja huoltoasema (bränditön)
+        P(-1400, 0, 140, 1800, COL.grey1); P(1260, 0, 140, 1800, COL.grey1);
+        P(-1650, 1800, 3300, 380, '#E8E8E8'); P(-1650, 1800, 3300, 100, '#2F8F4F');
+        P(-350, 0, 700, 950, o.broken ? '#6E6E72' : '#2F6DB5'); P(-250, 520, 500, 300, o.broken ? '#2A2A2A' : '#A5E8FF');
+        P(700, 0, 300, 700, '#B03A2E'); P(760, 420, 180, 160, '#FFFFFF');
+        if (s * 3300 > 30) { g.fillStyle = COL.black; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 300))}px VT323`;
+          g.fillText(`ASEMA · LATAUS ${o.kw} kW`, cx, by - 1900 * s);
+          if (o.broken && st.veh && eSpec() && eSpec().ev && s * 1000 > 6) { g.fillStyle = '#FF3030'; g.fillText('LATURI RIKKI', cx, by - 1100 * s); }
+          g.textAlign = 'left'; }
+        break; }
+      case 'romu': { // romuauto tien varressa
+        P(-1300, 0, 2600, 520, '#7A4A1E'); P(-900, 520, 1700, 420, '#8A5A2E'); P(-700, 580, 600, 300, '#2A2F3A'); P(100, 580, 500, 300, '#2A2F3A');
+        P(-1100, 0, 420, 260, '#111111'); P(700, 0, 420, 260, '#111111'); P(-500, 200, 300, 120, '#5A3A1A');
+        if (s * 2600 > 24) { g.fillStyle = COL.yellow; g.textAlign = 'center'; g.font = `${Math.max(6, Math.round(s * 460))}px VT323`; g.fillText('ROMU', cx, by - 1500 * s); g.textAlign = 'left'; }
+        break; }
+      case 'poro': {
+        const nightFar = sea.dark > 0.6 && n > 45, f = o.vx < 0 ? -1 : 1, c = '#8C7B66';
+        if (!nightFar) {
+          P(-320, 380, 640, 280, c); P(-320, 380, 640, 60, '#E8E0D0');
+          P(-270, 0, 70, 400, c); P(200, 0, 70, 400, c); P(-200, 0, 60, 400, c); P(140, 0, 60, 400, c);
+          P(f * 260 - 70, 560, 140, 260, '#E8E0D0'); P(f * 300 - 100, 780, 200, 130, c);
+          P(f * 220 - 60, 900, 30, 260, COL.dbrown); P(f * 360 - 30, 900, 30, 260, COL.dbrown); P(f * 160 - 60, 1120, 120, 30, COL.dbrown); P(f * 360, 1120, 120, 30, COL.dbrown);
+        }
+        if (sea.dark > 0.3 && n < 90) { P(f * 300 - 70, 840, 50, 40, '#FFFF99'); P(f * 300 + 30, 840, 50, 40, '#FFFF99'); }
         break; }
       case 'peura': {
         const nightFar = sea.dark > 0.6 && n > 45;
@@ -834,6 +1050,8 @@ const Drive = (() => {
     }
     const tow = !v.tsa && towing();
     drawModel(v, cx, tow ? by - 14 : by, tilt, sea);
+    if (v.box) { const B = v.spec.b === 'van' ? { cl:0, bh:55, cab:0 } : (BODY[v.spec.b] || BODY.sedan), top = B.cl + B.bh + B.cab + (tow ? 14 : 0);
+      R(-16 + tilt, top, 32, 6, '#1A1A1C'); R(-15 + tilt, top + 5, 30, 1, '#4A4A50'); } // kattoboksi
     if (tow) { // peräkärry auton perässä: kapeampi ja matalampi kuin auto, aisa näkyy välissä
       const lit = st.keys.brake ? '#FF3030' : sea.dark > 0.3 ? '#E02828' : '#A01818';
       R(-3, 13, 6, 6, '#222');                                   // aisa
@@ -842,7 +1060,9 @@ const Drive = (() => {
       R(-27, 5, 54, 9, '#8A7A5A');                               // vanerilaita
       for (let k = -18; k < 27; k += 9) R(k, 5, 1, 9, '#5E523C');
       R(-28, 14, 56, 2, '#2A2A2A');                              // yläreuna
-      if (st.gig && st.gig.kind === 'muutto' && st.gig.phase === 'deliver') { // lasti kyydissä
+      if (st.gig && st.gig.kind === 'romu' && st.gig.phase === 'deliver') { // romu trailerilla
+        R(-26, 16, 52, 8, '#7A4A1E'); R(-18, 24, 34, 7, '#8A5A2E'); R(-14, 25, 12, 5, '#2A2F3A'); R(2, 25, 12, 5, '#2A2F3A');
+      } else if (st.gig && st.gig.kind === 'muutto' && st.gig.phase === 'deliver' || (st.trip && st.trip.trailer)) { // lasti kyydissä
         R(-25, 16, 13, 10, '#B08850'); R(-23, 26, 10, 7, '#C09860'); R(-25, 20, 13, 1, '#8A6A3A'); // laatikot
         R(-9, 16, 24, 7, '#7A2E2E'); R(-9, 23, 4, 6, '#7A2E2E'); R(11, 23, 4, 6, '#7A2E2E');      // sohva
         R(18, 16, 2, 12, '#333'); R(16, 27, 7, 2, '#333'); R(17, 16, 8, 2, '#333');                // kuntopyörä
@@ -868,6 +1088,20 @@ const Drive = (() => {
   const hud = {};
   const hudSet = (k, v, prop) => { if (hud[k + '_'] !== v) { hud[k + '_'] = v; hud[k][prop || 'textContent'] = v; } };
   const escH = t => String(t).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+  function energyHud() {
+    const E = eSpec();
+    if (!E) return '';
+    const e = energy(E);
+    if (st.chg && !st.chg.broken) return `${E.ev ? 'LADATAAN' : 'TANKATAAN'} ${Math.round(e * 100)} %${st.chg.q > 0 ? ' · JONOSSA' : E.ev ? ` · ${Math.round(Math.min(E.kw, st.chg.o.kw) * (e > 0.8 ? 0.35 : 1))} kW` : ''}`;
+    const left = Math.round(e / consNow(E, Math.max(60, st.speed / KMH)));
+    const o = st.dyn.find(d => d.station);
+    const ds = gpsDown() ? '?' : o ? Math.max(0, Math.round((o.z - (st.pos + PZ)) * kmPerU())) : Math.max(0, Math.round(st.nextSt - st.kmTot));
+    return `${E.ev ? 'AKKU' : 'TANKKI'} ${Math.round(e * 100)} % ~${left} KM · ASEMA ${ds} KM`;
+  }
+  function tripHud() {
+    const T = st.trip, kmh = Math.max(40, st.speed / KMH), eta = T.t + (T.km - T.done) / kmh;
+    return `${T.name}: ${Math.round(T.done)}/${T.km} KM · KELLO ${hhmm(T.t)}/${T.hours}.00 · ARVIO ${hhmm(eta)}${eta > T.hours ? ' MYÖHÄSSÄ' : ''}`;
+  }
   function drawHud() {
     hudSet('month', `KK ${S.m}/${LAST} · ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)}`);
     hudSet('cash', `KASSA ${eur(S.cash)}`);
@@ -876,10 +1110,11 @@ const Drive = (() => {
     const kmh = Math.round(st.speed / KMH), lim = limitOf(segAt(st.pos + PZ).lim);
     hudSet('speed', `${kmh} km/h`);
     hudSet('speedCls', kmh > lim ? 'over' : '', 'className');
-    hudSet('lim', st.veh.bus ? '' : String(lim));
+    hudSet('lim', st.veh.bus ? '' : limTxt(lim));
     hudSet('limD', st.veh.bus ? 'none' : 'inline-flex', 'display');
     hudSet('car', st.veh.name + (st.veh.tsa ? ' (työsuhdeauto)' : ''));
-    const gh = gigHud();
+    hudSet('en', energyHud());
+    const gh = st.trip ? tripHud() : gigHud();
     const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + st.toasts.map(t => {
       const c = t.t[0] === '!' ? 'r' : t.t[0] === '+' ? 'g' : '';
       return `<p class="${c}">${escH(c ? t.t.slice(1) : t.t)}</p>`;
@@ -940,7 +1175,7 @@ const Drive = (() => {
   function init() {
     cv = document.getElementById('road'); g = cv.getContext('2d');
     const $ = id => document.getElementById(id);
-    Object.assign(hud, { month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
+    Object.assign(hud, { en:$('h-en'), month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
     if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
@@ -968,7 +1203,10 @@ const Drive = (() => {
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.x = 0.5;
+    S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
+    st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
+    if (S.trip) tripBegin();
     document.body.classList.add('driving'); document.body.classList.remove('paused');
     window.scrollTo(0, 0);
     st.last = performance.now();
@@ -982,6 +1220,7 @@ const Drive = (() => {
     if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
     document.body.classList.remove('paused');
     refreshVehicle();
+    if (S.trip && !st.trip) tripBegin();
     window.scrollTo(0, 0);
     st.last = performance.now();
   }
@@ -991,7 +1230,7 @@ const Drive = (() => {
     document.body.classList.remove('driving', 'paused');
   }
   return {
-    start, resume, stop,
+    start, resume, stop, rangeOf,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
     _st: st, _vehicle: vehicle, _seg: i => { ensure(i); return segs[i]; }, // testejä varten

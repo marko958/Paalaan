@@ -1,5 +1,7 @@
 # PAALAAN! – kehitysideoita (lisää optimoitavaa pelaajalle)
 
+> **Toteutettu 2.0 alpha 17:ssä** (yksinkertaistettuina): energiamittari ja latausasemat, vetomassat, kärrytyypit ja ajokortit (B/B96/BE), romukeikat autotrailerilla, dieselin DPF-tukos kärryn kanssa (60 %), kahdet renkaat / toiset vanteet ja rengashotellin sekoittamat porrastetut kiekot, 0 %-kampanjat vs. käteisalennus, romutuspalkkio ja polttomoottoriautojen jälkimarkkina, reissut (Kuopio, Levi, harmaatuonti Saksasta). Alla alkuperäiset ideat; toteutus poikkeaa niistä paikoin.
+
 Ideat on kirjoitettu 2.0:n päälle: ne käyttävät olemassa olevia rakenteita (`S.trailer`, `towOK`, `tireSwap`, `tireEvent`, `CAMPAIGNS`, `rateOffers`, `S.rate`, `runCosts`, `drive.js`:n `limitOf`). Jokaisessa on sama kaava: **pelaajalla on kaksi tai kolme järkevää vaihtoehtoa, eikä yksikään voita aina.** Paras valinta riippuu autosta, vuodenajasta, kassasta ja lainasta.
 
 Pääpaino on kohdassa 3 (energiamittari): useimmat ideat tarvitsevat sitä, joten sen tekeminen kannattaa aikaistaa.
@@ -96,6 +98,7 @@ Ydinkysymys on **vanteet**, ei pelkät renkaat. Jos autossa on vain yhdet vantee
 - **Laskettava pelaajalle:** toiset vanteet maksavat itsensä takaisin 2–5 vuodessa, kun vaihtaa itse, mutta autoa vaihdetaan pelissä usein, joten takaisinmaksu jää usein kesken. Jos vanteet sopivat myös seuraavaan autoon (sama merkki, sama pulttijako ja koko), ne siirtyvät mukana. Tämä on hyvä syy pysyä samassa merkissä.
 - **Ensilumen jono:** jos pelaajalla on yhdet vanteet ja hän ei varannut aikaa syyskuussa, lokakuun vaihto viivästyy. Siihen asti ajetaan kesärenkailla: ajotilassa pito on heikko (`S.slip` kasvaa), peura- ja ulosajoriski nousee ja poliisi voi sakottaa marraskuussa. Toisilla vanteilla tämä ei koske pelaajaa.
 - **Toteutus nykykoodiin:** autolle lippu `car.rims2`. `tireSwap` näyttää sen mukaan joko vaihtoehdot ”Rengashotelli 90 € / Vaihda itse 0 €” tai ”Rengastyö (purku + asennus + tasapainotus) X €”, jossa X riippuu auton hintaluokasta (`tierMult`) ja sähköautolla isommasta vannekoosta. Lisäksi valinta ”Osta toiset vanteet (Y €)”. Myyntiarvoon lisä, kun `car.rims2` on tosi.
+- **Jokeri rengashotellissa:** porrastetuissa (staggered) kiekoissa edessä on kapeammat ja takana leveämmät. Hotelli voi sekoittaa ne: alle menee kolme leveää ja yksi kapea, auto vaeltaa ja ESP vilkkuu. Korjaus: hae oikeat hotellilta (työpäivä jää kesken) tai osta naamakirjasta kolme kapeampaa.
 - **Lisämauste (myöhemmin):** talvirenkaiksi nastat, kitkat tai ympärivuotiset. Ympärivuotiset poistavat koko vannedilemman, mutta talven pito on heikompi ja kesällä kuluminen nopeampaa.
 
 ## 7. Keski-Euroopan kitkat -haaste
