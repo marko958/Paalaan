@@ -265,7 +265,7 @@ const JOBS = {
   varikko: {name:'Kaupungin varikko', inc:750, risk:0.3, km:15, raise:0.4, p:0.45, d:'Lomautusriski on hyvin pieni. Palkankorotuksia harvoin, eikä työsuhdeautoja ole.'},
   lataus: {name:'Latausverkon huoltoteknikko', inc:950, risk:1, km:60, raise:1, p:0.6, d:'Lataus on ilmaista, eivätkä sähkön hintapiikit koske. Ajoa on paljon, ja auto kuluu nopeammin. Vaatii sähköauton, jonka toimintamatka on vähintään 300 km.'},
   pankki: {name:'Pankin rahoitusneuvoja', inc:950, risk:0.8, km:20, raise:1, p:0.45, d:'Henkilöstöetuna uusien lainojen korko −1 %. Maksuhäiriömerkintä tai pikavippi johtaa potkuihin.'},
-  yrittaja: {name:'Yrittäjä, oma toiminimi', inc:1300, risk:0, km:10, raise:1, p:1, d:'Kovin tulo, eikä pomoa, koeaikaa tai yt-neuvotteluja. Työsuhdeautoa ei ole, ja pankki lainaa yrittäjälle autoon enintään 70 % auton arvosta: loput pitää laittaa käsirahana.'},
+  yrittaja: {name:'Yrittäjä, oma toiminimi', inc:1300, risk:0, km:10, raise:1, p:1, d:'Kovin tulo, eikä pomoa, koeaikaa tai yt-neuvotteluja. Verottaja tarkastaa yrittäjiä, ja mätky voi olla iso. Työsuhdeautoa ei ole, ja pankki lainaa yrittäjälle autoon enintään 70 % auton arvosta: loput pitää laittaa käsirahana.'},
   kuusamo: {name:'Työmaa Kuusamossa', inc:1100, risk:1, km:120, raise:1, p:0.8, d:'Paras palkka. Pitkä työmatka pohjoiseen: talvella pakkanen, porot ja harvat laturit. Esan palju lämpenee työmaaporukalle kerran kvartaalissa.'},
 };
 const job = () => JOBS[S.job || 'toimisto'];
@@ -329,6 +329,7 @@ function headhunter() {
 function startJob(id, inc) {
   const X = JOBS[id], lines = [`+Uusi työ: ${X.name}. Autobudjetti ${eur(inc)}/kk.`];
   if (id === 'accucar' && !S.sfs) { payOrVippi(300); S.sfs = true; lines.push('Sähkötyöturvallisuuskoulutus käyty: 300 €.'); }
+  if (id === 'yrittaja' && S.job !== 'yrittaja') S.yrAudit = S.m;
   S.job = id; S.income = inc; S.boss = 0; S.trial = id === 'yrittaja' ? S.m : S.m + 6; S.jobApp = null;
   if (S.layoff > 0) { S.layoff = 0; lines.push('+Lomautus jäi vanhaan työpaikkaan: uusi työnantaja maksaa täyttä palkkaa heti.'); }
   S.pend = S.pend.filter(p => p.k !== 'lomautus');
@@ -707,7 +708,7 @@ function randomEvent() {
   const month = (S.m-1)%12;
   const ev = [
     ['elon',S.elon>0||pend('elon')?0:2],['kupla',S.bubble?0:3],['korkoup',pend('korkoup')?0:4],['korkodown',3],['sahko',[10,11,0,1,2].includes(month)?5:[5,6,7].includes(month)?2:0],
-    ['korotus',S.layoff?0:4*job().raise],['lomautus',S.layoff||pend('lomautus')||S.job==='yrittaja'?0:Math.max(1,((shortCommute()?12:3)+3*S.boss+3*Math.min(3,S.late||0)-(S.rested>S.m?2:0))*(job().risk+(S.job==='eta'?0.3*Math.max(0,S.rate):0))*(onTrial()?1.5:1))],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['muuttokolhu',S.gigs&&gigRig()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(S.job!=='varikko' && S.job!=='yrittaja' && !S.tsa && !S.tsaWait && S.m>3)?(S.income>=800?5:3):0],['headhunter',onTrial()?0:1.5],
+    ['korotus',S.layoff?0:4*job().raise],['lomautus',S.layoff||pend('lomautus')||S.job==='yrittaja'?0:Math.max(1,((shortCommute()?12:3)+3*S.boss+3*Math.min(3,S.late||0)-(S.rested>S.m?2:0))*(job().risk+(S.job==='eta'?0.3*Math.max(0,S.rate):0))*(onTrial()?1.5:1))],['kampanja',S.camp?0:8],['sakko',3+(S.wolt?2:0)+(S.taxi?2:0)],['verottaja',S.gigs&&S.black>0?2.5:0],['verotarkastus',S.job==='yrittaja'&&S.m-(S.yrAudit||0)>=6?2:0],['muuttokolhu',S.gigs&&gigRig()?3:0],['kivenisku',drivenCar()?3:0],['vakuutus',S.cars.length?2:0],['varkaus',S.cars.some(c=>C(c.c).type==='e')?1.5:0],['tsa',(S.job!=='varikko' && S.job!=='yrittaja' && !S.tsa && !S.tsaWait && S.m>3)?(S.income>=800?5:3):0],['headhunter',onTrial()?0:1.5],
     ['kolhu',(S.tsa||drivenCar())?(S.wolt?1.5:0)+(S.taxi?2:0)+(S.parking?0.75:3)+(S.slip?3:0):0],['peura',0], // 2.0: peurat ovat tiellä (drive.js)
     ['katsastus',S.cars.some(c=>(C(c.c).type!=='e'||c.mb||c.minor)&&!c.broken)?4+2*S.cars.reduce((s,c)=>s+c.mb,0)+(S.cars.some(c=>c.dpfDel)?4:0):0],
     // alpha 17
@@ -722,6 +723,8 @@ function randomEvent() {
   return fire(k);
 }
 function fire(k) {
+  if (k==='verotarkastus') { const mo = Math.max(1, S.m - (S.yrAudit||0)), b = Math.max(2500, r100(mo*ri(200,400))), short = S.cash < b && invTotal() <= 0; S.yrAudit = S.m; payOrVippi(b);
+    return say('VEROTARKASTUS', ['!Verohallinnon tarkastaja kävi kirjanpitosi läpi: kuitit kenkälaatikossa ja "edustuskulut" Coopin kassakuitteina.', `Tarkastus kattoi ${mo} kk. Jälkiverot, veronkorotus ja viivästyskorko yhteensä ${eur(b)}.`, short ? '!Kassa ei riittänyt: loput meni pikavippinä, ja tuli maksuhäiriömerkintä.' : 'Maksettu kassasta.', 'Seuraava tarkastus voi tulla aikaisintaan puolen vuoden päästä.']); }
   if (k==='verottaja') { const b = Math.max(1000, r100(S.black*0.55)); const tot = S.black; S.black = 0; payOrVippi(b);
     return say('VEROTTAJAN KIRJE', [`!Verohallinto kiinnostui Marketplace-ilmoituksistasi ("Muutot ja kuljetukset, edullisesti, käteinen ok").`, `Ilmoittamattomia tuloja ${eur(tot)}. Jälkivero ja veronkorotus yhteensä ${eur(b)}.`, 'Keikkoja voi jatkaa. Verottaja ei unohda, mutta se ei myöskään lue jokaista ilmoitusta.']); }
   if (k==='muuttokolhu') { const rig = gigRig(); if (!rig) return next(); const van = rig.car;
