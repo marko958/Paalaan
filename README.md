@@ -4,4 +4,4 @@ C64-henkinen selainpeli. Lähdet liikkeelle bensaa juovalla Mondeolla ja tonnill
 
 Pelaa: https://marko958.github.io/Paalaan/
 
-**2.0 (alpha):** https://marko958.github.io/Paalaan/v2/ – PAALAAN!-napista lähdetään ajamaan omalla autolla: kuukausi vaihtuu 30 sekunnin välein, peuroja väistellään, ja kuukauden lopun liittymästä pääsee valikkoon. Suunnitelma: [SUUNNITELMA-2.0.md](SUUNNITELMA-2.0.md).
+**2.0 (alpha):** https://marko958.github.io/Paalaan/v2/ – PAALAAN!-napista lähdetään ajamaan omalla autolla: kuukausi vaihtuu 30 sekunnin välein, peuroja väistellään, ja kuukauden lopun liittymästä pääsee valikkoon. Alpha 17: akku ja latausasemat, vetomassat ja kärrytyypit, DPF, kahdet renkaat, 0 %-kampanjat, romutuspalkkio sekä reissut Kuopioon, Leville ja Saksaan. Ideat: [KEHITYSIDEOITA.md](KEHITYSIDEOITA.md). Suunnitelma: [SUUNNITELMA-2.0.md](SUUNNITELMA-2.0.md).
