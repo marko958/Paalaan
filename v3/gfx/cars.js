@@ -3,6 +3,7 @@
 // logoja tai merkkien tunnuksia ei ole.
 import * as THREE from 'three';
 import { shapeOf, buildBody, surface, BODY } from './carbody.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvasTex } from './assets.js';
 import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow, flakeTex } from './carparts.js';
 
@@ -129,7 +130,8 @@ function lampMat(kind, type, own) {
   let base = M.lamp.get(key);
   if (!base) {
     const t = lampTex(kind, type);
-    base = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 1, alphaTest: 0.35, roughness: 0.12, metalness: 0.1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    // valoumpion lasi: kirkaslakka heijastaa ympäristöä vain valon kohdalla (läpinäkyvät kuvut näkyivät harmaina laatikoina)
+    base = new THREE.MeshPhysicalMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 1, alphaTest: 0.35, roughness: 0.25, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.02, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     M.lamp.set(key, base);
   }
   return own ? base.clone() : base;
@@ -178,6 +180,8 @@ export function buildCar(spec, opt = {}) {
   if (isVan && !tk.windows && type === 'van') bOpt.glass = { sideR: S.fa - 1.32, pillarC: null }; // umpikylkinen paku: vain ohjaamon lasit
   if (type === 'truck') bOpt.glass = { sideR: S.uR + 0.75, pillarC: null };
   const body = buildBody(S, bOpt), sf = surface(S), mid = body.mid;
+  // terävät taitteet (olkalinja, konepellin reuna, helma) saavat omat normaalit: pinnat pysyvät sileinä, viivat terävinä
+  if (hero) body.geometry = toCreasedNormals(body.geometry, 0.5);
   const g = new THREE.Group(), bodyG = new THREE.Group(); g.add(bodyG);
   const paint = paintMat(spec.c || '#888888', tk.steel ? 'steel' : tk.solid ? 'solid' : 'metal');
   const roofM = spec.r ? paintMat(spec.r, 'solid') : paint;
@@ -221,15 +225,8 @@ export function buildCar(spec, opt = {}) {
     add(mergeGeos(cg), hm);
   }
 
-  // --- valojen lasikuvut: läpinäkyvä kirkas kuori valoumpion päällä heijastaa ympäristöä ja antaa syvyyttä ---
+  // --- sumuvalot (valoumpioiden kiilto tulee niiden omasta kirkaslakkapinnasta, ks. lampMat) ---
   if (hero && type !== 'bus') {
-    if (!M.lens) M.lens = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.22, depthWrite: false, envMapIntensity: 1.6 });
-    const lg = [], wide = t => t === 'bar' || t === 'pixel';
-    const cover = (front, z0, z1, y0, y1, flip) => lg.push(patch((a, b, o) => sf.fasciaN(front, y0 + (y1 - y0) * a, z0 + (z1 - z0) * b, o), 10, 4, 0.012, flip));
-    if (wide(fl)) cover(true, zh0 - 0.01, zh1 + 0.01, -0.99, 0.99, true);
-    else for (const sd of [-1, 1]) cover(true, zh0 - 0.01, zh1 + 0.01, sd < 0 ? -0.99 : 0.5, sd < 0 ? -0.5 : 0.99, true);
-    if (tl !== 'low') { if (wide(tl)) cover(false, zl0 - 0.01, zl1 + 0.01, -0.99, 0.99, false); else for (const sd of [-1, 1]) cover(false, zl0 - 0.01, zl1 + 0.01, sd < 0 ? -0.99 : 0.55, sd < 0 ? -0.55 : 0.99, false); }
-    const lens = add(mergeGeos(lg), M.lens); lens.renderOrder = 2;
     // sumuvalot polttomoottoriautoissa: pyöreä lamppu mustassa kehyksessä puskurin kulmissa
     if (!ev && type !== 'truck') {
       if (!M.fogL) M.fogL = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, emissive: 0xfff2d8, emissiveIntensity: 0.15, roughness: 0.05, metalness: 0.3 });
@@ -415,13 +412,13 @@ export function buildCar(spec, opt = {}) {
   }
 
   // --- pyörät ---
-  const wheels = [], tireW = B.tw || B.R * 0.66;
+  const wheels = [], tireW = B.tw || Math.max(0.205, B.R * 0.7);
   const style = tk.rim || wheelStyleFor(spec, opt);
   for (const [ax, side] of [[S.fa, -1], [S.fa, 1], [S.ra, -1], [S.ra, 1]]) {
     const w = makeWheel(B.R, tireW, style + (tk.red ? '-red' : ''), lod);
     sf.sideAtZ(ax, S.za, side, V);
     const pivot = new THREE.Group();
-    pivot.position.set(side * (Math.abs(V.x) - tireW / 2 - 0.022), B.R, mid - ax);
+    pivot.position.set(side * (Math.abs(V.x) - tireW / 2 - 0.006), B.R, mid - ax); // renkaan ulkopinta lähes kyljen tasossa
     w.group.rotation.y = side < 0 ? Math.PI : 0;
     pivot.add(w.group); g.add(pivot);
     wheels.push({ pivot, spin: w.spin, side, front: ax === S.fa });

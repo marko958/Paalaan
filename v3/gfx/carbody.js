@@ -37,9 +37,9 @@ export const BODY = {
   sedan:    { L: 4.76, W: 1.84, H: 1.45, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.70, cowl: 0.40, hCowl: 0.99, ws: 0.80, belt: 0.93, roofR: -0.30, tail: 'deck', deck: 0.58, hDeck: 1.04, rake: 0.72, tumble: 0.36, bowN: 0.20, bowT: 0.15 },
   fastback: { L: 4.74, W: 1.86, H: 1.43, wb: 2.88, fo: 0.88, gc: 0.15, R: 0.335, nose: 0.68, cowl: 0.30, hCowl: 0.97, ws: 0.92, belt: 0.93, roofR: -0.72, tail: 'deck', deck: 0.26, hDeck: 1.05, rake: 1.28, tumble: 0.40, bowN: 0.24, bowT: 0.17 },
   prius:    { L: 4.50, W: 1.76, H: 1.48, wb: 2.70, fo: 0.92, gc: 0.15, R: 0.31, nose: 0.66, cowl: 0.10, hCowl: 0.98, ws: 1.02, belt: 0.95, roofR: -0.95, tail: 'deck', deck: 0.10, hDeck: 1.17, rake: 1.30, tumble: 0.34, bowN: 0.26, bowT: 0.12, kamm: 1 },
-  hatch:    { L: 4.30, W: 1.80, H: 1.47, wb: 2.64, fo: 0.88, gc: 0.155, R: 0.32, nose: 0.72, cowl: 0.36, hCowl: 1.00, ws: 0.78, belt: 0.94, roofR: 0.32, tail: 'gate', gate: 0.34, tumble: 0.33, bowN: 0.22, bowT: 0.16 },
-  wagon:    { L: 4.82, W: 1.85, H: 1.48, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.71, cowl: 0.40, hCowl: 1.00, ws: 0.80, belt: 0.94, roofR: 0.72, tail: 'gate', gate: 0.26, tumble: 0.33, bowN: 0.20, bowT: 0.13 },
-  suv:      { L: 4.62, W: 1.88, H: 1.66, wb: 2.75, fo: 0.90, gc: 0.215, R: 0.365, nose: 0.90, cowl: 0.38, hCowl: 1.17, ws: 0.72, belt: 1.07, roofR: 0.45, tail: 'gate', gate: 0.3, tumble: 0.27, bowN: 0.18, bowT: 0.13, clad: 1 },
+  hatch:    { L: 4.30, W: 1.80, H: 1.47, wb: 2.64, fo: 0.88, gc: 0.155, R: 0.32, nose: 0.72, cowl: 0.36, hCowl: 1.00, ws: 0.78, belt: 0.94, roofR: 0.32, tail: 'gate', gate: 0.34, tumble: 0.29, bowN: 0.22, bowT: 0.16 },
+  wagon:    { L: 4.82, W: 1.85, H: 1.48, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.71, cowl: 0.40, hCowl: 1.00, ws: 0.80, belt: 0.94, roofR: 0.72, tail: 'gate', gate: 0.26, tumble: 0.27, bowN: 0.20, bowT: 0.13 },
+  suv:      { L: 4.62, W: 1.88, H: 1.66, wb: 2.75, fo: 0.90, gc: 0.215, R: 0.365, nose: 0.90, cowl: 0.38, hCowl: 1.17, ws: 0.72, belt: 1.07, roofR: 0.45, tail: 'gate', gate: 0.3, tumble: 0.23, bowN: 0.18, bowT: 0.13, clad: 1 },
   suvc:     { L: 4.72, W: 1.92, H: 1.60, wb: 2.90, fo: 0.87, gc: 0.19, R: 0.37, nose: 0.86, cowl: 0.30, hCowl: 1.13, ws: 0.86, belt: 1.06, roofR: -0.55, tail: 'deck', deck: 0.12, hDeck: 1.20, rake: 1.02, tumble: 0.33, bowN: 0.22, bowT: 0.15, clad: 1, kamm: 1 },
   coupe:    { L: 4.97, W: 1.96, H: 1.38, wb: 2.92, fo: 0.95, gc: 0.13, R: 0.35, nose: 0.62, cowl: 0.42, hCowl: 0.92, ws: 0.90, belt: 0.90, roofR: -0.70, tail: 'deck', deck: 0.34, hDeck: 0.97, rake: 1.25, tumble: 0.44, bowN: 0.28, bowT: 0.20 },
   mini:     { L: 3.62, W: 1.63, H: 1.51, wb: 2.36, fo: 0.68, gc: 0.15, R: 0.285, nose: 0.76, cowl: 0.22, hCowl: 1.02, ws: 0.62, belt: 0.95, roofR: 0.30, tail: 'gate', gate: 0.24, tumble: 0.26, bowN: 0.22, bowT: 0.14 },
@@ -99,7 +99,7 @@ export function shapeOf(type, o = {}) {
   const zSh = ang ? lin(shPts) : pchip(shPts);
   const zBot = pchip([[0, zr0], [Math.max(0.12, ra - B.R - 0.3), B.gc + 0.07], [ra - B.R * 0.6, B.gc], [fa + B.R * 0.6, B.gc], [Math.min(L - 0.1, fa + B.R + 0.28), B.gc + 0.035], [L, zf0]]);
   // leveys ylhäältä katsottuna: loiva kavennus päitä kohti ja ympyrän kaari kulmissa (kylki kiertyy päädyn puolelle)
-  const xR = B.bowT, xF = L - B.bowN, rcR = B.cornerR || (ang ? 0.03 : 0.24), rcF = B.cornerF || (ang ? 0.03 : 0.3);
+  const xR = B.bowT, xF = L - B.bowN, rcR = B.cornerR || (ang ? 0.03 : 0.17), rcF = B.cornerF || (ang ? 0.03 : 0.22);
   const plan0 = pchip([[xR, B.planR || 0.955], [xR + 0.45, 0.985], [ra, 1], [fa, 1], [xF - 0.5, 0.985], [xF, B.planF || 0.95]]);
   const plan = X => {
     let y = W / 2 * plan0(X);
@@ -117,7 +117,7 @@ export function shapeOf(type, o = {}) {
   const cr = B.crown !== undefined ? B.crown : 1;
   const crown = pchip([[0, 0], [tf + 0.06, 0.012 * cr], [uD + 0.05, 0.02 * cr], [uRoofR + 0.1, 0.034 * cr], [uA, 0.034 * cr], [uCowl, 0.03 * cr], [L - noseLen - 0.08, 0.022 * cr], [L - noseLen * 0.5, 0.004], [L, 0]].sort((a, b) => a[0] - b[0]));
   const S = { xR, xF, rcR, rcF, B, L, W, H, fa, ra, uCowl, uA, uR: uRoofR, uPeak, uD, hD, tf, noseLen, zr0, zf0, zTop, zSh, zBot, plan, bow, crown, ang, gateZ, beltR };
-  S.Ra = B.R + (B.archGap || 0.05);
+  S.Ra = B.R + (B.archGap || 0.034); // pieni rako renkaan ja kaaren välissä, kuten oikeissa autoissa
   S.za = B.R;
   // pyöränkaari: helman alareuna nousee kaaren muotoon akselin kohdalla
   S.zBotE = X => {
@@ -125,10 +125,10 @@ export function shapeOf(type, o = {}) {
     for (const ax of [ra, fa]) { const d = Math.abs(X - ax); if (d < S.Ra) z = Math.max(z, S.za + Math.sqrt(S.Ra * S.Ra - d * d)); }
     return z;
   };
-  S.tumble = B.tumble; S.rs = B.rs || (ang ? 0.012 : 0.05); S.rb = B.rb || (ang ? 0.02 : 0.07);
-  S.ledge = B.ledge !== undefined ? B.ledge : 0.014; S.sideUp = B.sideUp !== undefined ? B.sideUp : (ang ? 0 : 0.03); S.sideLow = B.sideLow !== undefined ? B.sideLow : (ang ? 0.01 : 0.04);
+  S.tumble = B.tumble; S.rs = B.rs || (ang ? 0.012 : 0.022); S.rb = B.rb || (ang ? 0.02 : 0.045); // terävä olkalinja ja helma
+  S.ledge = B.ledge !== undefined ? B.ledge : 0.014; S.sideUp = B.sideUp !== undefined ? B.sideUp : (ang ? 0 : 0.03); S.sideLow = B.sideLow !== undefined ? B.sideLow : (ang ? 0.01 : 0.03);
   // kyljen X asemalla u: keula ja perä pyöristyvät ylhäältä katsottuna, koska reunat jäävät keskilinjasta jälkeen
-  S.flare = B.flare !== undefined ? B.flare : (B.clad ? 0.03 : 0.018); S.haunch = B.haunch !== undefined ? B.haunch : (ang ? 0 : 0.013);
+  S.flare = B.flare !== undefined ? B.flare : (B.clad ? 0.016 : 0.005); S.haunch = B.haunch !== undefined ? B.haunch : (ang ? 0 : 0.004);
   S.kink = B.kink !== undefined ? B.kink : (ang ? 0 : 0.016); S.sill = B.sillIn !== undefined ? B.sillIn : (ang ? 0 : 0.012);
   S.xSide = u => u - bow(u);
   S.uOfX = X => { let lo = 0, hi = L; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (m - bow(m) < X) lo = m; else hi = m; } return (lo + hi) / 2; };
@@ -138,7 +138,7 @@ export function shapeOf(type, o = {}) {
 
 // Poikkileikkauksen pisteiden määrät: A pohjan huuli, Bk helman pyöristys, C kylki, D olkapään pyöristys, E ikkunat, F katto (puolikas)
 export const DETAIL = [
-  { A: 2, Bk: 3, C: 11, D: 3, E: 7, F: 15, dens: 1.15 },      // pelaajan auto
+  { A: 2, Bk: 4, C: 14, D: 4, E: 8, F: 18, dens: 1.8 },       // pelaajan auto
   { A: 1, Bk: 2, C: 4, D: 2, E: 3, F: 6, dens: 0.42 },    // muu liikenne ja matala laatutaso
 ];
 
@@ -270,7 +270,8 @@ export function buildBody(S, opt = {}) {
         const col = j - F0 + 1; // 0 = reunimmainen
         const ws = um > wsR && um < wsF, rg = um > rgR && um < rgF;
         if (ws) m = col <= 0 ? (opt.blackPillars ? 2 : opt.roof ? 3 : 0) : 1;
-        else if (rg) m = col <= 0 ? (opt.roof && !opt.blackHatch ? 3 : opt.blackHatch ? 2 : 0) : 1;
+        // takalasi on kapeampi kuin luukku: reunoille jää peltinen D-pilari (siihen sijoittuvat takavalot)
+        else if (rg) m = col / (D.F - 1) <= (B.tail === 'gate' ? 0.2 : 0.1) ? (opt.roof && !opt.blackHatch ? 3 : opt.blackHatch ? 2 : 0) : 1;
         else if (um >= rgF && um <= wsR) m = opt.glassRoof ? (col <= 1 ? 0 : 1) : opt.roof ? 3 : 0;
         else if (opt.blackHatch && um < rgR && um > S.tf * 0.9 && B.tail === 'gate') m = 2;
         else m = 0;
