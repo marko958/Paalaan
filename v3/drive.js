@@ -720,11 +720,12 @@ const Drive = (() => {
     const sp = st.speed / (160 * KMH);
     const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0)) * (slick ? 0.65 : 1) * (icy ? 0.3 : 1);
     if (icy) st.x += dt * 0.35 * sp * Math.sin(performance.now() / 300); // takapää elää
-    if (keys.left) st.x -= steer;
-    if (keys.right) st.x += steer;
+    // 3.0: ohjaus pehmenee (rattiliike kasvaa ja palautuu vähitellen) ja sivuttaisnopeus on 3D-mittakaavaan sovitettu
+    { const tgt = (keys.right ? 1 : 0) - (keys.left ? 1 : 0); st.steerIn = (st.steerIn || 0) + (tgt - (st.steerIn || 0)) * Math.min(1, dt * (tgt ? 7 : 10)); }
+    st.x += steer * 0.62 * st.steerIn;
     if (v.minor) st.x += dt * 0.05 * sp; // korjaamaton vika vetää sivulle
     if (v.car && v.car.mixed) st.x += dt * 0.1 * sp * Math.sin(performance.now() / 650); // kolme leveää ja yksi kapea: auto vaeltaa
-    st.x -= steer * sp * pseg.curve * (slick ? 0.46 : 0.32);
+    st.x -= steer * sp * pseg.curve * (slick ? 0.46 : 0.32) * 0.3; // 3.0: kaarteet ovat näkymässä loivempia, joten sivuttaisveto on pienempi
     st.x = Math.max(-2.6, Math.min(2.8, st.x));
     st.skyOff += pseg.curve * sp * dt * 6;
 
@@ -980,6 +981,7 @@ const Drive = (() => {
     if (!cv) init();
     if (st.S !== S) { st.S = S; st.pos = 0; st.x = 0.5; st.hint = true; }
     st.active = true; st.paused = false; st.userPause = false;
+    st.steerIn = 0;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
     st.x = 0.5;
