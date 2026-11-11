@@ -108,8 +108,9 @@ export function makeProps(U) {
     P.plate = new THREE.PlaneGeometry(0.8, 0.8); }
 
   // --- nopeuskamera: harmaa pylväs ja kotelo, jossa tumma linssi-ikkuna ---
-  { const body = M({ color: 0x9aa0a4, metalness: 0.4, roughness: 0.5 }), lens = M({ color: 0x0a0c10, roughness: 0.1, metalness: 0.6 });
-    P.camFlash = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.2 });
+  { // linssi-ikkuna ja kotelo ovat mattapintaisia: peilimäinen pinta heijasti taivasta ja ajovaloja ja näytti välähtelevältä
+    const body = M({ color: 0x80868a, metalness: 0.1, roughness: 0.75 }), lens = M({ color: 0x07080a, roughness: 0.55, metalness: 0, envMapIntensity: 0.25 });
+    P.camFlash = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.7, envMapIntensity: 0.25 });
     P.kamera = group([{ geo: cyl(0.11, 0.13, 3.3, 10), mat: body }, { geo: box(0.5, 0.95, 0.42, 0, 3.75, 0), mat: body }, { geo: box(0.36, 0.5, 0.02, 0, 3.85, -0.215), mat: lens },
       { geo: box(0.2, 0.12, 0.02, 0, 3.45, -0.216), mat: P.camFlash }, { geo: box(0.54, 0.05, 0.46, 0, 4.24, 0), mat: body }]); }
 

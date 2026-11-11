@@ -55,7 +55,7 @@ export class Dyn {
       deer: std({ color: 0x7a5a38, roughness: 0.95 }), poro: std({ color: 0x8c7d6a, roughness: 0.95 }), pale: std({ color: 0xe6dfd0, roughness: 0.95 }), antler: std({ color: 0x5a4a36, roughness: 0.8 }),
       eye: new THREE.MeshBasicMaterial({ color: 0xffffaa, fog: false }),
       skin: std({ color: 0xe8b890 }), coat: std({ color: 0x2f6db5, roughness: 0.9 }), trousers: std({ color: 0x2a2a3a }), hat: std({ color: 0x3a2a1a }),
-      ice: new THREE.MeshPhysicalMaterial({ color: 0x1b2228, roughness: 0.03, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.78, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
+      ice: new THREE.MeshPhysicalMaterial({ color: 0x0a1016, roughness: 0.02, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 0.7, transparent: true, opacity: 0.5, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }),
       beacon: new THREE.MeshStandardMaterial({ color: 0xffd040, emissive: 0xffb020, emissiveIntensity: 2 }),
       lamp: new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff0c8, emissiveIntensity: 0 }),
       charger: std({ color: 0x2f6db5, roughness: 0.4 }), screen: new THREE.MeshStandardMaterial({ color: 0x0c2030, emissive: 0x7fdcff, emissiveIntensity: 1.2 }), off: std({ color: 0x55585c }),
@@ -64,10 +64,11 @@ export class Dyn {
     // kuoppa: tumma rosoreunainen reikä ja lätäkkö
     M.hole = new THREE.MeshStandardMaterial({ map: canvasTex(256, 128, (g, W, H) => {
       g.clearRect(0, 0, W, H); const r = rng(31);
-      for (let i = 0; i < 40; i++) { const v = 70 + r() * 40 | 0; g.fillStyle = `rgba(${v},${v},${v - 4},0.9)`; g.beginPath(); g.ellipse(W / 2 + (r() - 0.5) * 150, H / 2 + (r() - 0.5) * 60, 22 + r() * 30, 12 + r() * 18, r() * 3, 0, 7); g.fill(); }
-      for (let i = 0; i < 30; i++) { g.fillStyle = `rgba(${10 + r() * 14 | 0},${10 + r() * 12 | 0},${12 + r() * 12 | 0},1)`; g.beginPath(); g.ellipse(W / 2 + (r() - 0.5) * 110, H / 2 + (r() - 0.5) * 36, 18 + r() * 26, 9 + r() * 14, r() * 3, 0, 7); g.fill(); }
-      g.fillStyle = 'rgba(50,66,90,0.95)'; g.beginPath(); g.ellipse(W / 2 - 14, H / 2 + 4, 48, 14, 0.1, 0, 7); g.fill();
-    }, { clamp: true }), alphaTest: 0.3, roughness: 0.35, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+      // murtunut vaalea reuna erottuu tummasta tiestä ja ajovaloissa, keskellä musta reikä ja lätäkkö
+      for (let i = 0; i < 46; i++) { const v = 135 + r() * 55 | 0; g.fillStyle = `rgba(${v},${v},${v - 8},1)`; g.beginPath(); g.ellipse(W / 2 + (r() - 0.5) * 170, H / 2 + (r() - 0.5) * 70, 20 + r() * 26, 11 + r() * 16, r() * 3, 0, 7); g.fill(); }
+      for (let i = 0; i < 34; i++) { g.fillStyle = `rgba(${6 + r() * 10 | 0},${6 + r() * 10 | 0},${8 + r() * 10 | 0},1)`; g.beginPath(); g.ellipse(W / 2 + (r() - 0.5) * 120, H / 2 + (r() - 0.5) * 40, 18 + r() * 24, 9 + r() * 13, r() * 3, 0, 7); g.fill(); }
+      g.fillStyle = 'rgba(70,92,125,1)'; g.beginPath(); g.ellipse(W / 2 - 14, H / 2 + 4, 44, 12, 0.1, 0, 7); g.fill();
+    }, { clamp: true }), alphaTest: 0.3, roughness: 0.6, emissive: 0xffffff, emissiveIntensity: 0.05, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
     M.glow = new THREE.SpriteMaterial({ map: canvasTex(64, 64, (g, W) => { const gr = g.createRadialGradient(W / 2, W / 2, 0, W / 2, W / 2, W / 2); gr.addColorStop(0, 'rgba(255,255,240,1)'); gr.addColorStop(0.25, 'rgba(255,250,220,0.55)'); gr.addColorStop(1, 'rgba(255,240,200,0)'); g.fillStyle = gr; g.fillRect(0, 0, W, W); }, { clamp: true }), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
     M.glowR = M.glow.clone(); M.glowR.color.setRGB(1, 0.12, 0.08);
     this.geo = {};
@@ -148,11 +149,11 @@ export class Dyn {
         } else for (const sx of [-1, 1]) { const s = new THREE.Sprite(M.glowR); s.position.set(sx * car.S.W * 0.36, car.S.B.belt - 0.05, car.mid + 0.05); s.scale.setScalar(0.5); car.group.add(s); (o.glows = o.glows || []).push(s); }
         break; }
       case 'peura': case 'poro': { const a = this.animal(d.k === 'poro'); Object.assign(o, a); o.static = false; o.face = Math.random() < 0.5 ? 1 : -1; break; }
-      case 'kuoppa': { const g = new THREE.PlaneGeometry(2.3, 1.15); g.rotateX(-Math.PI / 2); g.rotateY(Math.PI / 2 * 0); o.group = new THREE.Mesh(g, M.hole); o.road = true; o.lift = 0.012; break; }
+      case 'kuoppa': { const g = new THREE.PlaneGeometry(2.6, 2.5); g.rotateX(-Math.PI / 2); g.rotateY(Math.PI / 2 * 0); o.group = new THREE.Mesh(g, M.hole); o.road = true; o.flat = true; o.lift = 0.03; break; }
       case 'kivi': { if (!this.geo.rock) { const g = new THREE.IcosahedronGeometry(1, 1), p = g.attributes.position; const h3 = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
           for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 0.75 + 0.45 * h3(Math.round(x * 40), Math.round(y * 40), Math.round(z * 40)); p.setXYZ(i, x * k, y * k, z * k); } g.computeVertexNormals(); this.geo.rock = g; }
         o.group = new THREE.Mesh(this.geo.rock, M.rock); o.group.scale.set(0.8, 0.5, 0.7); o.group.castShadow = true; o.road = true; o.lift = 0.12; o.yaw = Math.random() * 6; break; }
-      case 'jää': { const g = new THREE.CircleGeometry(1, 20); g.rotateX(-Math.PI / 2); o.group = new THREE.Mesh(g, M.ice); o.group.scale.set(d.w * HALF, 1, 3.6); o.road = true; o.lift = 0.008; break; }
+      case 'jää': { const g = new THREE.CircleGeometry(1, 20); g.rotateX(-Math.PI / 2); o.group = new THREE.Mesh(g, M.ice); o.group.scale.set(d.w * HALF, 1, 3.6); o.road = true; o.flat = true; o.lift = 0.035; break; }
       case 'kyltti': { // liittymäkyltti: tolpat ovat simulaation törmäyskohdissa (x ja x + 0.52)
         const w = 0.52 * HALF + 0.5, mat = signMat([{ t: d.t, s: d.s ? 0.34 : 0.44, y: d.s ? 0.36 : 0.5 }, { t: d.s || '', s: 0.2, y: 0.72 }], { bg: '#1447a8', border: '#fff' });
         const G = new THREE.Group(), b = this.board(w, 1.9, 1.9, mat, false); b.position.x = 0.26 * HALF; G.add(b); o.group = G; break; }
@@ -230,7 +231,9 @@ export class Dyn {
   settle(o) {
     const d = o.d, f = d.z / this.sim.SEG;
     // rakennukset seisovat tien tasossa pihan päällä, muut maan pinnalla
-    this.place(o.group, f, d.x, o.yaw || 0, o.lift || 0, !!o.road || !!o.padW);
+    const P = this.place(o.group, f, d.x, o.yaw || 0, o.lift || 0, !!o.road || !!o.padW);
+    // tien pinnalla makaavat läikät kallistetaan mäen ja tien kuperuuden mukaan, muuten ne jäävät asfaltin alle
+    if (o.flat) { o.group.rotation.order = 'YXZ'; o.group.rotation.x = Math.atan(P.slope); o.group.rotation.z = -Math.sign(d.x) * 0.02; }
     if (o.padW) o.group.position.y += 0.03;
     if (o.padMesh) o.padMesh.position.copy(o.padMesh.userData.abs).sub(this.origin);
   }
@@ -285,6 +288,7 @@ export class Dyn {
     // kyltit ja valot pimeällä
     const e = night > 0.3 ? 0.55 : 0;
     for (const m of this.signs) m.emissiveIntensity = e;
+    this.M.hole.emissiveMap = this.M.hole.map; this.M.hole.emissiveIntensity = 0.04 + night * 0.3; // kuopan vaalea reuna erottuu myös pimeällä
     this.M.lamp.emissiveIntensity = night > 0.3 ? 3 : 0; this.M.glassB.emissiveIntensity = night > 0.3 ? 0.9 : 0;
     void carPos; void carTh; void flash; void V;
   }
