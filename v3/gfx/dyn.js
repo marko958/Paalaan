@@ -228,6 +228,12 @@ export class Dyn {
     if (o.static || o.fixed) this.settle(o);
     return o;
   }
+  // Valojen hehku pienenee auton lähestyessä ja sammuu lähellä: iso läikkä kameran vieressä välähdytti koko ruudun.
+  glow(o, rel, night) {
+    if (!o.glows) return;
+    const on = o.d.k === 'vasta', k = Math.max(0, Math.min(1, (rel - 10) / 30));
+    for (const s of o.glows) { s.visible = k > 0.02 && (on || night > 0.3); s.scale.setScalar((on ? 0.45 + night * 0.75 : 0.35 + night * 0.25) * k); }
+  }
   settle(o) {
     const d = o.d, f = d.z / this.sim.SEG;
     // rakennukset seisovat tien tasossa pihan päällä, muut maan pinnalla
@@ -257,7 +263,7 @@ export class Dyn {
         const P = this.place(o.group, f, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true);
         o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1);
         o.car.update({ dt, speed: Math.abs(d.v) / SEG });
-        if (o.glows) for (const s of o.glows) s.visible = d.k === 'vasta' ? true : night > 0.3, s.scale.setScalar(d.k === 'vasta' ? 0.7 + night * 1.6 : 0.5 + night * 0.4);
+        this.glow(o, (d.z - pz) / SEG, night);
       } else if (o.legs) {
         // eläin: kävelee tien yli tai seisoo tiellä; silmät heijastavat ajovaloissa
         const moving = Math.abs(d.vx) > 0.01 && ((d.z - pz) / SEG < d.wake || d.k === 'poro');
@@ -281,7 +287,7 @@ export class Dyn {
     }
     for (let i = this.ghosts.length - 1; i >= 0; i--) {
       const o = this.ghosts[i], d = o.d; o.t += dt;
-      if (o.car) { d.z += d.v * dt; const P = this.place(o.group, d.z / SEG, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true); o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1); o.car.update({ dt, speed: Math.abs(d.v) / SEG }); }
+      if (o.car) { d.z += d.v * dt; const P = this.place(o.group, d.z / SEG, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true); o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1); o.car.update({ dt, speed: Math.abs(d.v) / SEG }); this.glow(o, (d.z - pz) / SEG, night); }
       const rel = (d.z - pz) / SEG;
       if (rel < -45 || rel > 400 || o.t > 12) { this.remove(o); this.ghosts.splice(i, 1); }
     }
