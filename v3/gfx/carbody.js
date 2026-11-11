@@ -99,12 +99,14 @@ export function shapeOf(type, o = {}) {
   const zSh = ang ? lin(shPts) : pchip(shPts);
   const zBot = pchip([[0, zr0], [Math.max(0.12, ra - B.R - 0.3), B.gc + 0.07], [ra - B.R * 0.6, B.gc], [fa + B.R * 0.6, B.gc], [Math.min(L - 0.1, fa + B.R + 0.28), B.gc + 0.035], [L, zf0]]);
   // leveys ylhäältä katsottuna: loiva kavennus päitä kohti ja ympyrän kaari kulmissa (kylki kiertyy päädyn puolelle)
-  const xR = B.bowT, xF = L - B.bowN, rcR = B.cornerR || (ang ? 0.03 : 0.17), rcF = B.cornerF || (ang ? 0.03 : 0.22);
+  const xR = B.bowT, xF = L - B.bowN, rcR = B.cornerR || (ang ? 0.03 : 0.24), rcF = B.cornerF || (ang ? 0.03 : 0.3);
   const plan0 = pchip([[xR, B.planR || 0.955], [xR + 0.45, 0.985], [ra, 1], [fa, 1], [xF - 0.5, 0.985], [xF, B.planF || 0.95]]);
   const plan = X => {
     let y = W / 2 * plan0(X);
     const dR = clamp(xR + rcR - X, 0, rcR), dF = clamp(X - (xF - rcF), 0, rcF);
-    y -= rcR - Math.sqrt(Math.max(0, rcR * rcR - dR * dR)) + rcF - Math.sqrt(Math.max(0, rcF * rcF - dF * dF));
+    // kaarevuus alkaa vähitellen, jotta kyljen ja kulman rajaan ei jää näkyvää taitetta
+    const sR = Math.pow(dR / rcR, 1.45), sF = Math.pow(dF / rcF, 1.45);
+    y -= rcR * (1 - Math.sqrt(Math.max(0, 1 - sR * sR))) + rcF * (1 - Math.sqrt(Math.max(0, 1 - sF * sF)));
     return y / (W / 2);
   };
   const bowW = B.bowW !== undefined ? B.bowW : 0.15, bowG = B.bowG !== undefined ? B.bowG : 0.13;
@@ -127,6 +129,7 @@ export function shapeOf(type, o = {}) {
   S.ledge = B.ledge !== undefined ? B.ledge : 0.014; S.sideUp = B.sideUp !== undefined ? B.sideUp : (ang ? 0 : 0.03); S.sideLow = B.sideLow !== undefined ? B.sideLow : (ang ? 0.01 : 0.04);
   // kyljen X asemalla u: keula ja perä pyöristyvät ylhäältä katsottuna, koska reunat jäävät keskilinjasta jälkeen
   S.flare = B.flare !== undefined ? B.flare : (B.clad ? 0.03 : 0.018); S.haunch = B.haunch !== undefined ? B.haunch : (ang ? 0 : 0.013);
+  S.kink = B.kink !== undefined ? B.kink : (ang ? 0 : 0.016); S.sill = B.sillIn !== undefined ? B.sillIn : (ang ? 0 : 0.012);
   S.xSide = u => u - bow(u);
   S.uOfX = X => { let lo = 0, hi = L; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (m - bow(m) < X) lo = m; else hi = m; } return (lo + hi) / 2; };
   S.fy = yn => { const a = yn * yn; return 0.45 * a + 0.55 * a * a * a; }; // päädyn muoto ylhäältä: keskeltä loiva, kulmista pyöreä
@@ -135,13 +138,13 @@ export function shapeOf(type, o = {}) {
 
 // Poikkileikkauksen pisteiden määrät: A pohjan huuli, Bk helman pyöristys, C kylki, D olkapään pyöristys, E ikkunat, F katto (puolikas)
 export const DETAIL = [
-  { A: 2, Bk: 3, C: 9, D: 3, E: 6, F: 13, dens: 1 },      // pelaajan auto
+  { A: 2, Bk: 3, C: 11, D: 3, E: 7, F: 15, dens: 1.15 },      // pelaajan auto
   { A: 1, Bk: 2, C: 4, D: 2, E: 3, F: 6, dens: 0.42 },    // muu liikenne ja matala laatutaso
 ];
 
 // kyljen muoto korkeuden mukaan: helman sisäänveto, oven kovera kohta, olkalinjan pullistus ja yläreunan kallistus
 function sideY(S, yM, t) {
-  return yM - S.sideLow * Math.pow(1 - t, 2.2) - S.sideUp * t * t * t + S.haunch * Math.exp(-Math.pow((t - 0.74) / 0.11, 2)) - S.haunch * 0.6 * Math.exp(-Math.pow((t - 0.36) / 0.2, 2));
+  return yM - S.sideLow * Math.pow(1 - t, 2.2) - S.sideUp * t * t * t - S.kink * Math.max(0, t - 0.8) * 5 - S.sill * Math.max(0, 0.1 - t) * 10 + S.haunch * Math.exp(-Math.pow((t - 0.74) / 0.11, 2)) - S.haunch * 0.6 * Math.exp(-Math.pow((t - 0.36) / 0.2, 2));
 }
 // Rengas asemalla u. Palauttaa puolikkaan pisteet järjestyksessä pohjasta kattoon: [X, y, z, osa, t] …
 function ring(S, u, D, out) {
@@ -260,7 +263,7 @@ export function buildBody(S, opt = {}) {
         const pil = Math.abs(Xm - pillarB) < pw || (pillarC !== null && Math.abs(Xm - pillarC) < pw);
         if (inSide && row === 0) m = 2;
         else if (inSide && row < last && !pil) m = 1;
-        else if (inSide && row < last && pil) m = opt.blackPillars ? 2 : 0;
+        else if (inSide && row < last && pil) m = opt.bodyPillars ? 0 : 2; // B- ja C-pilari kiiltävän mustat
         else if (inSide && row === last) m = opt.roof ? 3 : 0;
         else m = (Xm <= sideR && opt.roof && gh > 0.1 && opt.floating) ? 3 : 0;
       } else if (p === 5 || p0 === 5) { // katto ja lasit
@@ -300,7 +303,7 @@ export function buildBody(S, opt = {}) {
 // ---------- pinnan arviointi osien sijoittelua varten ----------
 // Palauttaa pisteen auton kehyksessä (x oikealle, y ylös, −z eteen) ja pinnan normaalin.
 export function surface(S) {
-  const D = { A: 2, Bk: 3, C: 9, D: 3, E: 6, F: 13 };
+  const D = { A: 2, Bk: 3, C: 11, D: 3, E: 7, F: 15 };
   const buf = new Float32Array(64 * 5), mid = (S.ra + S.fa) / 2;
   const conv = (X, y, z, v) => v.set(y, z, mid - X);
   const sec = u => ring(S, u, D, buf);

@@ -202,3 +202,11 @@ export function blobShadow() {
   return canvasTex(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); const gr = g.createRadialGradient(W / 2, H / 2, 4, W / 2, H / 2, W * 0.5); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
     g.save(); g.translate(W / 2, H / 2); g.scale(1, H / W); g.translate(-W / 2, -H / 2); g.fillStyle = gr; g.fillRect(0, -H, W, H * 3); g.restore(); }, { clamp: true });
 }
+
+// metallimaalin hohto: hienojakoinen kohina normaalikarttana
+export function flakeTex() {
+  const t = canvasTex(128, 128, (g, W, H) => { const im = g.createImageData(W, H); let s = 11; const r = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    for (let i = 0; i < W * H; i++) { im.data[i * 4] = 128 + (r() - 0.5) * 90; im.data[i * 4 + 1] = 128 + (r() - 0.5) * 90; im.data[i * 4 + 2] = 255; im.data[i * 4 + 3] = 255; } g.putImageData(im, 0, 0); }, { data: true });
+  t.repeat.set(26, 26);
+  return t;
+}

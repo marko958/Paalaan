@@ -3,7 +3,7 @@
 // logoja tai merkkien tunnuksia ei ole.
 import * as THREE from 'three';
 import { shapeOf, buildBody, surface, BODY } from './carbody.js';
-import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow } from './carparts.js';
+import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow, flakeTex } from './carparts.js';
 
 // Mallikohtaiset mittasuhteet (metreinä) ja piirteet. Avaimet ovat samat kuin korityypin mitat (carbody.js).
 // front = etuvalojen signatuuri, rim = vanne, doors = ovien määrä.
@@ -73,7 +73,7 @@ const tweakOf = name => { if (!name) return {}; let best = ''; for (const k in T
 // ---------- materiaalit ----------
 export const CU = { dirt: { value: 0 }, wet: { value: 0 }, dirtCol: { value: new THREE.Color(0.42, 0.4, 0.37) } }; // yhteiset: talven lika ja suola, sateen kiilto
 const paintCache = new Map();
-let drops = null;
+let drops = null, flakes = null;
 // Autonmaali: pohjaväri, metallihohto ja kirkaslakka. Lika ja suola sekoitetaan helmoihin kärkiattribuutista.
 export function paintMat(hex, kind = 'metal') {
   const key = hex + kind;
@@ -83,7 +83,8 @@ export function paintMat(hex, kind = 'metal') {
   const m = kind === 'steel'
     ? new THREE.MeshPhysicalMaterial({ color: 0xa9adb1, metalness: 1, roughness: 0.34, clearcoat: 0 })
     : new THREE.MeshPhysicalMaterial({ color: c, metalness: solid ? 0.05 : 0.5, roughness: solid ? 0.36 : 0.34, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.0 });
-  if (!drops) drops = dropsTex();
+  if (!drops) { drops = dropsTex(); flakes = flakeTex(); }
+  if (!solid && kind !== 'steel') { m.normalMap = flakes; m.normalScale = new THREE.Vector2(0.22, 0.22); }
   m.clearcoatNormalMap = drops; m.clearcoatNormalScale = new THREE.Vector2(0, 0);
   m.userData.dropScale = m.clearcoatNormalScale;
   m.onBeforeCompile = sh => {
@@ -105,6 +106,10 @@ export function setCarWeather(dirt, col, wet) {
 const std = o => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.6, metalness: 0 }, o));
 const M = {
   glass: new THREE.MeshPhysicalMaterial({ color: 0x0a0e11, metalness: 0, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.25 }),
+  glassT: new THREE.MeshPhysicalMaterial({ color: 0x1c2a30, metalness: 0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.5, transparent: true, opacity: 0.58, depthWrite: false }),
+  inner: new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.95, side: THREE.BackSide }), hidden: new THREE.MeshBasicMaterial({ visible: false }),
+  dash: std({ color: 0x121315, roughness: 0.8 }), seatL: std({ color: 0x7d6c58, roughness: 0.85 }), wiper: std({ color: 0x050505, roughness: 0.5 }),
+  stop: null,
   black: std({ color: 0x08090a, roughness: 0.35, metalness: 0.2 }),
   plastic: std({ color: 0x17181a, roughness: 0.82 }),
   under: std({ color: 0x060606, roughness: 1 }),
@@ -176,8 +181,11 @@ export function buildCar(spec, opt = {}) {
   const paint = paintMat(spec.c || '#888888', tk.steel ? 'steel' : tk.solid ? 'solid' : 'metal');
   const roofM = spec.r ? paintMat(spec.r, 'solid') : paint;
   const lowM = has('twotone') ? paintMat(spec.r || '#222222') : M.plastic;
-  const glassM = M.glass;
+  // pelaajan autossa lasit ovat läpikuultavat ja sisällä on sisusta; liikenteessä ja bussissa tumma läpinäkymätön lasi
+  const clear = hero && opt.detail !== false && type !== 'bus';
+  const glassM = clear ? M.glassT : M.glass;
   const mesh = new THREE.Mesh(body.geometry, [paint, glassM, M.black, roofM, lowM]);
+  if (clear) { const inner = new THREE.Mesh(body.geometry, [M.inner, M.hidden, M.inner, M.inner, M.inner]); bodyG.add(inner); bodyG.add(interior(S, body, type, has('chrome') ? M.seatL : M.seat, tk)); }
   mesh.castShadow = true; mesh.receiveShadow = hero;
   bodyG.add(mesh);
   const add = (geo, mat, shadow) => { const m = new THREE.Mesh(geo, mat); if (shadow) m.castShadow = true; bodyG.add(m); return m; };
@@ -185,7 +193,7 @@ export function buildCar(spec, opt = {}) {
 
   // pohja ja pyöränkotelot: musta kaukalo, joka peittää näkymän auton läpi
   { const parts = [], fl = new THREE.BoxGeometry(S.W * 0.8, 0.2, Math.min(S.fa - S.ra + 0.7, S.L - 0.8)); fl.translate(0, B.gc + 0.12, 0); parts.push(fl);
-    for (const ax of [S.ra, S.fa]) { const l0 = Math.max(S.xR + 0.14, ax - S.Ra - 0.03), l1 = Math.min(S.xF - 0.2, ax + S.Ra + 0.03), wl = new THREE.BoxGeometry(S.W * 0.8, S.za + S.Ra - B.gc - 0.04, l1 - l0); wl.translate(0, B.gc + (S.za + S.Ra - B.gc - 0.04) / 2 + 0.01, mid - (l0 + l1) / 2); parts.push(wl); }
+    for (const ax of [S.ra, S.fa]) { const l0 = Math.max(S.xR + 0.14, ax - S.Ra - 0.03), l1 = Math.min(S.xF - 0.2, ax + S.Ra + 0.03), wl = new THREE.BoxGeometry(S.W * 0.8, S.za + S.Ra - B.gc - 0.16, l1 - l0); wl.translate(0, B.gc + 0.13 + (S.za + S.Ra - B.gc - 0.16) / 2, mid - (l0 + l1) / 2); parts.push(wl); }
     add(mergeGeos(parts), M.under); }
 
   // --- takavalot: yksi leveä pinta perässä, kuvio mallin valosignatuurin mukaan ---
@@ -195,9 +203,9 @@ export function buildCar(spec, opt = {}) {
   const rear = lampMat('rear', tl, hero);
   add(patch((a, b, o) => sf.fasciaN(false, -0.985 + 1.97 * a, zl0 + (zl1 - zl0) * b, o), hero ? 36 : 12, hero ? 8 : 3, 0.004, false), rear);
   if (tl !== 'round' && tl !== 'low') { // takavalo jatkuu kulman yli kylkeen
-    const cm = M.corner || (M.corner = new THREE.MeshStandardMaterial({ color: 0x5a0a0c, emissive: 0xff2a1c, emissiveIntensity: 0.7, roughness: 0.15, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    const cg = [], zc0 = tl === 'bar' || tl === 'pixel' ? zl0 + (zl1 - zl0) * 0.25 : zl0 + (zl1 - zl0) * 0.14, zc1 = tl === 'bar' ? zl0 + (zl1 - zl0) * 0.8 : zl1 - (zl1 - zl0) * 0.12, len = S.rcR + (tl === 'vertical' ? 0.03 : 0.12);
-    for (const side of [-1, 1]) cg.push(patch((a, b, o) => sf.sideAtZ(S.xR + 0.012 + len * a, zc0 + (zc1 - zc0) * b * (tl === 'vertical' ? 1 : 1 - 0.35 * a), side, o), 8, 3, 0.004, side < 0));
+    const cm = M.corner || (M.corner = new THREE.MeshStandardMaterial({ color: 0x5a0a0c, emissive: 0xff2a1c, emissiveIntensity: 0.4, roughness: 0.2, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    const cg = [], zc0 = tl === 'bar' || tl === 'pixel' ? zl0 + (zl1 - zl0) * 0.25 : zl0 + (zl1 - zl0) * 0.14, zc1 = tl === 'bar' ? zl0 + (zl1 - zl0) * 0.8 : zl1 - (zl1 - zl0) * 0.12, len = S.rcR * (tl === 'vertical' ? 0.8 : 1.05);
+    for (const side of [-1, 1]) cg.push(patch((a, b, o) => sf.sideAtZ(S.xR + 0.012 + len * a, zc0 + (zc1 - zc0) * (tl === 'vertical' ? b : 0.25 * a + b * (1 - 0.5 * a)), side, o), 8, 3, 0.004, side < 0));
     add(mergeGeos(cg), cm); g.userData.cornerM = cm;
   }
   // --- etuvalot ---
@@ -206,8 +214,8 @@ export function buildCar(spec, opt = {}) {
   const front = lampMat('front', fl, hero);
   add(patch((a, b, o) => sf.fasciaN(true, -0.985 + 1.97 * a, zh0 + (zh1 - zh0) * b, o), hero ? 36 : 12, hero ? 8 : 3, 0.004, true), front);
   if (fl !== 'round') { // etuvalon lasi jatkuu kulman yli lokasuojaan
-    const hm = M.hcorner || (M.hcorner = new THREE.MeshStandardMaterial({ color: 0x12161b, emissive: 0xdfe8ff, emissiveIntensity: 0.25, roughness: 0.1, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    const cg = [], len = S.rcF + 0.14, z0 = zh0 + (zh1 - zh0) * 0.3, z1 = zh1 - (zh1 - zh0) * 0.1;
+    const hm = M.hcorner || (M.hcorner = new THREE.MeshStandardMaterial({ color: 0x12161b, emissive: 0xdfe8ff, emissiveIntensity: 0.06, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    const cg = [], len = S.rcF * 0.85, z0 = zh0 + (zh1 - zh0) * 0.42, z1 = zh1 - (zh1 - zh0) * 0.12;
     for (const side of [-1, 1]) cg.push(patch((a, b, o) => sf.sideAtZ(S.xF - 0.012 - len * a, z0 + (z1 - z0) * (b * (1 - 0.5 * a) + 0.5 * a), side, o), 8, 3, 0.004, side > 0));
     add(mergeGeos(cg), hm);
   }
@@ -223,8 +231,8 @@ export function buildCar(spec, opt = {}) {
   const gz0 = S.zf0 + 0.035, lowH = ev ? 0.07 : 0.12;
   add(patch((a, b, o) => sf.fasciaN(true, -0.62 + 1.24 * a, gz0 + lowH * b, o), 12, 2, 0.003, true), grilleMat('low', { roughness: 0.5 }));
   if (!ev) {
-    const up = tk.upright ? 0.34 : 0.15, gy = tk.upright ? 0.3 : 0.44;
-    add(patch((a, b, o) => sf.fasciaN(true, -gy + 2 * gy * a, zh0 - up - 0.01 + up * b + (tk.upright ? 0.12 : 0), o), 12, 3, 0.003, true), grilleMat(has('chrome') || tk.upright ? 'chrome' : 'mesh', { roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }));
+    const up = tk.upright ? 0.36 : (zh1 - zh0) * 0.82, gy = tk.upright ? 0.3 : 0.47;
+    add(patch((a, b, o) => sf.fasciaN(true, -gy + 2 * gy * a, (tk.upright ? zh1 - 0.34 : zh0 + 0.01) + up * b, o), 12, 3, 0.003, true), grilleMat(has('chrome') || tk.upright ? 'chrome' : 'mesh', { roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }));
   } else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), grilleMat('chrome', { roughness: 0.2, metalness: 0.8 }));
   // --- perän alaosa: musta helma, diffuusori ja pakoputket ---
   add(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, S.zr0 + 0.015 + 0.1 * b, o), 12, 2, 0.003, false), grilleMat(has('diff') ? 'diff' : 'valance', { roughness: 0.7 }));
@@ -247,10 +255,32 @@ export function buildCar(spec, opt = {}) {
     // konepellin etureuna ja takaluukun sauma
     seams.push(patch((a, b, o) => sf.fasciaN(true, -0.86 + 1.72 * a, B.nose - 0.012 + 0.006 * b, o), 20, 1, 0.0012, true));
     if (deck) seams.push(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, zl0 - 0.02 + 0.006 * b, o), 20, 1, 0.0012, false));
+    // konepellin sivusaumat ja takakannen saumat
+    for (const sd of [-1, 1]) {
+      seams.push(patch((a, b, o) => sf.top(S.uCowl + 0.05 + (S.L - S.noseLen - 0.06 - S.uCowl - 0.05) * a, sd * (0.9 + 0.012 * b), o), 14, 1, 0.0012, sd < 0));
+      if (deck && S.uD - S.tf > 0.25) seams.push(patch((a, b, o) => sf.top(S.tf + 0.06 + (S.uD - S.tf - 0.04) * a, sd * (0.86 + 0.012 * b), o), 8, 1, 0.0012, sd < 0));
+    }
+    if (deck && S.uD - S.tf > 0.25) seams.push(patch((a, b, o) => sf.top(S.uD + 0.02 + 0.008 * b, -0.87 + 1.74 * a, o), 16, 1, 0.0012, false));
     // tuulilasin alareunan musta paneeli (pyyhkijöiden kotelo)
     seams.push(patch((a, b, o) => sf.top(S.uCowl - 0.01 + 0.07 * b, -0.94 + 1.88 * a, o), 18, 1, 0.002, false));
     add(mergeGeos(seams), M.seam);
 
+    // --- pyyhkijät, lisäjarruvalo, takaheijastimet, takapyyhkijä ---
+    { const wp = [];
+      for (const [y0, y1] of [[-0.78, -0.12], [-0.08, 0.6]]) wp.push(patch((a, b, o) => { sf.top(S.uCowl - 0.05 - 0.035 * a - 0.02 * b, y0 + (y1 - y0) * a, o); }, 8, 1, 0.012, false));
+      if (!deck) wp.push(patch((a, b, o) => { sf.top(body.glassBounds.rgR + 0.03 + 0.012 * b + 0.01 * a, -0.05 + 0.5 * a, o); }, 6, 1, 0.012, false));
+      add(mergeGeos(wp), M.wiper);
+      const stopM = new THREE.MeshStandardMaterial({ color: 0x4a0606, emissive: 0xff1a10, emissiveIntensity: 0.25, roughness: 0.2, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+      const us = deck ? body.glassBounds.rgF - 0.035 : S.uR + 0.03;
+      add(patch((a, b, o) => sf.top(us + 0.022 * b, -0.2 + 0.4 * a, o), 6, 1, 0.004, false), stopM); g.userData.stopM = stopM;
+      const rf = [];
+      for (const sd of [-1, 1]) rf.push(patch((a, b, o) => sf.fasciaN(false, sd * (0.6 + 0.26 * a), S.zr0 + 0.15 + 0.03 * b, o), 4, 1, 0.004, sd < 0));
+      add(mergeGeos(rf), M.refl || (M.refl = new THREE.MeshStandardMaterial({ color: 0x8a0f0f, emissive: 0xff2010, emissiveIntensity: 0.15, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })));
+      // etupuskurin sivuilmanotot
+      const iv = [];
+      for (const sd of [-1, 1]) iv.push(patch((a, b, o) => sf.fasciaN(true, sd * (0.66 + 0.24 * a), S.zf0 + 0.06 + (0.12 - 0.05 * a) * b, o), 4, 2, 0.003, sd > 0));
+      add(mergeGeos(iv), M.plastic);
+    }
     // --- ovenkahvat: uppokahvat tai vetokahvat ---
     const hz = B.belt - 0.085, hx = [gb.pillarB + 0.06];
     if (doors === 4 && type !== 'truck') hx.push(S.ra + S.Ra + 0.13);
@@ -275,7 +305,8 @@ export function buildCar(spec, opt = {}) {
     const lips = [];
     for (const side of [-1, 1]) for (const ax of [S.ra, S.fa]) {
       const pts = [];
-      for (let k = 0; k <= 18; k++) { const an = -0.5 + (Math.PI + 1.0) * k / 18, zz = S.za + Math.sin(an) * (S.Ra + 0.004); sf.sideAtZ(ax + Math.cos(an) * (S.Ra + 0.004), Math.max(B.gc + 0.02, zz), side, V); pts.push(new THREE.Vector3(V.x + side * 0.004, Math.max(B.gc + 0.02, zz), V.z)); }
+      for (let k = 0; k <= 18; k++) { const an = -0.5 + (Math.PI + 1.0) * k / 18, zz = S.za + Math.sin(an) * (S.Ra + 0.004), X = ax + Math.cos(an) * (S.Ra + 0.004); if (zz < S.zBot(X) + 0.03 || X < S.xR + 0.05 || X > S.xF - 0.05) continue; sf.sideAtZ(X, zz, side, V); pts.push(new THREE.Vector3(V.x + side * 0.004, zz, V.z)); }
+      if (pts.length < 4) continue;
       lips.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 26, B.clad && bOpt.clad !== false ? 0.022 : 0.012, 5));
     }
     add(mergeGeos(lips), (bOpt.clad !== undefined ? bOpt.clad : B.clad) ? M.plastic : paint);
@@ -357,13 +388,39 @@ export function buildCar(spec, opt = {}) {
     state.heave = Math.sin(state.t * 11.3) * 0.004 * rough + Math.sin(state.t * 7.1 + 1) * 0.004 * rough;
     bodyG.rotation.x = state.pitch + Math.sin(state.t * 9.1) * 0.002 * rough; bodyG.rotation.z = -state.roll; bodyG.position.y = state.heave - Math.abs(state.pitch) * 0.4;
     // valot: ajovalot palavat aina (Suomen laki), jarruvalo kirkastaa takavalot
-    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; }
+    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; }
     if (g.userData.flap) { state.flap += ((u.charge ? 1 : 0) - state.flap) * Math.min(1, dt * 3); g.userData.flap.rotation.y = -state.flap * 1.9; g.userData.led.emissiveIntensity = state.flap * (0.6 + 0.4 * Math.sin(state.t * 4)) * 3; }
     if (trailer) trailer.update(u, state);
   }
   return { group: g, S, sf, body, bodyG, wheels, update, rear, front, ev, tailZ: mid, mid, trailer, exhaust: ev ? null : new THREE.Vector3(-W2 * 0.55, S.zr0 + 0.04, mid + 0.02) };
 }
 
+// sisusta: lattia, kojelauta, ratti, etuistuimet niskatukineen ja takapenkki; näkyy lasien läpi
+function interior(S, body, type, seatM, tk) {
+  const G = new THREE.Group(), B = S.B, mid = body.mid, gb = body.glassBounds, zOf = X => mid - X;
+  const fl = B.gc + 0.26, bw = S.W - 0.34, dark = [], seats = [], top = S.H - 0.16;
+  const bx = (w, h, d, x, y, z, rx = 0) => { const g = rbox(w, h, d); if (rx) g.rotateX(rx); g.translate(x, y, z); return g; };
+  dark.push(bx(bw, 0.04, S.uCowl - S.ra + 0.3, 0, fl, zOf((S.uCowl + S.ra) / 2 - 0.15)));                 // lattia
+  dark.push(bx(bw, 0.34, 0.42, 0, B.belt - 0.14, zOf(S.uCowl - 0.3)));                                         // kojelauta
+  dark.push(bx(0.26, 0.3, S.uCowl - 0.6 - gb.pillarB, 0, fl + 0.15, zOf((S.uCowl - 0.6 + gb.pillarB) / 2))); // keskikonsoli
+  { const wh = new THREE.TorusGeometry(0.175, 0.018, 8, 22); wh.rotateX(-0.42); wh.translate(-0.36, B.belt - 0.03, zOf(S.uCowl - 0.62)); dark.push(wh);
+    const col = bx(0.05, 0.05, 0.3, -0.36, B.belt - 0.08, zOf(S.uCowl - 0.5), -0.42); dark.push(col); }
+  const seat = (x, X, w) => {
+    seats.push(bx(w, 0.13, 0.5, x, fl + 0.2, zOf(X + 0.27)));                                                  // istuinosa
+    seats.push(bx(w, 0.56, 0.12, x, fl + 0.5, zOf(X - 0.03), 0.28));                                           // selkänoja
+    seats.push(bx(w * 0.5, 0.17, 0.09, x, Math.min(top - 0.1, fl + 0.88), zOf(X - 0.12), 0.2));                // niskatuki
+  };
+  const Xf = gb.pillarB + 0.1;
+  seat(-0.37, Xf, 0.5); seat(0.37, Xf, 0.5);
+  const rear = type !== 'truck' && !(type === 'van' && !tk.windows) && S.ra + 0.42 < Xf - 0.55;
+  if (rear) { const Xr = Math.max(S.ra + 0.3, gb.sideR + 0.25);
+    seats.push(bx(bw - 0.1, 0.13, 0.5, 0, fl + 0.2, zOf(Xr + 0.27)), bx(bw - 0.1, 0.52, 0.12, 0, fl + 0.48, zOf(Xr - 0.03), 0.3));
+    for (const x of [-0.42, 0.42]) seats.push(bx(0.25, 0.15, 0.09, x, Math.min(top - 0.14, fl + 0.84), zOf(Xr - 0.13), 0.2));
+    if (S.B.tail === 'deck') dark.push(bx(bw - 0.1, 0.03, 0.4, 0, B.belt - 0.02, zOf(Xr - 0.4)));              // hattuhylly
+  }
+  G.add(new THREE.Mesh(mergeGeos(dark), M.dash), new THREE.Mesh(mergeGeos(seats), seatM));
+  return G;
+}
 // kattoboksi: pitkulainen pyöristetty kotelo kahdella poikkitangolla
 function roofBox(S, sf) {
   const G = new THREE.Group(), pts = [];
