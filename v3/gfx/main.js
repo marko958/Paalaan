@@ -270,7 +270,7 @@ function frame(dt) {
     const lat = seg0.curve * 0.0014 * speed * speed * 0.6 + car.vlat * 1.2;
     car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: st.steerIn || 0, lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
   dyn.update(dt, st.pos + sim.PZ, car.pos, P.th, env.nightWant || 0, st.flash);
-  PR.camFlash.emissiveIntensity = st.flash > 0.2 ? st.flash * 10 : 0;
+  PR.camFlash.emissiveIntensity = st.flash > 0.55 ? st.flash * 10 : 0; // vain kameran salama (0.8), ei törmäyksen välähdys (0.5)
   if (lamps.spot) lamps.spot.intensity = (env.nightWant || 0) > 0.3 ? 420 * (env.nightWant > 0.6 ? 1 : 0.6) : 0;
 
   // kamera: takaa ja yläviistosta, pehmeä seuranta, pieni kallistus mutkassa, tärähdys törmäyksessä
