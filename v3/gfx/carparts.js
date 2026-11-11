@@ -143,7 +143,7 @@ export function lampTex(kind, type) {
         case 'tri': L(0.02, 0.1, 0.4, 0.8, 5); g.strokeStyle = lit; g.lineWidth = 7; for (let i = 0; i < 3; i++) { g.beginPath(); g.moveTo(16 + i * 30, 80); g.lineTo(34 + i * 30, 18); g.stroke(); } break;
         case 'split': S(0.02, 0.06, 0.4, 0.1, 3); L(0.06, 0.42, 0.3, 0.5, 6); g.fillStyle = '#cfd8e6'; g.beginPath(); g.arc(58, 64, 14, 0, 7); g.fill(); break;
         case 'quad': L(0.02, 0.14, 0.42, 0.72, 8); for (let i = 0; i < 2; i++) { g.strokeStyle = lit; g.lineWidth = 7; g.beginPath(); g.arc(34 + i * 48, H / 2, 17, Math.PI * 0.75, Math.PI * 2.25); g.stroke(); } break;
-        default: L(0.02, 0.22, 0.46, 0.56, 8); S(0.04, 0.28, 0.4, 0.1, 3); g.fillStyle = '#cfd8e6'; g.beginPath(); g.arc(40, 60, 12, 0, 7); g.fill(); g.beginPath(); g.arc(76, 60, 10, 0, 7); g.fill();
+        default: L(0.02, 0.12, 0.47, 0.76, 10); S(0.04, 0.2, 0.42, 0.11, 3); g.fillStyle = '#cfd8e6'; g.beginPath(); g.arc(42, 62, 15, 0, 7); g.fill(); g.beginPath(); g.arc(82, 62, 13, 0, 7); g.fill(); g.strokeStyle = '#3a4048'; g.lineWidth = 3; g.beginPath(); g.arc(42, 62, 19, 0, 7); g.stroke(); g.beginPath(); g.arc(82, 62, 17, 0, 7); g.stroke();
       }
     };
     half();
