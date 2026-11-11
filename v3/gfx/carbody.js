@@ -39,7 +39,7 @@ export const BODY = {
   prius:    { L: 4.50, W: 1.76, H: 1.48, wb: 2.70, fo: 0.92, gc: 0.15, R: 0.31, nose: 0.66, cowl: 0.10, hCowl: 0.98, ws: 1.02, belt: 0.91, roofR: -0.95, tail: 'deck', deck: 0.10, hDeck: 1.17, rake: 1.30, tumble: 0.29, bowN: 0.26, bowT: 0.17, kamm: 1 },
   hatch:    { L: 4.30, W: 1.80, H: 1.47, wb: 2.64, fo: 0.88, gc: 0.155, R: 0.32, nose: 0.72, cowl: 0.36, hCowl: 1.00, ws: 0.78, belt: 0.9, roofR: 0.32, tail: 'gate', gate: 0.44, gateDrop: 0.05, tumble: 0.29, bowN: 0.22, bowT: 0.16 }, // moderni viistoperä: kalteva takalasi, katto laskee taaksepäin
   wagon:    { L: 4.82, W: 1.85, H: 1.48, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.71, cowl: 0.40, hCowl: 1.00, ws: 0.80, belt: 0.9, roofR: 0.72, tail: 'gate', gate: 0.26, tumble: 0.27, bowN: 0.20, bowT: 0.13 },
-  suv:      { L: 4.62, W: 1.88, H: 1.66, wb: 2.75, fo: 0.90, gc: 0.215, R: 0.365, nose: 0.90, cowl: 0.38, hCowl: 1.17, ws: 0.72, belt: 1.04, roofR: 0.45, tail: 'gate', gate: 0.3, tumble: 0.23, bowN: 0.18, bowT: 0.13, clad: 1 },
+  suv:      { L: 4.62, W: 1.88, H: 1.66, wb: 2.75, fo: 0.90, gc: 0.215, R: 0.365, nose: 0.90, cowl: 0.38, hCowl: 1.17, ws: 0.72, belt: 1.04, roofR: 0.45, tail: 'gate', gate: 0.4, gateDrop: 0.06, tumble: 0.23, bowN: 0.18, bowT: 0.13, clad: 1 },
   suvc:     { L: 4.72, W: 1.92, H: 1.60, wb: 2.90, fo: 0.87, gc: 0.19, R: 0.37, nose: 0.86, cowl: 0.30, hCowl: 1.13, ws: 0.86, belt: 1.02, roofR: -0.55, tail: 'deck', deck: 0.12, hDeck: 1.20, rake: 1.02, tumble: 0.27, bowN: 0.22, bowT: 0.15, clad: 1, kamm: 1 },
   coupe:    { L: 4.97, W: 1.96, H: 1.38, wb: 2.92, fo: 0.95, gc: 0.13, R: 0.35, nose: 0.62, cowl: 0.42, hCowl: 0.92, ws: 0.90, belt: 0.86, roofR: -0.70, tail: 'deck', deck: 0.34, hDeck: 0.97, rake: 1.25, tumble: 0.35, bowN: 0.28, bowT: 0.23 },
   mini:     { L: 3.62, W: 1.63, H: 1.51, wb: 2.36, fo: 0.68, gc: 0.15, R: 0.285, nose: 0.76, cowl: 0.22, hCowl: 1.02, ws: 0.62, belt: 0.95, roofR: 0.30, tail: 'gate', gate: 0.24, tumble: 0.26, bowN: 0.22, bowT: 0.14 },
@@ -79,7 +79,8 @@ export function shapeOf(type, o = {}) {
     gateZ = zg;
     const zb1 = Math.min(zg - 0.3, zr0 + 0.29);
     top.push([0, zr0], [tf * 0.06, zr0 + 0.1], [tf * 0.2, zb1], [tf * 0.46, zb1 + 0.05], [tf * 0.8, zg - 0.12], [tf, zg]);
-    top.push([tf + g * 0.5, zg + (H - zg) * 0.56], [tf + g, H - 0.07 - (B.gateDrop || 0)], [tf + g + 0.16, H - 0.028]);
+    const dr = B.gateDrop || 0; // katto laskee huipulta tasaisesti luukulle (ei kyhmyä takalasin yläpäähän)
+    top.push([tf + g * 0.5, zg + (H - dr - zg) * 0.56], [tf + g, H - 0.07 - dr], [tf + g + 0.16, H - 0.028 - dr * 0.7]);
     uD = tf; hD = zg; B._uR = tf + g + 0.03;
   }
   const uRoofR = B._uR;
@@ -219,7 +220,7 @@ export function buildBody(S, opt = {}) {
   // ja kolmioikkunan välissä on C-pilari. Aiemmin lasi loppui katon takareunaan, jolloin ikkuna jäi lyhyeksi.
   const dlo = B.dlo !== undefined ? B.dlo : ({ sedan: 0.62, fastback: 0.42, coupe: 0.45, prius: 0.4, suvc: 0.5 })[S.B._type] ?? 0.6;
   // viistoperissä sivulasi jatkuu kaltevan takalasin suuntaisesti taaksepäin (kolmioikkuna C-pilarin takana)
-  const gateDlo = B.tail === 'gate' && (S.B._type === 'hatch' || S.B._type === 'mini') && B.gate > 0.3;
+  const gateDlo = B.tail === 'gate' && (S.B._type === 'hatch' || S.B._type === 'mini' || S.B._type === 'suv') && B.gate > 0.3;
   const sideR = glass.sideR !== undefined ? glass.sideR : (B.tail === 'deck' ? S.uD + (S.uR - S.uD) * dlo : gateDlo ? Math.min(S.uR + 0.14, S.tf + B.gate * 0.5) : S.uR + 0.14);
   const pillarC = glass.pillarC !== undefined ? glass.pillarC : (B.tail === 'gate' && S.uR < S.ra + 0.1 ? S.ra + 0.12 : (B.tail === 'deck' || gateDlo) && sideR < S.ra + 0.2 ? Math.max(sideR + 0.22, S.ra + 0.32) : null);
   const sideF = S.uCowl - 0.02;
