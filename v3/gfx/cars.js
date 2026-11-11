@@ -204,7 +204,7 @@ export function buildCar(spec, opt = {}) {
   // --- takavalot: yksi leveä pinta perässä, kuvio mallin valosignatuurin mukaan ---
   const tl = spec.tl || 'corner', deck = B.tail === 'deck';
   const vert = tl === 'vertical';
-  const zl1 = deck ? S.hD - 0.04 : S.gateZ - (vert ? -0.34 : 0.03), zl0 = vert ? (deck ? S.hD - 0.32 : S.gateZ - 0.24) : zl1 - (tl === 'low' ? 0.5 : tl === 'round' ? 0.22 : 0.19);
+  const zl1 = deck ? S.hD - 0.04 : S.gateZ - (vert ? -0.34 : 0.03), zl0 = vert ? (deck ? S.hD - 0.32 : S.gateZ - 0.24) : zl1 - (tl === 'low' ? 0.5 : tl === 'round' ? 0.22 : deck ? 0.24 : 0.2);
   const rear = lampMat('rear', tl, hero);
   add(patch((a, b, o) => sf.fasciaN(false, -0.985 + 1.97 * a, zl0 + (zl1 - zl0) * b, o), hero ? 36 : 12, hero ? 8 : 3, 0.004, false), rear);
   if (tl !== 'round' && tl !== 'low') { // takavalo jatkuu kulman yli kylkeen

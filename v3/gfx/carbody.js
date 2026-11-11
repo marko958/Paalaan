@@ -34,14 +34,14 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
 // Mitat metreinä. fo = etuylitys, cowl = tuulilasin alareunan etäisyys etuakselista taaksepäin, ws = tuulilasin vaakamitta,
 // roofR = katon takareuna taka-akselista (+ = taakse), tail: 'deck' (takakontti) tai 'gate' (takaluukku), tumble = lasien kallistus sisään.
 export const BODY = {
-  sedan:    { L: 4.76, W: 1.84, H: 1.45, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.70, cowl: 0.40, hCowl: 0.99, ws: 0.80, belt: 0.885, roofR: -0.30, tail: 'deck', deck: 0.58, hDeck: 1.04, rake: 0.72, tumble: 0.3, bowN: 0.20, bowT: 0.15 },
-  fastback: { L: 4.74, W: 1.86, H: 1.43, wb: 2.88, fo: 0.88, gc: 0.15, R: 0.335, nose: 0.68, cowl: 0.30, hCowl: 0.97, ws: 0.92, belt: 0.88, roofR: -0.72, tail: 'deck', deck: 0.26, hDeck: 1.05, rake: 1.28, tumble: 0.31, bowN: 0.24, bowT: 0.17 },
-  prius:    { L: 4.50, W: 1.76, H: 1.48, wb: 2.70, fo: 0.92, gc: 0.15, R: 0.31, nose: 0.66, cowl: 0.10, hCowl: 0.98, ws: 1.02, belt: 0.91, roofR: -0.95, tail: 'deck', deck: 0.10, hDeck: 1.17, rake: 1.30, tumble: 0.29, bowN: 0.26, bowT: 0.12, kamm: 1 },
+  sedan:    { L: 4.76, W: 1.84, H: 1.45, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.70, cowl: 0.40, hCowl: 0.99, ws: 0.80, belt: 0.885, roofR: -0.30, tail: 'deck', deck: 0.58, hDeck: 1.04, rake: 0.72, tumble: 0.3, bowN: 0.20, bowT: 0.21 },
+  fastback: { L: 4.74, W: 1.86, H: 1.43, wb: 2.88, fo: 0.88, gc: 0.15, R: 0.335, nose: 0.68, cowl: 0.30, hCowl: 0.97, ws: 0.92, belt: 0.88, roofR: -0.72, tail: 'deck', deck: 0.26, hDeck: 1.05, rake: 1.28, tumble: 0.31, bowN: 0.24, bowT: 0.21 },
+  prius:    { L: 4.50, W: 1.76, H: 1.48, wb: 2.70, fo: 0.92, gc: 0.15, R: 0.31, nose: 0.66, cowl: 0.10, hCowl: 0.98, ws: 1.02, belt: 0.91, roofR: -0.95, tail: 'deck', deck: 0.10, hDeck: 1.17, rake: 1.30, tumble: 0.29, bowN: 0.26, bowT: 0.17, kamm: 1 },
   hatch:    { L: 4.30, W: 1.80, H: 1.47, wb: 2.64, fo: 0.88, gc: 0.155, R: 0.32, nose: 0.72, cowl: 0.36, hCowl: 1.00, ws: 0.78, belt: 0.9, roofR: 0.32, tail: 'gate', gate: 0.34, tumble: 0.29, bowN: 0.22, bowT: 0.16 },
   wagon:    { L: 4.82, W: 1.85, H: 1.48, wb: 2.80, fo: 0.93, gc: 0.165, R: 0.325, nose: 0.71, cowl: 0.40, hCowl: 1.00, ws: 0.80, belt: 0.9, roofR: 0.72, tail: 'gate', gate: 0.26, tumble: 0.27, bowN: 0.20, bowT: 0.13 },
   suv:      { L: 4.62, W: 1.88, H: 1.66, wb: 2.75, fo: 0.90, gc: 0.215, R: 0.365, nose: 0.90, cowl: 0.38, hCowl: 1.17, ws: 0.72, belt: 1.04, roofR: 0.45, tail: 'gate', gate: 0.3, tumble: 0.23, bowN: 0.18, bowT: 0.13, clad: 1 },
   suvc:     { L: 4.72, W: 1.92, H: 1.60, wb: 2.90, fo: 0.87, gc: 0.19, R: 0.37, nose: 0.86, cowl: 0.30, hCowl: 1.13, ws: 0.86, belt: 1.02, roofR: -0.55, tail: 'deck', deck: 0.12, hDeck: 1.20, rake: 1.02, tumble: 0.27, bowN: 0.22, bowT: 0.15, clad: 1, kamm: 1 },
-  coupe:    { L: 4.97, W: 1.96, H: 1.38, wb: 2.92, fo: 0.95, gc: 0.13, R: 0.35, nose: 0.62, cowl: 0.42, hCowl: 0.92, ws: 0.90, belt: 0.86, roofR: -0.70, tail: 'deck', deck: 0.34, hDeck: 0.97, rake: 1.25, tumble: 0.35, bowN: 0.28, bowT: 0.20 },
+  coupe:    { L: 4.97, W: 1.96, H: 1.38, wb: 2.92, fo: 0.95, gc: 0.13, R: 0.35, nose: 0.62, cowl: 0.42, hCowl: 0.92, ws: 0.90, belt: 0.86, roofR: -0.70, tail: 'deck', deck: 0.34, hDeck: 0.97, rake: 1.25, tumble: 0.35, bowN: 0.28, bowT: 0.23 },
   mini:     { L: 3.62, W: 1.63, H: 1.51, wb: 2.36, fo: 0.68, gc: 0.15, R: 0.285, nose: 0.76, cowl: 0.22, hCowl: 1.02, ws: 0.62, belt: 0.95, roofR: 0.30, tail: 'gate', gate: 0.24, tumble: 0.26, bowN: 0.22, bowT: 0.14 },
   tall:     { L: 4.08, W: 1.78, H: 1.60, wb: 2.58, fo: 0.80, gc: 0.165, R: 0.33, nose: 0.86, cowl: 0.20, hCowl: 1.10, ws: 0.60, belt: 1.02, roofR: 0.42, tail: 'gate', gate: 0.16, tumble: 0.15, bowN: 0.16, bowT: 0.09 },
   van:      { L: 4.98, W: 1.93, H: 1.93, wb: 3.27, fo: 0.90, gc: 0.18, R: 0.34, nose: 0.92, cowl: -0.22, hCowl: 1.22, ws: 0.74, belt: 1.12, roofR: 0.70, tail: 'gate', gate: 0.07, tumble: 0.11, bowN: 0.16, bowT: 0.05 },
@@ -58,7 +58,7 @@ export function shapeOf(type, o = {}) {
   const uR = Math.max(0.3, ra - B.roofR), uPeak = Math.min(uA - 0.25, Math.max(uR + 0.2, B.peak !== undefined ? ra + B.peak : (uA + uR) / 2 + 0.15));
   const ang = !!B.angular;
   // keulan ja perän pituus ei saa ylittää kulman pyöristystä, jotta kulman reuna pysyy pystyssä
-  const noseLen = Math.min(B.noseLen || 0.22, B.bowN + 0.02), tf = Math.min(B.tailLen || (B.tail === 'deck' ? 0.19 : 0.15), B.bowT + 0.02);
+  const noseLen = Math.min(B.noseLen || 0.22, B.bowN + 0.02), tf = Math.min(B.tailLen || (B.tail === 'deck' ? 0.25 : 0.15), B.bowT + 0.02); // takapaneeli kallistuu eteenpäin puskurin yläpuolelta
   const beltR = B.beltR !== undefined ? B.beltR : B.belt + 0.035;
   const top = [];
   let uD, hD, gateZ = 0;

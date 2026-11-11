@@ -134,13 +134,13 @@ export function lampTex(kind, type) {
       const S = (x, y, w, h, r, c) => { g.fillStyle = c || lit; rr(g, x * 256, y * H, w * 256, h * H, r); g.fill(); };
       if (rear) switch (type) {
         case 'bar': L(0.02, 0.2, 0.3, 0.62, 8); L(0.3, 0.38, 0.72, 0.26, 4); S(0.04, 0.44, 0.97, 0.13, 3); S(0.04, 0.26, 0.22, 0.1, 3); break;
-        case 'wide': L(0.02, 0.18, 0.62, 0.62, 10); S(0.05, 0.3, 0.54, 0.13, 4); S(0.05, 0.56, 0.4, 0.1, 4, dim); break;
+        case 'wide': L(0.0, 0.1, 0.66, 0.8, 10); S(0.04, 0.24, 0.58, 0.14, 4); S(0.04, 0.52, 0.44, 0.12, 4, dim); g.fillStyle = '#d8d8d8'; rr(g, 120, 70, 40, 14, 4); g.fill(); break;
         case 'pixel': L(0.02, 0.12, 0.34, 0.76, 4); for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) S(0.05 + i * 0.075, 0.2 + j * 0.22, 0.05, 0.15, 1); for (let i = 0; i < 9; i++) S(0.4 + i * 0.066, 0.45, 0.04, 0.1, 1, dim); break;
         case 'vertical': L(0.01, 0.02, 0.14, 0.96, 6); S(0.035, 0.06, 0.05, 0.88, 3); S(0.1, 0.5, 0.03, 0.42, 2, dim); break;
         case 'round': g.fillStyle = lens; g.beginPath(); g.arc(46, H / 2, 40, 0, 7); g.fill(); g.strokeStyle = lit; g.lineWidth = 9; g.beginPath(); g.arc(46, H / 2, 27, 0, 7); g.stroke(); g.fillStyle = dim; g.beginPath(); g.arc(46, H / 2, 10, 0, 7); g.fill(); break;
         case 'tri': L(0.02, 0.06, 0.36, 0.88, 4); for (let i = 0; i < 3; i++) S(0.05 + i * 0.11, 0.12, 0.065, 0.76, 2); break;
         case 'low': L(0.02, 0.0, 0.5, 0.14, 3); S(0.03, 0.03, 0.46, 0.07, 2); L(0.03, 0.72, 0.3, 0.26, 5); S(0.05, 0.78, 0.24, 0.13, 3); break;
-        default: L(0.02, 0.1, 0.4, 0.8, 12); g.strokeStyle = lit; g.lineWidth = 8; rr(g, 16, 22, 78, 54, 10); g.stroke(); S(0.26, 0.4, 0.12, 0.22, 3, dim);
+        default: L(0.0, 0.06, 0.5, 0.88, 12); g.strokeStyle = lit; g.lineWidth = 9; rr(g, 12, 16, 104, 58, 12); g.stroke(); S(0.08, 0.36, 0.3, 0.12, 3, dim); g.fillStyle = '#d8d8d8'; rr(g, 70, 40, 34, 16, 4); g.fill(); // isompi kulmavalo, peruutusvalo valkoisena
       } else switch (type) {
         case 'round': g.fillStyle = lens; g.beginPath(); g.arc(50, H / 2, 44, 0, 7); g.fill(); g.strokeStyle = lit; g.lineWidth = 8; g.beginPath(); g.arc(50, H / 2, 33, 0, 7); g.stroke(); g.fillStyle = '#cfd8e6'; g.beginPath(); g.arc(50, H / 2, 16, 0, 7); g.fill(); break;
         case 'pixel': L(0.02, 0.2, 0.44, 0.62, 3); for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { g.strokeStyle = lit; g.lineWidth = 5; rr(g, 12 + i * 52, 26 + j * 0, 40, 46, 2); g.stroke(); } break;
