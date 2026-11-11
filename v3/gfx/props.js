@@ -3,8 +3,8 @@
 import * as THREE from 'three';
 import { tex, canvasTex, rng } from './assets.js';
 
-const box = (w, h, d, x = 0, y = 0, z = 0) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
-const cyl = (r1, r2, h, n, x = 0, y = 0, z = 0) => { const g = new THREE.CylinderGeometry(r1, r2, h, n); g.translate(x, y + h / 2, z); return g; };
+export const box = (w, h, d, x = 0, y = 0, z = 0) => { const g = new THREE.BoxGeometry(w, h, d); g.translate(x, y, z); return g; };
+export const cyl = (r1, r2, h, n, x = 0, y = 0, z = 0) => { const g = new THREE.CylinderGeometry(r1, r2, h, n); g.translate(x, y + h / 2, z); return g; };
 // yhdistää geometriat yhdeksi; jokainen osa saa oman materiaaliryhmän
 export function group(parts) {
   const mats = [];
@@ -29,7 +29,7 @@ export function group(parts) {
   return { geo: out, mats };
 }
 // laatikon UV:t metreinä, jotta lauta- ja peltitekstuurit toistuvat oikeassa koossa
-function metricUV(g, s) {
+export function metricUV(g, s) {
   const p = g.attributes.position, n = g.attributes.normal, uv = g.attributes.uv;
   for (let i = 0; i < p.count; i++) {
     const ax = Math.abs(n.getX(i)), ay = Math.abs(n.getY(i)), az = Math.abs(n.getZ(i));
@@ -40,7 +40,7 @@ function metricUV(g, s) {
   return g;
 }
 // harjakatto: harja z-akselin suuntaan, leveys w, pituus d, räystään korkeus y0, harjan korkeus y1
-function gable(w, d, y0, y1, over = 0.35, thick = 0.12) {
+export function gable(w, d, y0, y1, over = 0.35, thick = 0.12) {
   const hw = w / 2 + over, hd = d / 2 + over, g = new THREE.BufferGeometry();
   const yE = y0 - over * (y1 - y0) / (w / 2);
   const v = [], uv = [], quad = (a, b, c, e, len, wid) => { v.push(...a, ...b, ...c, ...a, ...c, ...e); uv.push(0, 0, len, 0, len, wid, 0, 0, len, wid, 0, wid); };
@@ -55,7 +55,7 @@ function gable(w, d, y0, y1, over = 0.35, thick = 0.12) {
   return g;
 }
 // päätykolmio seinään
-function gableEnd(w, y0, y1, z) {
+export function gableEnd(w, y0, y1, z) {
   const g = new THREE.BufferGeometry(), hw = w / 2, s = z > 0 ? 1 : -1;
   const v = s > 0 ? [-hw, y0, z, hw, y0, z, 0, y1, z] : [hw, y0, z, -hw, y0, z, 0, y1, z];
   g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));

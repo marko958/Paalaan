@@ -129,6 +129,8 @@ function lampMat(kind, type, own) {
   return own ? base.clone() : base;
 }
 const decal = (map, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ map, alphaTest: 0.4, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }, o));
+const grilles = new Map();
+function grilleMat(kind, o) { const k = kind + JSON.stringify(o); if (!grilles.has(k)) grilles.set(k, decal(grilleTex(kind), o)); return grilles.get(k); }
 
 // ---------- pinnan päälle rakennettavat osat ----------
 const V = new THREE.Vector3(), V2 = new THREE.Vector3();
@@ -219,13 +221,13 @@ export function buildCar(spec, opt = {}) {
 
   // --- keula: polttomoottorilla maski ja alaritilä, sähköautolla umpinainen keula ja kapea ilmanotto ---
   const gz0 = S.zf0 + 0.035, lowH = ev ? 0.07 : 0.12;
-  add(patch((a, b, o) => sf.fasciaN(true, -0.62 + 1.24 * a, gz0 + lowH * b, o), 12, 2, 0.003, true), decal(grilleTex('low'), { roughness: 0.5 }));
+  add(patch((a, b, o) => sf.fasciaN(true, -0.62 + 1.24 * a, gz0 + lowH * b, o), 12, 2, 0.003, true), grilleMat('low', { roughness: 0.5 }));
   if (!ev) {
     const up = tk.upright ? 0.34 : 0.15, gy = tk.upright ? 0.3 : 0.44;
-    add(patch((a, b, o) => sf.fasciaN(true, -gy + 2 * gy * a, zh0 - up - 0.01 + up * b + (tk.upright ? 0.12 : 0), o), 12, 3, 0.003, true), decal(grilleTex(has('chrome') || tk.upright ? 'chrome' : 'mesh'), { roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }));
-  } else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), decal(grilleTex('chrome'), { roughness: 0.2, metalness: 0.8 }));
+    add(patch((a, b, o) => sf.fasciaN(true, -gy + 2 * gy * a, zh0 - up - 0.01 + up * b + (tk.upright ? 0.12 : 0), o), 12, 3, 0.003, true), grilleMat(has('chrome') || tk.upright ? 'chrome' : 'mesh', { roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }));
+  } else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), grilleMat('chrome', { roughness: 0.2, metalness: 0.8 }));
   // --- perän alaosa: musta helma, diffuusori ja pakoputket ---
-  add(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, S.zr0 + 0.015 + 0.1 * b, o), 12, 2, 0.003, false), decal(grilleTex(has('diff') ? 'diff' : 'valance'), { roughness: 0.7 }));
+  add(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, S.zr0 + 0.015 + 0.1 * b, o), 12, 2, 0.003, false), grilleMat(has('diff') ? 'diff' : 'valance', { roughness: 0.7 }));
   const pipe = y => { const geo = new THREE.CylinderGeometry(0.036, 0.036, 0.12, hero ? 14 : 6, 1, true); geo.rotateX(Math.PI / 2); sf.fasciaN(false, y / yR0, S.zr0 + 0.04, V); geo.translate(V.x, V.y - 0.005, V.z - 0.01); add(geo, M.chrome); const inner = new THREE.CircleGeometry(0.032, 10); inner.translate(V.x, V.y - 0.005, V.z + 0.03); add(inner, M.under); };
   if (!ev || has('exh1') || has('exh2')) { if (has('exh2')) { pipe(-W2 * 0.55); pipe(W2 * 0.55); } else pipe(-W2 * 0.55); }
 
@@ -293,7 +295,7 @@ export function buildCar(spec, opt = {}) {
     }
     if (has('split')) add(patch((a, b, o) => sf.top(S.tf + 0.03 + (deck ? S.B.deck + 0.3 : B.gate * 0.4) + 0.03 * b, -0.9 + 1.8 * a, o), 12, 1, 0.003, false), M.black);
     if (has('chrome')) add(patch((a, b, o) => sf.fasciaN(false, -0.5 + a, zl0 - 0.05 + 0.014 * b, o), 12, 1, 0.004, false), M.chrome);
-    if (has('orange')) { const st = []; for (const side of [-1, 1]) st.push(patch((a, b, o) => sf.side(S.ra + S.Ra + 0.1 + (S.fa - S.Ra - 0.1 - S.ra - S.Ra - 0.1) * a, 0.2 + 0.03 * b, side, o), 12, 1, 0.002, side < 0)); add(mergeGeos(st), std({ color: 0xe07a1f, roughness: 0.5 })); }
+    if (has('orange')) { const st = []; for (const side of [-1, 1]) st.push(patch((a, b, o) => sf.side(S.ra + S.Ra + 0.1 + (S.fa - S.Ra - 0.1 - S.ra - S.Ra - 0.1) * a, 0.2 + 0.03 * b, side, o), 12, 1, 0.002, side < 0)); add(mergeGeos(st), M.orange || (M.orange = std({ color: 0xe07a1f, roughness: 0.5 }))); }
 
     // --- latausluukku (sähkö) tai tankin luukku: vasen takakulma, aukeaa asemalla ---
     { const X = S.ra + S.Ra * 0.2, z0 = S.za + S.Ra + 0.1, w = 0.15;

@@ -29,6 +29,7 @@ function tireGeo(R, w, lod) {
   const prof = [[rim, -h * 0.82], [rim + 0.012, -h * 0.9], [R * 0.80, -h * 1.02], [R * 0.93, -h * 0.98], [R * 0.985, -h * 0.82], [R, -h * 0.6], [R, 0], [R, h * 0.6], [R * 0.985, h * 0.82], [R * 0.93, h * 0.98], [R * 0.80, h * 1.02], [rim + 0.012, h * 0.9], [rim, h * 0.82]];
   for (const [r, x] of prof) pts.push(new THREE.Vector2(r, x));
   const g = new THREE.LatheGeometry(pts, lod ? 14 : 36);
+  g.userData.shared = true;
   g.rotateZ(-Math.PI / 2); // akseli y → x
   // UV: kulutuspinta toistuu kehällä
   const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 14, uv.getY(i));
@@ -65,6 +66,7 @@ function rimGeo(R, w, style, lod) {
   else if (style === 'aero') { const d = new THREE.CylinderGeometry(r * 0.94, r * 0.94, 0.012, lod ? 12 : 30); d.rotateZ(-Math.PI / 2); d.translate(face, 0, 0); parts.push(d); spoke(5, r * 0.5, r * 0.42, 0, 0, 0.02); }
   else { const d = new THREE.CylinderGeometry(r * 0.92, r * 0.8, 0.03, lod ? 12 : 30); d.rotateZ(-Math.PI / 2); d.translate(face - 0.01, 0, 0); parts.push(d); }
   const g = mergeGeos(parts);
+  g.userData.shared = true;
   geoCache.set(key, g);
   return g;
 }

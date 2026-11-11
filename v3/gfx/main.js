@@ -8,6 +8,9 @@ import { makeTrees } from './trees.js';
 import { makeProps } from './props.js';
 import { buildScenery, setLod, disposeScenery, footprints, signature } from './scenery.js';
 import { canvasTex, rng, avgColor } from './assets.js';
+import { Dyn } from './dyn.js';
+import { Weather, Puffs } from './fx.js';
+import { Post } from './post.js';
 
 const sim = Drive.sim, st = sim.st;
 const canvas = document.getElementById('road');
@@ -28,6 +31,7 @@ const U = { // varjostimien yhteiset muuttujat
   fieldMap: { value: null }, grassTint: { value: new THREE.Color(1, 1, 1) }, fieldTint: { value: new THREE.Color(1, 1, 1) }, forestTint: { value: new THREE.Color(1, 1, 1) },
 };
 const mats = {};
+let dyn = null, weather = null, puffs = null, post = null, usePost = false;
 let T = null, PR = null, backdrop = null, floor = null, fps = [], roadKind = '';
 const origin = new THREE.Vector3();
 const chunks = new Map();
@@ -37,6 +41,7 @@ const lamps = { group: new THREE.Group(), spot: null };
 const cam = { th: 0, init: false, roll: 0, override: null };
 let rampMesh = null, rampKey = '';
 const stats = { fps: 0, acc: 0, n: 0, ms: 0 };
+const fxState = { snow: false, cold: false, wet: false, acc: 0 };
 
 function init() {
   try {
@@ -61,6 +66,8 @@ function init() {
     U.fieldMap.value = tex('nurmi', 'diff');
     mats.road = roadMaterial(U); mats.ramp = rampMaterial(U); mats.terrain = terrainMaterial(U);
     T = makeTrees(); PR = makeProps(U); makeBackdrop();
+    dyn = new Dyn({ scene, track, sim, st, origin });
+    weather = new Weather(scene); puffs = new Puffs(scene); post = new Post(renderer, scene, camera);
     applyQuality();
     ready = true;
   }).catch(e => { failed = true; Drive.fail('Resurssien lataus ei onnistunut.'); console.error(e); });
@@ -74,6 +81,7 @@ function resize() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, Q.dpr));
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+  if (post) usePost = post.setup(Q, w, h, renderer.getPixelRatio());
 }
 
 function applyQuality() {
@@ -105,6 +113,8 @@ function applySeason() {
   const m = sea.m, foggy = !sea.snow && (sea.autumn || sea.bare) && ((S.m * 7 + 3) % 5 < 3);
   env.set(env.pick(sea, wx, foggy));
   env.fogMul = wx.kind === 'lumi' ? 5.5 : wx.kind === 'sade' ? 3.2 : foggy ? 7 : 1;
+  weather.set(wx.kind, Q.fx, sea.dark);
+  fxState.snow = sea.snow; fxState.cold = sea.temp <= 0; fxState.wet = wx.kind === 'sade';
   U.snow.value = sea.snow ? 1 : 0;
   U.wet.value = wx.kind === 'sade' ? 1 : sea.bare ? 0.45 : (!sea.snow && sea.temp <= 1) ? 0.25 : 0;
   U.paint.value = sea.snow ? 0.55 : 1;
@@ -202,8 +212,11 @@ function updateRamp() {
 function rebase(x, z) {
   const nx = Math.round(x / 256) * 256, nz = Math.round(z / 256) * 256;
   if (Math.abs(nx - origin.x) < 1024 && Math.abs(nz - origin.z) < 1024) return;
+  const ox = origin.x, oz = origin.z;
   origin.set(nx, 0, nz);
   for (const ch of chunks.values()) ch.group.position.copy(ch.anchor).sub(origin);
+  if (dyn) dyn.rebase();
+  if (puffs) puffs.shift(ox - origin.x, 0, oz - origin.z);
   cam.init = false;
 }
 
@@ -253,6 +266,8 @@ function frame(dt) {
   { const G = st.gig, cargo = !!((G && G.phase === 'deliver' && (G.kind === 'romu' || G.kind === 'muutto')) || (st.trip && st.trip.trailer));
     const lat = seg0.curve * 0.0014 * speed * speed * 0.6 + vlat * 1.5;
     car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: (st.keys.right ? 1 : 0) - (st.keys.left ? 1 : 0), lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
+  dyn.update(dt, st.pos + sim.PZ, car.pos, P.th, env.nightWant || 0, st.flash);
+  PR.camFlash.emissiveIntensity = st.flash > 0.2 ? st.flash * 10 : 0;
   if (lamps.spot) lamps.spot.intensity = (env.nightWant || 0) > 0.3 ? 420 * (env.nightWant > 0.6 ? 1 : 0.6) : 0;
 
   // kamera: takaa ja yläviistosta, pehmeä seuranta, pieni kallistus mutkassa, tärähdys törmäyksessä
@@ -260,7 +275,7 @@ function frame(dt) {
   const sp = Math.min(1, speed / 45);
   if (!cam.init) { cam.th = P.th; cam.init = true; cam.roll = 0; }
   cam.th += (P.th + car.yaw * 0.35 - cam.th) * Math.min(1, dt * 3.2 + (dt ? 0 : 1));
-  const dist = 5.5 + sp * 1.0, h = 1.95 + sp * 0.2;
+  const dist = 6.0 + sp * 0.7, h = 2.0 + sp * 0.2;
   const fx = Math.sin(cam.th), fz = -Math.cos(cam.th);
   let cx = car.pos.x - fx * dist, cz = car.pos.z - fz * dist, cy = car.pos.y + h - P.slope * dist * 0.6;
   const fb = f - dist / SEGM;
@@ -280,7 +295,26 @@ function frame(dt) {
   const R = Q.draw * CH * 0.93;
   backdrop.position.set(camera.position.x, car.pos.y + R * 0.045 - 6, camera.position.z); backdrop.scale.set(R, R * 0.09, R);
   floor.position.set(camera.position.x, car.pos.y - 7, camera.position.z); floor.scale.setScalar(R * 1.02);
-  renderer.render(scene, camera);
+  // hiukkaset: pöllyävä lumi ja vesisumu renkaista, pakokaasun höyry pakkasella, vian savu, pöly pientareella
+  if (dt > 0) {
+    fxState.acc += dt;
+    const o = car.obj, th = P.th + car.yaw, bx = -Math.sin(th), bz = Math.cos(th), rx = Math.cos(th), rz = Math.sin(th);
+    const rear = o.mid + 0.1, off = (st.x < -1 || st.x > 1) && !onRamp(f, st.x);
+    const at = (side, back, h) => [car.pos.x + rx * side + bx * back, car.pos.y + h, car.pos.z + rz * side + bz * back];
+    while (fxState.acc > 0.03) {
+      fxState.acc -= 0.03;
+      const kmh = speed * 3.6, hw = o.S.W * 0.42;
+      if (!st.veh.bus || true) {
+        if ((fxState.snow || fxState.wet) && kmh > 35 && Math.random() < Q.fx) for (const s of [-1, 1]) { const p = at(s * hw, rear - 0.3, 0.25), c = fxState.snow ? [0.92, 0.94, 0.98] : [0.7, 0.74, 0.8]; puffs.emit(p[0], p[1], p[2], bx * 2 + (Math.random() - 0.5), 0.9 + Math.random(), bz * 2 + (Math.random() - 0.5), 0.3, c, fxState.snow ? 0.3 : 0.14, 0.8 + Math.random() * 0.5, 1.6); }
+        if (off && kmh > 20 && !fxState.snow && Math.random() < 0.7) { const p = at((Math.random() - 0.5) * 1.4, rear - 0.2, 0.2); puffs.emit(p[0], p[1], p[2], bx * 1.5, 0.8, bz * 1.5, 0.6, [0.5, 0.42, 0.32], 0.3, 1.1, 2.2); }
+        if (o.exhaust && fxState.cold && Math.random() < 0.5) { const p = at(o.exhaust.x, rear + 0.05, o.exhaust.y + 0.02); puffs.emit(p[0], p[1], p[2], bx * 1.2, 0.5, bz * 1.2, 0.16, [0.95, 0.95, 0.97], 0.3, 1.0, 0.9); }
+        if (st.veh.minor && Math.random() < 0.55) { const p = at(-hw * 0.6, rear, 0.35); puffs.emit(p[0], p[1], p[2], bx * 1.0 + (Math.random() - 0.5) * 0.4, 0.8 + Math.random() * 0.6, bz * 1.0, 0.22, [0.2, 0.2, 0.21], 0.5, 1.6, 0.9); }
+      }
+    }
+  }
+  puffs.update(dt);
+  weather.update(dt, camera);
+  if (!usePost || !post.render(speed, env.nightWant || 0)) renderer.render(scene, camera);
 
   // mittaus ja automaattinen laatutaso
   stats.ms = performance.now() - t0;
@@ -312,7 +346,7 @@ const api = {
     return true;
   },
   render(dt) { if (ready && !failed && !dbg.freeze) frame(dt); },
-  enter() { prepared = false; cam.init = false; seasonKey = ''; car.prevX = st.x; resize(); },
+  enter() { prepared = false; cam.init = false; seasonKey = ''; car.prevX = st.x; if (dyn) dyn.clear(); resize(); },
   leave() {},
   setQuality,
   autoLevel: () => level,
@@ -330,4 +364,4 @@ function orbit(az, el, d, h = 0.7) {
   };
 }
 const dbg = { freeze: false };
-window.__gfx = { orbit, dbg, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, track, cam, car, stats, U, env: () => env, level: () => level, chunks, origin, QUALITY };
+window.__gfx = { orbit, dbg, dyn: () => dyn, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, track, cam, car, stats, U, env: () => env, level: () => level, chunks, origin, QUALITY };

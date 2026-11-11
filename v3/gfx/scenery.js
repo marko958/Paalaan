@@ -88,6 +88,7 @@ export function buildScenery(c, ctx) {
       } else if (o.k === 'kamera') {
         single(P.kamera, i + 0.5, o.x, Math.PI, -0.1);
       } else if (o.k === 'mökki' || o.k === 'lato') {
+        if (fps.some(e => i >= e[0] - 6 && i <= e[1] + 6 && o.x + 1 >= e[2] && o.x - 1 <= e[3])) continue; // aseman tai liikkeen alle jäävä talo piilotetaan
         const pr = o.k === 'mökki' ? P.mokki : P.lato, yaw = o.x > 0 ? 0 : Math.PI;
         // talo seisoo tasaisella: korkeus otetaan tien puoleisesta reunasta
         const m = single(pr, i + 0.5, o.x, yaw, 0.25);
