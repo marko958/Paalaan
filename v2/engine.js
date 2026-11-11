@@ -181,6 +181,9 @@ const LAST = 84;
 
 // ---------- APU ----------
 let RND = Math.random;
+// alpha 30: päivän haaste. Kuukauden satunnaisuus tulee siemenestä (mulberry32), ja tila S.rs tallentuu pelin mukana.
+function seededRnd() { let t = (S.rs = (S.rs + 0x6D2B79F5) | 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+const mixSeed = (a, b) => { let h = Math.imul(a ^ 0x9E3779B9, 0x85EBCA6B) ^ Math.imul(b + 0x632BE5AB, 0xC2B2AE35); h ^= h >>> 13; h = Math.imul(h, 0x27D4EB2D); return (h ^ (h >>> 16)) | 0; };
 const rnd = (a,b) => a + RND()*(b-a);
 const ri = (a,b) => Math.floor(rnd(a,b+1));
 const pick = arr => arr[Math.floor(RND()*arr.length)];
@@ -205,8 +208,12 @@ function newState(t) {
     lic: 'B', late: 0, scrap: null, trip: null, summer: 0, rested: 0, lappiY: 0,
     job: 'toimisto', trial: 0, jobApp: null,
     target: t, stock: null, auctionDone: false, log: [], over: false,
+    // alpha 30: loppuraportin tilastot
+    stat: {deer:0, poro:0, crash:0, cam:0, camEur:0, vippi:0, gig:0, km:0, bill:0, billT:''}, hist: [], owned: [CARS[0][0]],
   };
 }
+const ST = () => S.stat || (S.stat = {deer:0, poro:0, crash:0, cam:0, camEur:0, vippi:0, gig:0, km:0, bill:0, billT:''});
+function gotCar(car) { S.cars.push(car); S.joyM = S.m; (S.owned = S.owned || []).push(C(car.c).name); }
 const sohF = car => (C(car.c).type==='e' && car.soh!==undefined) ? Math.min(1, Math.max(0.5, (car.soh-50)/40)) : 1;
 const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:(S.M.ice||1)) * (k.fl.includes('T')?S.M.tesla:1) * sohF(car); };
 function genSoh(i) { const k = C(i); if (k.fl.includes('F')) return ri(80,86); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/(19|20)\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
@@ -379,6 +386,7 @@ function runCosts() {
 // ---------- KUUKAUSIKÄSITTELY ----------
 let Q = [];
 function monthTick() {
+  if (S.seed) S.rs = mixSeed(S.seed, S.m); // päivän haaste: kuukauden tapahtumat samat kaikille
   const R = []; // raportti
   const inc = S.layoff>0 ? Math.round(S.income/2) : S.income;
   R.push(['+', `Autobudjetti${S.layoff>0?' (LOMAUTETTU)':''}`, inc]);
@@ -416,7 +424,7 @@ function monthTick() {
   if (S.vippi>0) { const k = S.vippi*0.20; S.vippi += k; R.push(['-','Pikavipin korko 20 %/kk (lisätty vippiin)', k]); }
   if (cash>0 && S.vippi>0) { const p = Math.min(cash, S.vippi); cash -= p; S.vippi -= p; R.push(['-','Pakkolyhennys pikavippiin', p]); }
   if (cash<0 && invTotal()>0) R.push(['!','KASSA MIINUKSELLA: päätä seuraavaksi, realisoidaanko sijoituksia', -cash]);
-  else if (cash<0) { const v = -cash + 60; S.vippi += v; cash = 0; S.mark = 12; R.push(['!','PIKAVIPPI MYÖNNETTY (sis. avausmaksu 60 €)', v]); }
+  else if (cash<0) { const v = -cash + 60; S.vippi += v; cash = 0; S.mark = 12; ST().vippi++; R.push(['!','PIKAVIPPI MYÖNNETTY (sis. avausmaksu 60 €)', v]); }
   S.cash = cash + (S.provisio || 0); S.provisio = 0;
   // työpaikka: AccuCarin pihalla polttomoottoriauto, pankin luottotiedot, koeaika, Kuusamon palju, hakemukset
   { const d = drivenCar();
@@ -534,27 +542,127 @@ function monthTick() {
   S.pend = S.pend.filter(p=>p.m>S.m);
   // satunnaistapahtuma
   if (RND() < 0.5) Q.push(randomEvent);
+  (S.hist = S.hist || [])[S.m-1] = [Math.round(totalVal()), Math.round(totalLoan()), Math.round(S.cash + invTotal())];
   return R;
 }
 
 // ---------- RUUDUT ----------
 let UI = { show(){} };
-function scr(title, lines, choices) { UI.show({title, lines, choices: choices.map(c=>({t:c[0], f:c[1], dis:!!c[2]}))}); }
-function next() { if (S.over) return; if (S.cash < 0 && invTotal() > 0) return deficitPrompt(); const f = Q.shift(); if (f) f(); else if (Drive.active) Drive.resume(); else menu(); }
+// alpha 30: ajossa nämä ruudut tulevat pikavalintoina tien päälle (peli hidastuu, 5 s:n jälkeen toteutuu viimeinen vaihtoehto)
+const QUICK = new Set(['HUHU', 'HUHU EI TOTEUTUNUT', 'KAMPANJA!', 'SAKKO', 'SÄHKÖN HINTAPIIKKI', 'VAKUUTUSYHTIÖN KIRJE', 'KIVENISKU', 'KORKO NOUSI', 'KORKO LASKI',
+  'PALKANKOROTUS', 'HINTAKUPLA', 'ELON TWIITTASI', 'SALKKU', 'VIENTIKYSYNTÄ', 'KÄYTTÖVOIMAVERO NOUSEE', 'LATAUSKAAPELI VIETIIN', 'HUOLTO LÄHESTYY', 'REKISTERÖITY',
+  'ROMUTUSPALKKIO', 'ROMUTUSBONUS', 'AKKU HEIKKENEE']);
+let LASTT = '';
+function show(s) {
+  if (Drive.active && QUICK.has(s.title) && s.choices.length <= 3 && Drive.quick(s)) return;
+  if (Drive.active) Drive.hold();
+  UI.show(s);
+}
+function scr(title, lines, choices) { LASTT = title; show({title, lines, choices: choices.map(c=>({t:c[0], f:c[1], dis:!!c[2]}))}); }
+function next() { if (S.over) return; if (S.cash < 0 && invTotal() > 0) return deficitPrompt(); const f = Q.shift(); if (f) f(); else if (Drive.active) { LOT = false; saveGame(); Drive.resume(); } else menu(); }
 function say(title, lines) { scr(title, lines, [['Jatka', next]]); }
 function sayTo(title, lines, back) { scr(title, lines, [['Jatka', back]]); }
 
 function start() {
+  RND = Math.random;
+  const sv = saveInfo(), d = dailyInfo();
+  const ch = [];
+  if (sv) ch.push([`Jatka peliä (KK ${sv.m}/${LAST}, ${TARGETS[sv.target] ? TARGETS[sv.target].name : '?'}${sv.daily ? ', päivän haaste ' + sv.daily : ''})`, loadGame]);
+  ch.push([sv ? 'Uusi peli (tallennus korvautuu)' : 'Uusi peli', pickTarget]);
+  ch.push([`Päivän haaste ${d.txt}${d.tries ? ` (yrityksiä ${d.tries}, paras ${d.best} p)` : ''}`, dailyStart]);
+  ch.push(['Ennätykset', records]);
+  if (sv) ch.push(['Poista tallennettu peli', ()=>scr('POISTA TALLENNUS', [`!Poistetaanko tallennettu peli (KK ${sv.m}/${LAST})? Sitä ei saa takaisin.`, 'Ennätykset säilyvät. Ne tyhjennetään Ennätykset-ruudusta.'], [['Kyllä, poista', ()=>{ lsDel(SAVE_KEY); start(); }], ['Peru', start]])]);
+  ch.push([`Äänet: ${Snd.on ? 'päällä' : 'pois'}`, ()=>{ Snd.toggle(); start(); }]);
   scr('PAALAAN!', [
     'Autolainavankilapeli 2.0 (alpha)',
-    '+Uutta: PAALAAN!-napista lähdetään ajamaan. Kuukausi vaihtuu 30 sekunnin välein, peuroja pitää väistellä, ja liittymästä pääset takaisin valikkoon.',
+    '+PAALAAN!-napista lähdetään ajamaan. Kuukausi vaihtuu 30 sekunnin välein, peuroja pitää väistellä, ja liittymästä pääset takaisin valikkoon.',
     '',
     'Pihassa on vuoden 2006 Mondeo, joka juo bensaa ja rahaa. Kassassa on tonni.',
     'Sinulla on 84 kuukautta aikaa päästä unelma-autoon niin, ettei laina ylitä auton arvoa.',
     'Jos lainaa on enemmän kuin autossa arvoa, olet VANKILASSA.',
     '',
-    'Valitse tavoiteauto:'
-  ], TARGETS.map((t,i)=>[`${t.name} (${t.lvl})`, ()=>{ S = newState(i); beginMonth(); }]));
+    'Peli tallentuu itsestään tähän selaimeen aina, kun palaat valikkoon tai kuukausi vaihtuu tiellä. Mitään ei lähetetä minnekään.',
+  ], ch);
+}
+function pickTarget() {
+  scr('VALITSE TAVOITEAUTO', ['Mihin autoon tähtäät? Vaikeampi tavoite kertoo pisteet isommalla kertoimella.'],
+    TARGETS.map((t,i)=>[`${t.name} (${t.lvl})`, ()=>{ RND = Math.random; S = newState(i); beginMonth(); }]).concat([['Takaisin', start]]));
+}
+
+// ---------- TALLENNUS JA ENNÄTYKSET (alpha 30) ----------
+const SAVE_KEY = 'paalaan2.save', TOP_KEY = 'paalaan2.top', DAILY_KEY = 'paalaan2.daily';
+const lsGet = k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v, (_, x) => x === '__inf' ? Infinity : x) : null; } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v, (_, x) => x === Infinity ? '__inf' : x)); } catch (e) {} };
+const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+// kuukauden vaihde ja valikko ovat turvallisia kohtia: jonossa ei ole avoimia tapahtumia
+function saveGame() {
+  if (!S || S.over || Q.length) return;
+  const o = Object.assign({}, S);
+  if (S.trip && S.trip.car) o.trip = Object.assign({}, S.trip, {car: null, carIdx: S.cars.indexOf(S.trip.car)});
+  lsSet(SAVE_KEY, {v:1, at: Date.now(), S:o});
+}
+function saveInfo() { const d = lsGet(SAVE_KEY); return d && d.S && !d.S.over ? d.S : null; }
+function loadGame() {
+  const d = lsGet(SAVE_KEY); if (!d || !d.S) return start();
+  S = d.S;
+  if (S.trip && S.trip.carIdx !== undefined) { S.trip.car = S.cars[S.trip.carIdx] || null; delete S.trip.carIdx; if (!S.trip.car) S.trip = null; }
+  RND = S.seed ? seededRnd : Math.random;
+  Q = [];
+  menu();
+}
+const fiDate = t => { const d = t ? new Date(t) : new Date(); return `${d.getDate()}.${d.getMonth()+1}.${d.getFullYear()}`; };
+function dailyInfo() {
+  const n = new Date(), seed = n.getFullYear()*10000 + (n.getMonth()+1)*100 + n.getDate(), txt = fiDate();
+  const D = lsGet(DAILY_KEY), mine = D && D.seed === seed ? D : {seed, tries:0, best:0};
+  // tavoite arvotaan päivästä: ei HULLU-tasoa, jotta haaste on reilu
+  return Object.assign(mine, {txt, target: (mixSeed(seed, 84) >>> 0) % 8});
+}
+function dailyStart() {
+  const d = dailyInfo(), t = TARGETS[d.target];
+  scr('PÄIVÄN HAASTE', [`${d.txt}: tavoite ${t.name} (${t.lvl}).`,
+    'Kaikilla on tänään sama tavoite ja samat kuukausien tapahtumat: tiliotteet, huhut, tarjoukset ja viat arvotaan päivän siemenestä.',
+    'Tiellä sattuu silti omia juttuja, ja omat valintasi muuttavat sitä, mitä kuukaudet tuovat.',
+    d.tries ? `Olet yrittänyt tänään ${d.tries} kertaa. Paras tulos ${d.best} pistettä.` : 'Lopussa saat tuloksen, jonka voi kopioida kavereille.'], [
+    ['Aloita haaste', ()=>{ d.tries++; lsSet(DAILY_KEY, {seed:d.seed, tries:d.tries, best:d.best});
+      S = newState(d.target); S.seed = d.seed; S.daily = d.txt; S.dailyTry = d.tries; RND = seededRnd; beginMonth(); }],
+    ['Takaisin', start]]);
+}
+function recordEnd() {
+  if (S.recorded) return; S.recorded = true;
+  lsDel(SAVE_KEY);
+  const t = TARGETS[S.target], top = lsGet(TOP_KEY) || {list:[], games:0, jails:0, best:{}};
+  top.games++; if (S.jailEnd) top.jails++;
+  top.list.push({s:S.score, t:t.name, own:ownsTarget(), j:S.jail, d:fiDate(), daily:S.daily || ''});
+  top.list.sort((a,b)=>b.s-a.s); top.list = top.list.slice(0, 10);
+  top.best[t.name] = Math.max(top.best[t.name] || 0, S.score);
+  lsSet(TOP_KEY, top);
+  if (S.daily) { const d = dailyInfo(); if (d.seed === S.seed) lsSet(DAILY_KEY, {seed:d.seed, tries:d.tries, best:Math.max(d.best, S.score)}); }
+}
+const num = n => Math.round(n).toLocaleString('fi-FI').replace(/ | /g,' ');
+function records() {
+  const top = lsGet(TOP_KEY);
+  if (!top || !top.list.length) return scr('ENNÄTYKSET', ['Ei vielä yhtään loppuun pelattua peliä.'], [['Takaisin', start]]);
+  const lines = top.list.map((r,i)=>`${i+1}. ${num(r.s)} p · ${r.t}${r.own?' ★':''} · vankilassa ${r.j} kk · ${r.d}${r.daily?' · päivän haaste':''}`);
+  lines.push('', `Pelejä ${top.games}, joista vankilaan päättyi ${top.jails}.`, 'Paras tulos tavoitteittain:');
+  TARGETS.forEach(t => { if (top.best[t.name] !== undefined) lines.push(`  ${t.name}: ${num(top.best[t.name])} p`); });
+  scr('ENNÄTYKSET', lines, [['Takaisin', start], ['Tyhjennä ennätykset', ()=>scr('ENNÄTYKSET', ['!Poistetaanko kaikki ennätykset?'], [['Kyllä, poista', ()=>{ lsDel(TOP_KEY); start(); }], ['Peru', records]])]]);
+}
+// jaettava tulos: yksi ruutu per vuosi (vihreä = ei vankilaa, keltainen = osan vuotta, punainen = yli puolet vuodesta)
+function shareText() {
+  const t = TARGETS[S.target], h = S.hist || [];
+  let boxes = '';
+  for (let y = 0; y < 7; y++) { let jm = 0, n = 0; for (let m = y*12; m < y*12+12; m++) { const e = h[m]; if (!e) continue; n++; if (e[1] > e[0] && e[1] > 0) jm++; }
+    boxes += !n ? '⬛' : jm === 0 ? '🟩' : jm <= 6 ? '🟨' : '🟥'; }
+  return [`PAALAAN! 2.0${S.daily ? ` · päivän haaste ${S.daily}${S.dailyTry > 1 ? ` (yritys ${S.dailyTry})` : ''}` : ''}`,
+    `${t.name}${ownsTarget() ? ' ★ pihassa' : ' jäi haaveeksi'} · ${num(S.score)} p`,
+    `${boxes} vankilassa ${S.jail}/84 kk${S.jailEnd ? ' · VANKILA' : ''}`,
+    'https://marko958.github.io/Paalaan/v2/'].join('\n');
+}
+function shareResult(back) {
+  const txt = shareText();
+  let ok = false;
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(txt).catch(()=>{}); ok = true; } } catch (e) {}
+  scr('TULOS', [ok ? '+Tulos kopioitu leikepöydälle:' : 'Kopioi tulos tästä:', ''].concat(txt.split('\n')), [['Takaisin', back], ['Uusi peli', start]]);
 }
 
 function beginMonth() {
@@ -562,12 +670,14 @@ function beginMonth() {
   const R = monthTick();
   if (S.vippi > 3000) return repossess();
   const lines = R.map(r => (r[0]==='+'?'+':r[0]==='!'?'!':'') + `${r[1]}: ${r[0]==='+'?'+':'−'}${eur(r[2])}`);
+  Snd.play('cash');
   scr(`${monthName()}: TILIOTE`, lines, [['Jatka', next]]);
 }
 function monthName() { const y = 2027 + Math.floor((S.m-1)/12); return `KK ${S.m}/${LAST} · ${KK[(S.m-1)%12].toUpperCase()}KUU ${y}`; }
 
 function menu() {
   if (Drive.active) Drive.stop();
+  LOT = false;
   let tsaNew = null;
   if (S.tsaWait) { S.tsa = S.tsaWait; S.tsaWait = null; tsaNew = S.tsa; }
   if (S.cash < 0 && invTotal() > 0) return deficitPrompt();
@@ -600,6 +710,7 @@ function menu() {
   else if (shortCommute() && !S.layoff) lines.push('!Työmatka-auton toimintamatka ei riitä. Pomo on huomannut myöhästelyt.');
   if (tsaNew) lines.unshift(`+Haettu firman pihasta: työsuhdeauto ${C(tsaNew.c).name}. Luontoisetu ${eur(tsaNew.cost)}/kk. Omat autosi jäävät seisontaan.`);
   lines.push('Mitä tehdään?');
+  saveGame();
   scr(monthName(), lines, ch);
 }
 // ---------- SIVUTULOT ----------
@@ -977,7 +1088,7 @@ function saksaOffer() {
     car.base = fi * 0.93 / mult(car); setWarranty(car, false); car.dealer = 0; car.warr = S.m; if (RND() < 0.5) car.bwarr = S.m;
     if (odoFake) car.odo = S.m + ri(3,8);
     car.reg = S.m + 999; // ajetaan kotiin siirtokilvillä, rekisteröidään perillä
-    S.cars.push(car); S.joyM = S.m;
+    gotCar(car);
     const winter = [11,0,1,2].includes((S.m-1)%12), kk = mountCost(k), fr = r100(600*tierMult(k));
     const trip = {kind:'saksa', name:'TRAVEMÜNDE', km:800, hours:10, road:'autobahn', car};
     const lines = [`+${k.name} ostettu Münchenistä ${eur(de)}${loan ? ' kulutusluotolla' : ''}. Lento 150 € ja siirtokilvet 100 €.`, 'Seuraavaksi 800 km Autobahnia Travemündeen. Lautta Helsinkiin lähtee 10 tunnin päästä.', '!Autobahnilla ei ole nopeusrajoitusta, mutta 200 km/h:ssa akku tyhjenee hetkessä. Etsi sopiva vauhti.'];
@@ -1118,10 +1229,10 @@ function mbWarn(car) {
   if (car.mb === 2) return '!Toinen mikrobetonipaikka. Vikariski kasvaa, ja paikat voivat lohjeta.';
   return '!Arvo putosi, ja autoon jäi MB-merkintä. Jokainen paikka lisää vikariskiä' + ((warrLeft(car)||bwarrLeft(car)) ? ', ja takuu raukesi.' : '.');
 }
-function addVippi(v) { if (v<=0) return; S.vippi += v + 60; S.mark = 12; }
+function addVippi(v) { if (v<=0) return; S.vippi += v + 60; S.mark = 12; ST().vippi++; }
 const invTotal = () => S.inv.tsla + S.inv.doge;
 // jos sijoituksia on, kassa saa hetkeksi mennä miinukselle, ja pelaajalta kysytään ennen pikavippiä
-function payOrVippi(a) { if (S.cash >= a || invTotal() > 0) S.cash -= a; else { addVippi(a - S.cash); S.cash = 0; } }
+function payOrVippi(a, lbl) { if (a > ST().bill && lbl !== false) { S.stat.bill = Math.round(a); S.stat.billT = lbl || LASTT; } if (S.cash >= a || invTotal() > 0) S.cash -= a; else { addVippi(a - S.cash); S.cash = 0; } }
 function fixNeg() { if (S.cash < 0 && invTotal() <= 0) { addVippi(-S.cash); S.cash = 0; } }
 function deficitPrompt() {
   const gap = -S.cash, ch = [];
@@ -1151,7 +1262,8 @@ function repossess() {
   });
   S.cars = [];
   lines.push('');
-  scr('ULOSOTTO', lines.concat(endLines(true)), [['Uusi peli', start]]);
+  const L = lines.concat(endLines(true)); recordEnd(); Snd.play('jail');
+  scr('ULOSOTTO', L, [['Uusi peli', start], ['Kopioi tulos jaettavaksi', ()=>shareResult(()=>scr('ULOSOTTO', L, [['Uusi peli', start]]))]]);
 }
 
 // ---------- TYÖSUHDEAUTO ----------
@@ -1272,6 +1384,28 @@ function genStock() {
   if (S.camp) ids.add(S.camp.id);
   S.stock = [...ids].map(i => { const soh = genSoh(i), rims2 = !C(i).fl.includes('N') && RND() < 0.35; return {c:i, soh, rims2, price:listPrice(i, soh) + (rims2 ? r100(rimsCost(C(i))*0.5) : 0)}; }).sort((a,b)=>a.price-b.price);
 }
+// alpha 30: tien varren autoliike. LOT = ollaan liikkeen pihassa kesken ajon, ja Takaisin vie tielle.
+let LOT = false;
+function lotVisit() { LOT = true; dealer(); }
+function lotLeave() { LOT = false; next(); }
+const shortName = i => C(i).name.replace(/ \((uusi|harmaatuonti)\)$/, '').toUpperCase();
+// mainostaulun teksti [iso rivi, pieni rivi]: kampanjat, kvartaalin 0 %, romutuspalkkio, tavoiteauto tai liikkeen tarjous
+function billboard() {
+  if (!S.stock) genStock();
+  const o = [], r = Math.random, tgt = S.stock.find(x => TARGETS[S.target].ids.includes(x.c));
+  if (S.camp) o.push([shortName(S.camp.id), `YLIHYVITYS ${eur(S.camp.amt)}!`], [shortName(S.camp.id), `VAIHDA NYT · ${KK[(S.camp.until-1)%12].toUpperCase()}KUUHUN ASTI`]);
+  if (quarterEnd()) o.push(['0 % KORKO', 'UUDET AUTOT · VAIN TÄSSÄ KUUSSA']);
+  else if ([1,4,7,10].includes((S.m-1)%12)) o.push(['ENSI KUUSSA 0 %', 'KVARTAALI VAIHTUU · KANNATTAAKO ODOTTAA?']);
+  if (S.scrap) o.push(S.scrap.kind === 'valtio' ? ['ROMUTUSPALKKIO', '2 000 € YLI 10 V POLTTISTA'] : ['ROMUTUSBONUS 3 000 €', shortName(S.scrap.id)]);
+  if (tgt) o.push([`★ ${shortName(tgt.c)}`, `NYT ${eur(tgt.price)} · AUTOLIIKE`]);
+  if (S.bubble > 0) o.push(['OSTAMME AUTOSI!', 'KÄTEISELLÄ · HETI · PARHAAT HINNAT']);
+  if (S.rate > 0) o.push(['KORKO NOUSEE?', 'KIINTEÄ KORKO 60 KK · KYSY LISÄÄ']);
+  const st = S.stock.filter(x => x.price > 0), x = st[Math.floor(r() * st.length)];
+  if (x) o.push([shortName(x.c), `${eur(x.price)}${x.soh !== undefined && x.soh < 100 ? ' · AKKU ' + x.soh + ' %' : ''} · AUTOLIIKE`]);
+  o.push(['PIKAVIPPI 5 MIN', 'LUOTTOTIEDOTTOMILLE · KORKO 20 %/KK']);
+  // tärkeimmät ensin: kampanja ja tavoiteauto näkyvät useimmiten
+  return r() < 0.7 ? o[0] : o[Math.floor(r() * o.length)];
+}
 function dealer() {
   if (!S.stock) genStock();
   const ch = S.stock.map(s => {
@@ -1279,8 +1413,8 @@ function dealer() {
     const tgt = TARGETS[S.target].ids.includes(s.c);
     return [`${k.name}: ${eur(s.price)}${s.soh!==undefined&&s.soh<100?' · akku '+s.soh+' %':''}${camp?' · KAMPANJA':''}${tgt?' ★':''}`, ()=>carDetail(s)];
   });
-  ch.push(['Takaisin', menu]);
-  scr('AUTOLIIKE', ['Liikkeen tarjonta tässä kuussa. Rahoitus järjestyy aina, melkein.'], ch);
+  ch.push(LOT ? ['Takaisin tielle', lotLeave] : ['Takaisin', menu]);
+  scr('AUTOLIIKE', [LOT ? '+Käännyit autoliikkeen pihaan. Myyjä on jo ovella, ja kahvi on kuumaa.' : '', 'Liikkeen tarjonta tässä kuussa. Rahoitus järjestyy aina, melkein.'].filter(Boolean).concat(LOT && S.tsa ? ['Työsuhdeauto pysyy alla, vaikka ostaisit oman.'] : []), ch);
 }
 function newValue(s) {
   const k = C(s.c);
@@ -1419,7 +1553,7 @@ function doBuy(s, trade, loan, paid) {
   const car = {c:s.c, base:0, loan, broken:0, mb:0, sale:0, soh:s.soh, held:0, newBuy:C(s.c).fl.includes('N'), paid:s.price, bought:S.m, rims2:!!s.rims2};
   car.base = nv / mult(car);
   setWarranty(car, !C(s.c).fl.includes('N'));
-  S.cars.push(car); S.joyM = S.m;
+  gotCar(car);
   S.stock = S.stock.filter(x=>x!==s);
   const lines = [`+${k.name} on sinun!`];
   if (loan) lines.push(`Laina ${eur(loan.bal)}, auton arvo ${eur(nv)}.`);
@@ -1482,7 +1616,7 @@ function auctionPay(A, total, loan) {
   const car = {c:A.id, base:0, loan, broken:0, mb:0, sale:0, soh:A.soh, held:0};
   car.base = A.V / mult(car);
   setWarranty(car, false);
-  S.cars.push(car); S.joyM = S.m;
+  gotCar(car);
   const lines = [`+${C(A.id).name} on sinun.`];
   if (A.hidden) {
     if (RND()<0.5) { car.base *= 0.75; lines.push('!Piilovika: kori on kitattu ja maalattu. Arvo −25 %.'); }
@@ -1546,7 +1680,7 @@ function endLines(seized) {
   const lines = [`Autojen arvo Autovexin hinnoin ${eur(v)}`, `Velat ${eur(l)}`, `Kassa ${eur(S.cash)}`].concat(invV ? [`Sijoitukset ${eur(invV)}`] : []).concat([ `Nettovarallisuus ${eur(eq)}`, `Kuukausia vankilassa: ${S.jail}/84`]);
   if (S.kimppaPaid) lines.push(`Kimppaan meni ${eur(S.kimppaPaid)}, takaisin tuli ${eur(S.kimppaWon)}.`);
   if (seized && l <= 0) { lines.push('', 'Velat saatiin maksettua autoilla, mutta autot ovat poissa. Vapaa, mutta jalan.'); S.score = Math.max(0, Math.round(eq/10)); lines.push(`+PISTEET: ${S.score}`); }
-  else if (seized || l > v) { lines.push('', '!█ VANKILA █', seized ? '!Autot menivät, ja velkaa jäi silti.' : '!Lainaa on enemmän kuin autoista saisi Autovexiltä.'); S.score = 0; }
+  else if (seized || l > v) { lines.push('', '!█ VANKILA █', seized ? '!Autot menivät, ja velkaa jäi silti.' : '!Lainaa on enemmän kuin autoista saisi Autovexiltä.'); S.score = 0; S.jailEnd = true; }
   else {
     const own = ownsTarget();
     const cage = !own && S.tsaEnd && t.ids.includes(S.tsaEnd.c);
@@ -1557,14 +1691,34 @@ function endLines(seized) {
     lines.push('', own ? `+${t.name} pihassa, eikä vankilaa! Tavoitekerroin ×${1+t.mult}.` : cage ? `+Vapaa, ja ${t.name} oli alla, mutta firman piikkiin.` : `Vapaa, mutta ${t.name} jäi haaveeksi.`);
     lines.push(`+PISTEET: ${S.score}`);
   }
-  return lines;
+  return lines.concat(endStats());
+}
+// alpha 30: loppuraportti. Nettovarallisuus vuoden lopussa palkkeina, sitten pelin kohokohdat.
+function endStats() {
+  const h = S.hist || [], T = ST(), out = ['', 'VUOSI · NETTOVARALLISUUS (autot − velat + kassa)'];
+  const yrs = [];
+  for (let y = 0; y < 7; y++) { let e = null; for (let m = y*12; m < y*12+12; m++) if (h[m]) e = h[m]; if (e) yrs.push([2027 + y, e[0] - e[1] + e[2], h.slice(y*12, y*12+12).filter(x => x && x[1] > x[0] && x[1] > 0).length]); }
+  const max = Math.max(1, ...yrs.map(y => Math.abs(y[1]))), N = 14;
+  yrs.forEach(([yr, net, jm]) => { const n = Math.max(net ? 1 : 0, Math.round(Math.abs(net) / max * N));
+    out.push(`${net < 0 ? '!' : ''}${yr} ${'█'.repeat(n)}${'·'.repeat(N - n)} ${net < 0 ? '−' : ''}${eur(Math.abs(net))}${jm ? ` · vankilassa ${jm} kk` : ''}`); });
+  const own = S.owned || [];
+  out.push('', `Autoja ${own.length}: ${own.length > 7 ? '… → ' + own.slice(-6).join(' → ') : own.join(' → ')}`);
+  out.push(`Peuroja ${T.deer}${T.poro ? `, poroja ${T.poro}` : ''} · ulosajoja ja kolareita ${T.crash} · ajettu ${num(T.km)} km`);
+  const kertaa = n => n === 1 ? 'kerran' : `${n} kertaa`;
+  if (T.cam) out.push(`!Nopeuskamerat välähtivät ${kertaa(T.cam)}: sakkoja ${eur(T.camEur)}`);
+  if (T.vippi) out.push(`!Pikavippi otettiin ${kertaa(T.vippi)}`);
+  if (T.gig) out.push(`+Keikoilla tienattu ${eur(T.gig)}`);
+  if (T.bill) out.push(`Kallein yksittäinen lasku: ${T.billT ? T.billT.toLowerCase() + ', ' : ''}${eur(T.bill)}`);
+  return out;
 }
 function endGame() {
   if (Drive.active) Drive.stop();
   S.over = true;
   const pre = [];
   if (S.tsa) { const b = tsaBill(); S.cash -= b; pre.push(`Työsuhdeauton palautustarkastus: ${eur(b)}`, ''); S.tsaEnd = S.tsa; S.tsa = null; }
-  scr('84 KK TÄYNNÄ', pre.concat(endLines(false)), [['Uusi peli', start]]);
+  const L = pre.concat(endLines(false)); recordEnd(); Snd.play(S.jailEnd ? 'jail' : 'win');
+  const T = S.daily ? `84 KK TÄYNNÄ · PÄIVÄN HAASTE ${S.daily}` : '84 KK TÄYNNÄ';
+  scr(T, L, [['Uusi peli', start], ['Kopioi tulos jaettavaksi', ()=>shareResult(()=>scr(T, L, [['Uusi peli', start]]))], ['Ennätykset', records]]);
 }
 
 // ---------- TILARIVI ----------
@@ -1613,14 +1767,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
       b.innerHTML = (i<9?`<span class="k">${i+1}</span>`:'') + esc(c.t);
       if (c.t.startsWith('PAALAAN')) b.className = 'paa';
       b.disabled = c.dis;
-      b.onclick = () => { if (!c.dis) { c.f(); window.scrollTo(0,0); } };
+      b.onclick = () => { if (!c.dis) { Snd.play('click'); c.f(); window.scrollTo(0,0); } };
       box.appendChild(b);
     });
   }});
   document.addEventListener('keydown', e => {
     if (Drive.blockKeys()) return;
     const n = parseInt(e.key,10);
-    if (n>=1 && n<=9 && current[n-1] && !current[n-1].dis) { current[n-1].f(); window.scrollTo(0,0); }
+    if (n>=1 && n<=9 && current[n-1] && !current[n-1].dis) { Snd.play('click'); current[n-1].f(); window.scrollTo(0,0); }
   });
   start();
 })();

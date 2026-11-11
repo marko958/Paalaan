@@ -115,7 +115,9 @@ Ominaisuudet johdetaan nykyisistä `CARS`-tiedoista, joten uutta autotietokantaa
 1. ✅ **Tieprototyyppi** (2.0 alpha 1): tie, ohjaus, peurat, kuukausien vaihtuminen (30 s) ja liittymä takaisin valikkoon. Tapahtumat aukeavat toistaiseksi ikkunana tien päälle.
    - ✅ 2.0 alpha 2: törmäykset puihin, paaluihin ja kyltteihin (vauhdin mukaan kolhu, kova vaurio tai lunastus), mallikohtaiset autot takaa, kuopat ja kivet tiellä (lommo pohjaan, vakuutuscase, arvo romahtaa).
 2. **Tapahtumat:** törmäykset vahingoiksi, nopeusriippuvainen lunastus ja pelin päättyminen, pikavalinnat ja jono.
+   - ✅ 2.0 alpha 30: pikavalinnat tien päällä (huhut, kampanjat, korot, vakuutuskirjeet, kivenisku ym.). Peli hidastuu, valinta tehdään näppäimillä 1–3 tai napauttamalla, ja 5 sekunnin jälkeen toteutuu viimeinen vaihtoehto.
 3. ✅ **Energia** (2.0 alpha 17): akku- ja tankkimittari, lataus- ja huoltoasemat tien varressa, myöhästymiset latausstopeista (nostavat lomautusriskiä) ja hinaus, kun energia loppuu. Kotona ladataan aina, kun poistutaan liittymästä. Lisäksi pitkät matkat (Kuopio, Levi, Saksa).
-4. **Autoliikkeet ja mainostaulut tien varressa.**
+4. ✅ **Autoliikkeet ja mainostaulut tien varressa** (2.0 alpha 30): taulut mainostavat kampanjoita, kvartaalin 0 %-korkoja, romutuspalkkiota, tavoiteautoa ja liikkeen tarjontaa. Kerran kuussa tien varressa on autoliike: pysähdy pihaan, niin pääset ostamaan, ja matka jatkuu uudella autolla.
 5. ✅ **Wolt- ja taksikeikat** (2.0 alpha 2, aikaistettu).
 6. **Viimeistely:** vuodenajat, pimeys, äänet, puhelinohjaus ja tasapainotus.
+   - ✅ 2.0 alpha 30: lämpötila ja keli HUDissa, lumi- ja vesisade, lumipenkat ja musta jää (kesärenkailla vielä pahempi), SID-henkiset äänet (sammutettavissa aloitusruudussa), automaattinen tallennus, ennätykset, päivän haaste ja loppuraportti.

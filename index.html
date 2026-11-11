@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PAALAAN! – autolainavankilapeli (beta)</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
 <style>
+  /* VT323-fontti ladataan omalta palvelimelta (SIL OFL, ks. fonts/OFL.txt): ei pyyntöjä Googlelle */
+  @font-face { font-family:'VT323'; font-style:normal; font-weight:400; font-display:swap; src:url(fonts/vt323.woff2) format('woff2'); }
   :root { --border:#7869C4; --screen:#40318D; --fg:#A59FF8; --hi:#FFFFFF; --red:#FF8A80; --green:#A9FF9F; --yel:#EEEE77; }
   * { box-sizing:border-box; }
   html,body { margin:0; background:var(--border); color:var(--fg); font-family:'VT323', ui-monospace, monospace; font-size:21px; line-height:1.15; }
@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v44 (11.11. klo 00.15) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v45 (10.11. klo 23.43) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
