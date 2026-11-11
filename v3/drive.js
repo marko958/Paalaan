@@ -37,7 +37,7 @@ const Drive = (() => {
   }
   const gfxName = () => GFX_FI[gfx] + (gfx === 'auto' && View && View.autoLevel ? ` (nyt ${GFX_FI[View.autoLevel()]})` : '');
   function showFail(msg) {
-    gfxFail = msg || 'WebGL ei käynnistynyt.';
+    gfxFail = msg || ' ';
     const el = document.getElementById('nogl');
     if (el) { el.hidden = false; const m = document.getElementById('nogl-msg'); if (m) m.textContent = gfxFail; }
   }

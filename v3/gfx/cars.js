@@ -3,7 +3,7 @@
 // logoja tai merkkien tunnuksia ei ole.
 import * as THREE from 'three';
 import { shapeOf, buildBody, surface, BODY } from './carbody.js';
-import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex } from './carparts.js';
+import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow } from './carparts.js';
 
 // Mallikohtaiset mittasuhteet (metreinä) ja piirteet. Avaimet ovat samat kuin korityypin mitat (carbody.js).
 // front = etuvalojen signatuuri, rim = vanne, doors = ovien määrä.
@@ -82,7 +82,7 @@ export function paintMat(hex, kind = 'metal') {
   const solid = kind === 'solid' || (hsl.l > 0.82 && hsl.s < 0.1);
   const m = kind === 'steel'
     ? new THREE.MeshPhysicalMaterial({ color: 0xa9adb1, metalness: 1, roughness: 0.34, clearcoat: 0 })
-    : new THREE.MeshPhysicalMaterial({ color: c, metalness: solid ? 0.05 : 0.6, roughness: solid ? 0.4 : 0.38, clearcoat: 1, clearcoatRoughness: 0.035 });
+    : new THREE.MeshPhysicalMaterial({ color: c, metalness: solid ? 0.05 : 0.72, roughness: solid ? 0.36 : 0.3, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.25 });
   if (!drops) drops = dropsTex();
   m.clearcoatNormalMap = drops; m.clearcoatNormalScale = new THREE.Vector2(0, 0);
   m.userData.dropScale = m.clearcoatNormalScale;
@@ -90,7 +90,7 @@ export function paintMat(hex, kind = 'metal') {
     sh.uniforms.uDirt = CU.dirt; sh.uniforms.uDirtCol = CU.dirtCol; sh.uniforms.uWet = CU.wet;
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aDirt;\nvarying float vDirt;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirt = aDirt;');
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDirt;\nuniform float uDirt, uWet;\nuniform vec3 uDirtCol;\nfloat gDirt = 0.0;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\n gDirt = clamp(vDirt * uDirt * 1.25 + (uDirt - 0.5) * 0.25 * vDirt, 0.0, 0.92);\n diffuseColor.rgb = mix(diffuseColor.rgb, uDirtCol, gDirt);')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n gDirt = clamp(vDirt * uDirt * 1.25 + (uDirt - 0.5) * 0.25 * vDirt, 0.0, 0.92);\n diffuseColor.rgb = mix(diffuseColor.rgb, uDirtCol, gDirt);\n diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.55, 1.0, vDirt);')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.95, gDirt);')
       .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat *= 1.0 - gDirt; material.clearcoatRoughness = mix(material.clearcoatRoughness, 0.012, uWet);\n#endif');
   };
@@ -231,7 +231,7 @@ export function buildCar(spec, opt = {}) {
   const pipe = y => { const geo = new THREE.CylinderGeometry(0.036, 0.036, 0.12, hero ? 14 : 6, 1, true); geo.rotateX(Math.PI / 2); sf.fasciaN(false, y / yR0, S.zr0 + 0.04, V); geo.translate(V.x, V.y - 0.005, V.z - 0.01); add(geo, M.chrome); const inner = new THREE.CircleGeometry(0.032, 10); inner.translate(V.x, V.y - 0.005, V.z + 0.03); add(inner, M.under); };
   if (!ev || has('exh1') || has('exh2')) { if (has('exh2')) { pipe(-W2 * 0.55); pipe(W2 * 0.55); } else pipe(-W2 * 0.55); }
 
-  if (hero || opt.detail) {
+  if (hero && opt.detail !== false) {
     // --- ovien saumat, takaluukun ja konepellin saumat ---
     const doors = tk.doors || (type === 'coupe' && tk.doors === 2 ? 2 : 4);
     const gb = body.glassBounds, seamX = [S.fa - S.Ra - 0.09, gb.pillarB + 0.0];
@@ -337,8 +337,10 @@ export function buildCar(spec, opt = {}) {
   // --- kattoboksi ja peräkärry ---
   let boxG = null, trailer = null;
   if (opt.box) { boxG = roofBox(S, sf); bodyG.add(boxG); }
-  if (opt.tow) { trailer = makeTrailer(opt.tow, S, tireW); trailer.group.position.z = mid + 0.02; g.add(trailer.group); }
+  if (opt.tow) { trailer = makeTrailer(opt.tow, S, tireW, mid); g.add(trailer.group); }
 
+  { if (!M.blob) M.blob = new THREE.MeshBasicMaterial({ map: blobShadow(), transparent: true, depthWrite: false, opacity: 0.62, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const sg = new THREE.PlaneGeometry(S.W * 1.28, S.L * 1.14); sg.rotateX(-Math.PI / 2); const sh = new THREE.Mesh(sg, M.blob); sh.position.y = 0.02; sh.renderOrder = 1; g.add(sh); }
   const state = { ang: 0, pitch: 0, roll: 0, steer: 0, heave: 0, v: 0, flap: 0, t: 0 };
   // u: { dt, speed (m/s), brake, steer (−1…1), accel (m/s²), lat (m/s²), night (0…1), charge, lights }
   function update(u) {
@@ -376,11 +378,11 @@ function roofBox(S, sf) {
   return G;
 }
 // peräkärry: runko, vanerilaidat, lokasuojat, aisa, valot ja kuorma (muuttokuorma tai romuauto)
-function makeTrailer(kind, S, tireW) {
+function makeTrailer(kind, S, tireW, rearZ) {
   const G = new THREE.Group(), body = new THREE.Group(); G.add(body);
-  const car = kind === 'romu' || kind === 'auto', w = car ? 1.9 : 1.5, len = car ? 4.2 : 2.6, h0 = 0.48, z0 = S.L / 2 + 1.0;
+  const car = kind === 'romu' || kind === 'auto', w = car ? 1.9 : 1.5, len = car ? 4.2 : 2.6, h0 = 0.48, z0 = rearZ + 0.85;
   const m = (geo, mat, x, y, z) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = true; body.add(o); return o; };
-  m(new THREE.BoxGeometry(0.07, 0.07, 1.5), M.frame, 0, h0 - 0.04, z0 - 0.3);                      // aisa
+  m(new THREE.BoxGeometry(0.07, 0.07, 1.3), M.frame, 0, h0 - 0.04, z0 - 0.25);                      // aisa
   m(new THREE.BoxGeometry(w, 0.07, len), M.frame, 0, h0, z0 + len / 2 + 0.4);                       // pohja
   if (!car) for (const [bx, bz, bw, bl] of [[-w / 2, 0, 0.03, len], [w / 2, 0, 0.03, len], [0, -len / 2, w, 0.03], [0, len / 2, w, 0.03]]) m(new THREE.BoxGeometry(bw, 0.36, bl), M.ply, bx, h0 + 0.2, z0 + len / 2 + 0.4 + bz);
   const R = 0.3, wheels = [];
@@ -408,7 +410,7 @@ function makeTrailer(kind, S, tireW) {
   let sway = 0;
   return { group: G, load, lampM, kind, update(u, st) {
     for (const wh of wheels) wh.spin.rotation.x = st.ang * 0.9;
-    sway += ((u.steer || 0) * -0.06 - sway) * Math.min(1, (u.dt || 0) * 2); G.rotation.y = sway;
+    sway += ((u.steer || 0) * -0.05 - sway) * Math.min(1, (u.dt || 0) * 2); G.position.set(Math.sin(sway) * -rearZ, 0, rearZ - Math.cos(sway) * rearZ); G.rotation.y = sway; // kääntyy vetokoukun ympäri
     lampM.emissiveIntensity = u.brake ? 5 : 1.2;
     body.position.y = Math.sin(st.t * 9) * 0.004 * Math.min(1, (u.speed || 0) / 20);
     load.visible = u.cargo !== false;

@@ -5,6 +5,7 @@ import { canvasTex } from './assets.js';
 const rubber = new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.88, metalness: 0 });
 const alloy = new THREE.MeshStandardMaterial({ color: 0xb9bcc0, roughness: 0.28, metalness: 0.95 });
 const darkAlloy = new THREE.MeshStandardMaterial({ color: 0x2a2b2e, roughness: 0.35, metalness: 0.9 });
+const aeroM = new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.4, metalness: 0.85 });
 const steelM = new THREE.MeshStandardMaterial({ color: 0x6a6d70, roughness: 0.5, metalness: 0.9 });
 const caliperRed = new THREE.MeshStandardMaterial({ color: 0xb01818, roughness: 0.4, metalness: 0.3 });
 const caliperGrey = new THREE.MeshStandardMaterial({ color: 0x55585c, roughness: 0.5, metalness: 0.6 });
@@ -64,7 +65,8 @@ function rimGeo(R, w, style, lod) {
   else if (style === 'turbine') spoke(9, r * 0.2, r * 0.1, 0, 0.0, 0.024);
   else if (style === 'star') spoke(6, r * 0.26, r * 0.13, 0, 0, 0.03);
   else if (style === 'aero') { const d = new THREE.CylinderGeometry(r * 0.94, r * 0.94, 0.012, lod ? 12 : 30); d.rotateZ(-Math.PI / 2); d.translate(face, 0, 0); parts.push(d); spoke(5, r * 0.5, r * 0.42, 0, 0, 0.02); }
-  else { const d = new THREE.CylinderGeometry(r * 0.92, r * 0.8, 0.03, lod ? 12 : 30); d.rotateZ(-Math.PI / 2); d.translate(face - 0.01, 0, 0); parts.push(d); }
+  else { // peltivanne ja pölykapseli: matala kupu ja kahdeksan leveää puolaa
+    const d = new THREE.CylinderGeometry(r * 0.5, r * 0.9, 0.035, lod ? 12 : 30); d.rotateZ(-Math.PI / 2); d.translate(face - 0.03, 0, 0); parts.push(d); spoke(8, r * 0.3, r * 0.22, 0, 0, 0.018); }
   const g = mergeGeos(parts);
   g.userData.shared = true;
   geoCache.set(key, g);
@@ -87,7 +89,7 @@ export function makeWheel(R, w, style, lod) {
   const tire = new THREE.Mesh(tireGeo(R, w, lod), lod ? rubber : tireMat); tire.castShadow = true;
   const dark = style === 'steel' ? false : /dark/.test(style);
   const st = style.replace('dark-', '');
-  const rim = new THREE.Mesh(rimGeo(R, w, st, lod), st === 'steel' ? steelM : dark ? darkAlloy : alloy); rim.castShadow = true;
+  const rim = new THREE.Mesh(rimGeo(R, w, st, lod), st === 'steel' ? steelM : dark ? darkAlloy : st === 'aero' ? aeroM : alloy); rim.castShadow = true;
   spin.add(tire, rim);
   if (!lod && st !== 'steel' && st !== 'aero') { // jarrulevy ja satula vanteen takana
     const disc = new THREE.CylinderGeometry(R * 0.5, R * 0.5, 0.022, 28); disc.rotateZ(-Math.PI / 2); disc.translate(w * 0.12, 0, 0);
@@ -193,4 +195,10 @@ export function dropsTex() {
   }, { data: true });
   t.repeat.set(2.2, 2.2);
   return t;
+}
+
+// pehmeä varjoläiskä auton alle
+export function blobShadow() {
+  return canvasTex(64, 128, (g, W, H) => { g.clearRect(0, 0, W, H); const gr = g.createRadialGradient(W / 2, H / 2, 4, W / 2, H / 2, W * 0.5); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.save(); g.translate(W / 2, H / 2); g.scale(1, H / W); g.translate(-W / 2, -H / 2); g.fillStyle = gr; g.fillRect(0, -H, W, H * 3); g.restore(); }, { clamp: true });
 }

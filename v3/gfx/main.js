@@ -17,12 +17,12 @@ const canvas = document.getElementById('road');
 
 // ---------- laatutasot ----------
 const QUALITY = {
-  low:  { dpr: 1,    shadow: 0,    range: 0,  near: 1, draw: 6,  far: 60,  trees: 0.35, small: true,  aniso: 2, post: false, bloom: false, ao: false, blur: false, msaa: 0, carLod: 1, fx: 0.4 },
-  med:  { dpr: 1.5,  shadow: 1024, range: 55, near: 2, draw: 9,  far: 112, trees: 0.7,  small: false, aniso: 4, post: true,  bloom: true,  ao: false, blur: false, msaa: 2, carLod: 0, fx: 0.7 },
+  low:  { dpr: 1.5,    shadow: 0,    range: 0,  near: 1, draw: 6,  far: 60,  trees: 0.35, small: true,  aniso: 2, post: false, bloom: false, ao: false, blur: false, msaa: 0, carLod: 1, fx: 0.4 },
+  med:  { dpr: 2,  shadow: 1024, range: 55, near: 2, draw: 9,  far: 112, trees: 0.7,  small: false, aniso: 4, post: true,  bloom: true,  ao: false, blur: false, msaa: 2, carLod: 0, fx: 0.7 },
   high: { dpr: 2,    shadow: 2048, range: 70, near: 3, draw: 13, far: 112, trees: 1,    small: false, aniso: 8, post: true,  bloom: true,  ao: true,  blur: true,  msaa: 4, carLod: 0, fx: 1 },
 };
 let setting = 'auto', level = 'med', Q = QUALITY.med;
-const auto = { t: 0, frames: 0, locked: false, tried: {} };
+const auto = { t: 0, locked: false, from: '', noUp: false, level: '' };
 
 let renderer, scene, camera, env, track, ready = false, failed = false, prepared = false;
 const U = { // varjostimien yhteiset muuttujat
@@ -96,7 +96,7 @@ function applyQuality() {
 function setQuality(s) {
   setting = s;
   level = s === 'auto' ? (auto.level || guess()) : s;
-  auto.t = 0; auto.frames = 0;
+  auto.t = 0; auto.locked = false; auto.from = ''; auto.noUp = false;
   if (renderer) applyQuality();
 }
 // ensimmäinen arvaus ennen mittausta: kosketuslaite aloittaa matalalta
@@ -231,7 +231,7 @@ function playerCar() {
   const key = [name, v.mb || 0, (v.car && v.car.dent) || 0, v.box ? 1 : 0, tow, Q.carLod].join('|');
   if (car.obj && car.key === key) return;
   if (car.obj) { scene.remove(car.obj.group); disposeCar(car.obj); }
-  car.obj = buildCar(v.bus ? { b: 'bus', c: '#C8C24A', tl: 'wide' } : v.spec, { name, lod: 0, detail: true, type, mb: v.mb || 0, dent: (v.car && v.car.dent) || 0, box: !!v.box, tow });
+  car.obj = buildCar(v.bus ? { b: 'bus', c: '#C8C24A', tl: 'wide' } : v.spec, { name, lod: 0, detail: Q.carLod === 0, type, mb: v.mb || 0, dent: (v.car && v.car.dent) || 0, box: !!v.box, tow });
   car.key = key; car.name = name;
   car.obj.group.add(lamps.group);
   lamps.group.position.set(0, 0.72, car.obj.mid - car.obj.S.L + 0.3);
@@ -275,7 +275,8 @@ function frame(dt) {
   const sp = Math.min(1, speed / 45);
   if (!cam.init) { cam.th = P.th; cam.init = true; cam.roll = 0; }
   cam.th += (P.th + car.yaw * 0.35 - cam.th) * Math.min(1, dt * 3.2 + (dt ? 0 : 1));
-  const dist = 6.0 + sp * 0.7, h = 2.0 + sp * 0.2;
+  const tr = car.obj.trailer ? (car.obj.trailer.kind === 'romu' ? 5.2 : 3.4) : 0; // kärryn kanssa kamera kauempaa ja korkeammalta
+  const dist = 6.0 + sp * 0.7 + tr, h = 2.0 + sp * 0.2 + tr * 0.22;
   const fx = Math.sin(cam.th), fz = -Math.cos(cam.th);
   let cx = car.pos.x - fx * dist, cz = car.pos.z - fz * dist, cy = car.pos.y + h - P.slope * dist * 0.6;
   const fb = f - dist / SEGM;
@@ -320,20 +321,19 @@ function frame(dt) {
   stats.ms = performance.now() - t0;
   if (dt > 0) { stats.acc += dt; stats.n++; if (stats.acc >= 1) { stats.fps = stats.n / stats.acc; stats.acc = 0; stats.n = 0; autoTune(); } }
 }
-// Auto: mitataan ruudunpäivitys ensimmäisten sekuntien aikana. Alle 28 fps pudottaa tason, yli 55 fps nostaa sitä kerran.
+// Auto: ruudunpäivitys mitataan sekunnin jaksoissa ajon ensimmäisten sekuntien aikana.
+// Alle 27 fps pudottaa tasoa. Yli 56 fps nostaa tasoa kerran; jos uusi taso jää alle 45 fps:n, palataan ja lukitaan.
 function autoTune() {
   if (setting !== 'auto' || auto.locked) return;
   auto.t++;
   if (auto.t < 3) return; // lataus ja varjostimien käännös tasaantuvat ensin
   const f = stats.fps, order = ['low', 'med', 'high'], i = order.indexOf(level);
   let next = level;
-  if (f < 28 && i > 0) next = order[i - 1];
-  else if (f > 55 && i < 2 && !auto.tried[order[i + 1]] && auto.t >= 5) next = order[i + 1];
-  else if (auto.t >= 8) auto.locked = true;
-  if (next !== level) {
-    auto.tried[level] = true; if (order.indexOf(next) < i) auto.tried[next] = true, auto.locked = i - 1 === 0 || auto.tried[next];
-    level = auto.level = next; auto.t = 0; applyQuality();
-  }
+  if (auto.from && f < 45) { next = auto.from; auto.locked = true; }
+  else if (f < 27 && i > 0) { next = order[i - 1]; auto.noUp = true; }
+  else if (f > 56 && i < 2 && !auto.noUp && !auto.from && auto.t >= 5) { next = order[i + 1]; auto.from = level; }
+  else if (auto.t >= 10) auto.locked = true;
+  if (next !== level) { level = auto.level = next; auto.t = 0; applyQuality(); }
 }
 
 const api = {
