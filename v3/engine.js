@@ -1758,14 +1758,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
     if (!st) { el.hidden = true; return; }
     el.hidden = false;
     const r = st.ratio, N = 20, fill = Math.min(N, Math.round(Math.min(r,2)/2*N));
-    let bar = ''; for (let i=0;i<N;i++) bar += (i<fill ? '█' : (i===N/2 ? '|' : '·'));
+    // 3.0: graafinen palkki (2.0:ssa merkeistä). Keskiviiva = laina yhtä suuri kuin autojen arvo.
+    const bar = `<i style="width:${(fill / N * 100).toFixed(0)}%"></i><b></b>`;
     const jail = st.l > st.v && st.l > 0;
     const cars = st.cars.map(c => `${esc(c.name)}${c.mb?' [MB]':''}${c.dent?' [LOMMO]':''}${c.broken?' [RIKKI]':''}`).join(' + ') || 'ei autoa';
     el.innerHTML =
       `<div class="row"><span>KK ${st.month}/84</span><span>KASSA ${eur(st.cash)}</span><span>TULO ${eur(st.income)}</span></div>`+
       `<div class="row"><span>ERÄT ${eur(st.pay)}/kk</span><span>${st.vippi>0?'<span class="jail">VIPPI '+eur(st.vippi)+'</span>':'VIPPI 0 €'}</span></div>`+
       `<div class="row"><span>ARVO ${eur(st.v)}</span><span>LAINAT ${eur(st.l)}</span></div>`+
-      `<div class="row"><span class="bar">[${bar}]</span><span>${st.l>0?Math.round(r*100)+' %':'VELATON'} ${jail?'<span class="jail">VANKILA!</span>':''}</span></div>`+
+      `<div class="row"><span class="bar${r > 1 ? ' over' : ''}" title="Lainat suhteessa autojen arvoon">${bar}</span><span>${st.l>0?Math.round(r*100)+' %':'VELATON'} ${jail?'<span class="jail">VANKILA!</span>':''}</span></div>`+
       `<div>${cars}</div>`+
       `<div>TAVOITE: ${esc(st.target)}${st.own?' ★ PIHASSA':''}</div>`;
   }

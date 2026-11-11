@@ -27,7 +27,11 @@
   .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:2px 16px; }
   .status .row span { color:var(--fg); }
   .status > div:nth-last-child(-n+2) { margin-top:4px; color:var(--muted); }
-  .bar { font-family:var(--mono); letter-spacing:-.5px; color:var(--accent2) !important; }
+  /* velkapalkki: täyttö = lainat / autojen arvo (0–200 %), keskiviiva = 100 % */
+  .bar { position:relative; display:inline-block; flex:1 1 160px; max-width:260px; height:8px; margin:7px 0; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, var(--green), var(--yel)); border-radius:4px; }
+  .bar.over i { background:linear-gradient(90deg, var(--yel), var(--red)); }
+  .bar b { position:absolute; left:50%; top:-2px; bottom:-2px; width:2px; background:rgba(255,255,255,.55); }
   .jail { color:var(--red) !important; font-weight:700; animation:pulse 1.2s ease-in-out infinite; }
   @keyframes pulse { 50% { opacity:.35 } }
 
@@ -136,15 +140,15 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">3.0 kokeilu 25 (11.11. klo 23.49) · Näppäimet 1–9 valitsevat · <a href="../v2/" style="color:inherit">2.0</a> · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset sekä ääni- ja grafiikka-asetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään. Resurssien lisenssit: v3/assets/LISENSSIT.md</div>
+  <div class="foot">3.0 kokeilu 26 (12.11. klo 00.08) · Näppäimet 1–9 valitsevat · <a href="../v2/" style="color:inherit">2.0</a> · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset sekä ääni- ja grafiikka-asetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään. Resurssien lisenssit: v3/assets/LISENSSIT.md</div>
 </div>
-<script src="sound.js?v=25"></script>
-<script src="drive.js?v=25"></script>
-<script src="engine.js?v=25"></script>
+<script src="sound.js?v=26"></script>
+<script src="drive.js?v=26"></script>
+<script src="engine.js?v=26"></script>
 <!-- three.js ja lisäosat ladataan omasta lib-kansiosta: ei pyyntöjä kolmansille osapuolille.
      ?v=N ohittaa selaimen välimuistin: kasvata numeroa jokaisessa julkaisussa (myös importmapissa, joka ohjaa gfx-moduulit) -->
-<script type="importmap">{"imports": {"three": "./lib/three.module.min.js", "three/addons/": "./lib/jsm/", "./gfx/assets.js": "./gfx/assets.js?v=25", "./gfx/carbody.js": "./gfx/carbody.js?v=25", "./gfx/carparts.js": "./gfx/carparts.js?v=25", "./gfx/cars.js": "./gfx/cars.js?v=25", "./gfx/dyn.js": "./gfx/dyn.js?v=25", "./gfx/env.js": "./gfx/env.js?v=25", "./gfx/fx.js": "./gfx/fx.js?v=25", "./gfx/main.js": "./gfx/main.js?v=25", "./gfx/post.js": "./gfx/post.js?v=25", "./gfx/props.js": "./gfx/props.js?v=25", "./gfx/scenery.js": "./gfx/scenery.js?v=25", "./gfx/trees.js": "./gfx/trees.js?v=25", "./gfx/world.js": "./gfx/world.js?v=25"}}</script>
-<script type="module" src="gfx/main.js?v=25"></script>
+<script type="importmap">{"imports": {"three": "./lib/three.module.min.js", "three/addons/": "./lib/jsm/", "./gfx/assets.js": "./gfx/assets.js?v=26", "./gfx/carbody.js": "./gfx/carbody.js?v=26", "./gfx/carparts.js": "./gfx/carparts.js?v=26", "./gfx/cars.js": "./gfx/cars.js?v=26", "./gfx/dyn.js": "./gfx/dyn.js?v=26", "./gfx/env.js": "./gfx/env.js?v=26", "./gfx/fx.js": "./gfx/fx.js?v=26", "./gfx/main.js": "./gfx/main.js?v=26", "./gfx/post.js": "./gfx/post.js?v=26", "./gfx/props.js": "./gfx/props.js?v=26", "./gfx/scenery.js": "./gfx/scenery.js?v=26", "./gfx/trees.js": "./gfx/trees.js?v=26", "./gfx/world.js": "./gfx/world.js?v=26"}}</script>
+<script type="module" src="gfx/main.js?v=26"></script>
 <script nomodule>Drive.fail('Selain ei tue ES-moduuleja.');</script>
 </body>
 </html>
