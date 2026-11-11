@@ -381,12 +381,13 @@ export function buildCar(spec, opt = {}) {
     state.steer += ((u.steer || 0) * 0.42 - state.steer) * Math.min(1, dt * 7);
     for (const w of wheels) { w.spin.rotation.x = state.ang * (w.side < 0 ? -1 : 1); if (w.front) w.pivot.rotation.y = -state.steer; }
     // jousitus: jarrutus painaa keulaa, kiihdytys perää, sivuttaiskiihtyvyys kallistaa
-    const acc = u.accel !== undefined ? u.accel : dt > 0 ? ((u.speed || 0) - state.v) / dt : 0; state.v = u.speed || 0;
+    const accNow = u.accel !== undefined ? u.accel : dt > 0 ? ((u.speed || 0) - state.v) / dt : 0; state.v = u.speed || 0;
+    state.acc = (state.acc || 0) + (Math.max(-12, Math.min(12, accNow)) - (state.acc || 0)) * Math.min(1, dt * 4); const acc = state.acc; // suodatettu, ettei kori nyi
     const pT = Math.max(-0.035, Math.min(0.02, -acc * 0.0042)), rT = Math.max(-0.05, Math.min(0.05, (u.lat || 0) * 0.008));
     state.pitch += (pT - state.pitch) * Math.min(1, dt * 5); state.roll += (rT - state.roll) * Math.min(1, dt * 4);
     const rough = (u.rough || 0) + Math.min(1, (u.speed || 0) / 40) * 0.25;
-    state.heave = Math.sin(state.t * 11.3) * 0.004 * rough + Math.sin(state.t * 7.1 + 1) * 0.004 * rough;
-    bodyG.rotation.x = state.pitch + Math.sin(state.t * 9.1) * 0.002 * rough; bodyG.rotation.z = -state.roll; bodyG.position.y = state.heave - Math.abs(state.pitch) * 0.4;
+    state.heave = (Math.sin(state.t * 11.3) + Math.sin(state.t * 7.1 + 1)) * 0.0025 * Math.max(0, rough - 0.25);
+    bodyG.rotation.x = state.pitch + Math.sin(state.t * 9.1) * 0.0015 * Math.max(0, rough - 0.25); bodyG.rotation.z = -state.roll; bodyG.position.y = state.heave - Math.abs(state.pitch) * 0.4;
     // valot: ajovalot palavat aina (Suomen laki), jarruvalo kirkastaa takavalot
     if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; }
     if (g.userData.flap) { state.flap += ((u.charge ? 1 : 0) - state.flap) * Math.min(1, dt * 3); g.userData.flap.rotation.y = -state.flap * 1.9; g.userData.led.emissiveIntensity = state.flap * (0.6 + 0.4 * Math.sin(state.t * 4)) * 3; }

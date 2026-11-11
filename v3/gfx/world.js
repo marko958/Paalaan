@@ -35,7 +35,9 @@ export class Track {
     out.z = lerp(this.z[i], this.z[i + 1], t) + Math.sin(th) * lat;
     out.y = lerp(this.y[i], this.y[i + 1], t);
     out.th = th;
-    out.slope = (this.y[i + 1] - this.y[i]) / SEGM;
+    // kaltevuus pehmennettynä naapurisegmenteistä, jotta auto ja kamera eivät nyökkää segmentin rajalla
+    const s0 = (this.y[i + 1] - this.y[Math.max(0, i - 1)]) / (i > 0 ? 2 : 1), s1 = (this.y[Math.min(this.y.length - 1, i + 2)] - this.y[i]) / 2;
+    out.slope = lerp(s0, s1, t) / SEGM;
     return out;
   }
 }

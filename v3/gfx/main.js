@@ -36,9 +36,9 @@ let T = null, PR = null, backdrop = null, floor = null, fps = [], roadKind = '';
 const origin = new THREE.Vector3();
 const chunks = new Map();
 const P = { x: 0, y: 0, z: 0, th: 0, slope: 0 }, P2 = { x: 0, y: 0, z: 0, th: 0, slope: 0 };
-const car = { obj: null, name: '', key: '', yaw: 0, prevX: 0.5, pos: new THREE.Vector3(), v: 0 };
+const car = { obj: null, name: '', key: '', yaw: 0, vlat: 0, slope: 0, prevX: 0.5, pos: new THREE.Vector3(), v: 0 };
 const lamps = { group: new THREE.Group(), spot: null };
-const cam = { th: 0, init: false, roll: 0, override: null };
+const cam = { th: 0, init: false, roll: 0, override: null, lag: 0.5, y: null };
 let rampMesh = null, rampKey = '';
 const stats = { fps: 0, acc: 0, n: 0, ms: 0 };
 const fxState = { snow: false, cold: false, wet: false, acc: 0 };
@@ -256,17 +256,19 @@ function frame(dt) {
   // auto: sijainti tiellä, kallistus mäen mukaan ja sortokulma sivuttaisliikkeestä
   const speed = st.speed / sim.SEG * SEGM; // m/s
   const vlat = dt > 0 ? (st.x - car.prevX) * HALF / dt : 0; car.prevX = st.x;
-  const yawT = Math.max(-0.3, Math.min(0.3, Math.atan2(vlat, Math.max(6, speed))));
-  car.yaw += (yawT - car.yaw) * Math.min(1, dt * 9);
+  car.vlat += (vlat - car.vlat) * Math.min(1, dt * 8); // sivuttaisnopeus suodatettuna (ruudunpäivityksen vaihtelu ei heiluta autoa)
+  const yawT = Math.max(-0.22, Math.min(0.22, Math.atan2(car.vlat, Math.max(8, speed))));
+  car.yaw += (yawT - car.yaw) * Math.min(1, dt * 6);
   const y = surfaceY(f, st.x), seg0 = sim.seg(Math.floor(f));
   car.pos.set(P.x - origin.x, y, P.z - origin.z);
   const g = car.obj.group;
   g.position.copy(car.pos);
   g.rotation.set(0, 0, 0); g.rotation.order = 'YXZ';
-  g.rotation.y = -(P.th + car.yaw); g.rotation.x = Math.atan(P.slope);
+  car.slope += (P.slope - car.slope) * Math.min(1, dt * 6 + (dt ? 0 : 1));
+  g.rotation.y = -(P.th + car.yaw); g.rotation.x = Math.atan(car.slope);
   { const G = st.gig, cargo = !!((G && G.phase === 'deliver' && (G.kind === 'romu' || G.kind === 'muutto')) || (st.trip && st.trip.trailer));
-    const lat = seg0.curve * 0.0014 * speed * speed * 0.6 + vlat * 1.5;
-    car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: (st.keys.right ? 1 : 0) - (st.keys.left ? 1 : 0), lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
+    const lat = seg0.curve * 0.0014 * speed * speed * 0.6 + car.vlat * 1.2;
+    car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: st.steerIn || 0, lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
   dyn.update(dt, st.pos + sim.PZ, car.pos, P.th, env.nightWant || 0, st.flash);
   PR.camFlash.emissiveIntensity = st.flash > 0.2 ? st.flash * 10 : 0;
   if (lamps.spot) lamps.spot.intensity = (env.nightWant || 0) > 0.3 ? 420 * (env.nightWant > 0.6 ? 1 : 0.6) : 0;
@@ -274,18 +276,24 @@ function frame(dt) {
   // kamera: takaa ja yläviistosta, pehmeä seuranta, pieni kallistus mutkassa, tärähdys törmäyksessä
   const seg = seg0;
   const sp = Math.min(1, speed / 45);
-  if (!cam.init) { cam.th = P.th; cam.init = true; cam.roll = 0; }
-  cam.th += (P.th + car.yaw * 0.35 - cam.th) * Math.min(1, dt * 3.2 + (dt ? 0 : 1));
+  if (!cam.init) { cam.th = P.th; cam.init = true; cam.roll = 0; cam.lag = st.x; cam.y = null; }
+  cam.th += (P.th + car.yaw * 0.2 - cam.th) * Math.min(1, dt * 3.2);
   const tr = car.obj.trailer ? (car.obj.trailer.kind === 'romu' ? 5.2 : 3.4) : 0; // kärryn kanssa kamera kauempaa ja korkeammalta
-  const dist = 6.0 + sp * 0.7 + tr, h = 2.0 + sp * 0.2 + tr * 0.22;
+  // etäisyys lasketaan auton perästä ja korkeus auton korkeudesta, jotta bussi ja paku eivät peitä näkymää
+  const big = Math.max(0, car.obj.S.H - 1.7);
+  const dist = car.obj.mid + 3.5 + sp * 0.7 + tr + big * 2.2, h = 2.0 + sp * 0.2 + tr * 0.22 + big * 1.9;
   const fx = Math.sin(cam.th), fz = -Math.cos(cam.th);
-  let cx = car.pos.x - fx * dist, cz = car.pos.z - fz * dist, cy = car.pos.y + h - P.slope * dist * 0.6;
+  // kamera seuraa sivusuunnassa viiveellä: auto liikkuu ruudulla, maailma ei nyi
+  cam.lag += (st.x - cam.lag) * Math.min(1, dt * 3.2 + (dt ? 0 : 0));
+  const lagM = Math.max(-5, Math.min(5, (cam.lag - st.x) * HALF)), rx = Math.cos(cam.th), rz = Math.sin(cam.th);
+  let cx = car.pos.x - fx * dist + rx * lagM * 0.8, cz = car.pos.z - fz * dist + rz * lagM * 0.8, cy = car.pos.y + h - P.slope * dist * 0.6;
   const fb = f - dist / SEGM;
   if (fb > 0) cy = Math.max(cy, surfaceY(fb, st.x) + 1.1);
   const sh = st.shake > 0 ? st.shake : 0;
+  cam.y = cam.y === null || cam.y === undefined ? cy : cam.y + (cy - cam.y) * Math.min(1, dt * 5); cy = cam.y; // korkeus pehmennettynä
   camera.position.set(cx + (Math.random() - 0.5) * sh * 0.5, cy + (Math.random() - 0.5) * sh * 0.4, cz + (Math.random() - 0.5) * sh * 0.5);
   camera.up.set(0, 1, 0);
-  camera.lookAt(car.pos.x + fx * 7, car.pos.y + 1.05 + P.slope * 7, car.pos.z + fz * 7);
+  camera.lookAt(car.pos.x + fx * 7 + rx * lagM * 0.35, cy - h + 1.05 + big * 0.9 + P.slope * 7, car.pos.z + fz * 7 + rz * lagM * 0.35);
   const rollT = -seg.curve * 0.011 * sp;
   cam.roll += (rollT - cam.roll) * Math.min(1, dt * 2.5);
   camera.rotateZ(cam.roll);
