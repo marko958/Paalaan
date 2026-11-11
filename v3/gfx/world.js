@@ -151,7 +151,7 @@ export function terrainMaterial(U) {
           vec3 cg = texture2D(map, uv).rgb * uGrassTint;
           vec3 cf = texture2D(tForest, uv * 0.8).rgb * uForestTint;
           vec3 cp = texture2D(tField, uv * 0.7).rgb * uFieldTint;
-          vec3 cr = texture2D(tGravel, uv * 1.7).rgb * vec3(0.36, 0.34, 0.31);
+          vec3 cr = texture2D(tGravel, uv * 1.7).rgb * vec3(0.27, 0.255, 0.235);
           vec3 col = mix(cg, cp, vMix.y);
           col = mix(col, cf, vMix.x);
           col *= 0.72 + 0.4 * macro;

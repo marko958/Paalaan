@@ -33,6 +33,8 @@
   #drive canvas { display:block; width:100%; height:auto; aspect-ratio:16/10; background:#0b0f14; touch-action:none; }
   /* 3.0: leveällä näytöllä ajonäkymä saa enemmän tilaa kuin valikot */
   @media (min-width:800px){ body.driving .screen { max-width:min(1180px, calc((100vh - 190px) * 1.6), 100vw); } body.driving.paused #panel { max-width:730px; margin:0 auto; } }
+  /* 3.0: auto on ruudun keskellä alhaalla, joten ohje ja liittymäteksti nostetaan sen yläpuolelle */
+  #h-hint { bottom:62%; } #h-ramp { bottom:54%; }
   #h-flash { position:absolute; inset:0; background:#fff; opacity:0; }
   #h-load { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:#0b0f14; font-size:1.4em; }
   #nogl { border:2px solid var(--red); color:var(--red); padding:8px 10px; margin-bottom:12px; } #nogl a { color:var(--hi); }
@@ -103,7 +105,7 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 3.0 kokeilu 6 (11.11. klo 08.31) · Näppäimet 1–9 valitsevat · <a href="../v2/" style="color:inherit">2.0</a> · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset sekä ääni- ja grafiikka-asetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään. Resurssien lisenssit: v3/assets/LISENSSIT.md</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 3.0 kokeilu 7 (11.11. klo 09.11) · Näppäimet 1–9 valitsevat · <a href="../v2/" style="color:inherit">2.0</a> · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset sekä ääni- ja grafiikka-asetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään. Resurssien lisenssit: v3/assets/LISENSSIT.md</div>
 </div>
 <script src="sound.js"></script>
 <script src="drive.js"></script>

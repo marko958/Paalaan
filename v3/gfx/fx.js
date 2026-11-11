@@ -18,7 +18,7 @@ export class Weather {
           p = mod(p - uCam, uBox) - uBox * 0.5;
           vec4 mv = viewMatrix * vec4(p + uCam, 1.0);
           gl_Position = projectionMatrix * mv;
-          gl_PointSize = min(220.0, uSize * uStretch * (700.0 / max(0.6, -mv.z)));
+          gl_PointSize = -mv.z < 2.5 ? 0.0 : min(110.0, uSize * uStretch * (700.0 / -mv.z)); // aivan kameran edessä olevia ei piirretä (ylipiirto)
           vA = smoothstep(uBox.x * 0.5, uBox.x * 0.3, length(p.xz)) * smoothstep(0.4, 2.0, -mv.z);
         }`,
       fragmentShader: `uniform sampler2D uTex; uniform vec3 uCol; uniform float uAlpha, uStretch; varying float vA;
@@ -29,7 +29,7 @@ export class Weather {
         }` });
   }
   set(kind, density, night) {
-    const n = kind ? Math.round((kind === 'lumi' ? 5200 : 4200) * density) : 0;
+    const n = kind ? Math.round((kind === 'lumi' ? 5200 : 3000) * density) : 0;
     if (kind !== this.kind || n !== this.count) {
       if (this.points) { this.scene.remove(this.points); this.points.geometry.dispose(); this.points = null; }
       this.kind = kind; this.count = n;

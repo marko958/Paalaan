@@ -78,11 +78,11 @@ let drops = null;
 export function paintMat(hex, kind = 'metal') {
   const key = hex + kind;
   if (paintCache.has(key)) return paintCache.get(key);
-  const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl);
+  const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl); c.multiplyScalar(0.82); // maali hieman tummempana: heijastukset tuovat kirkkauden
   const solid = kind === 'solid' || (hsl.l > 0.82 && hsl.s < 0.1);
   const m = kind === 'steel'
     ? new THREE.MeshPhysicalMaterial({ color: 0xa9adb1, metalness: 1, roughness: 0.34, clearcoat: 0 })
-    : new THREE.MeshPhysicalMaterial({ color: c, metalness: solid ? 0.05 : 0.72, roughness: solid ? 0.36 : 0.3, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.25 });
+    : new THREE.MeshPhysicalMaterial({ color: c, metalness: solid ? 0.05 : 0.5, roughness: solid ? 0.36 : 0.34, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.0 });
   if (!drops) drops = dropsTex();
   m.clearcoatNormalMap = drops; m.clearcoatNormalScale = new THREE.Vector2(0, 0);
   m.userData.dropScale = m.clearcoatNormalScale;

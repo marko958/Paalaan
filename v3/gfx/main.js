@@ -63,6 +63,7 @@ function init() {
   track = new Track(sim);
   initSky(renderer);
   loadManifest().then(() => {
+    Q = QUALITY[level]; setTextureQuality(Q.small, Q.aniso); // tekstuurikoko ennen ensimmäistä latausta
     U.fieldMap.value = tex('nurmi', 'diff');
     mats.road = roadMaterial(U); mats.ramp = rampMaterial(U); mats.terrain = terrainMaterial(U);
     T = makeTrees(); PR = makeProps(U); makeBackdrop();
