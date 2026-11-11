@@ -36,7 +36,7 @@ export const TWEAK = {
   'MG4':                { L: 4.29, W: 1.84, H: 1.50, wb: 2.71, nose: 0.68, hCowl: 0.98, gate: 0.52, gateDrop: 0.09, front: 'slim', rim: 'twin5' },
   'VW ID.3':            { L: 4.26, W: 1.81, H: 1.57, wb: 2.77, fo: 0.82, cowl: 0.12, ws: 0.9, nose: 0.82, hCowl: 1.05, front: 'bar', rim: 'aero', blackPillars: 1 },
   'Tesla Model 3':      { L: 4.72, W: 1.85, H: 1.44, wb: 2.88, nose: 0.64, hCowl: 0.95, bowN: 0.3, front: 'slim', rim: 'aero', glassRoof: 1, flush: 1 },
-  'Tesla Model Y':      { L: 4.75, W: 1.92, H: 1.62, wb: 2.89, nose: 0.78, bowN: 0.3, gc: 0.17, deck: 0.1, hDeck: 1.1, rake: 1.32, roofR: -0.62, kamm: 1, dlo: 0.4, front: 'slim', rim: 'dark-aero', glassRoof: 1, flush: 1, clad: 0 },
+  'Tesla Model Y':      { L: 4.75, W: 1.92, H: 1.62, wb: 2.89, nose: 0.8, bowN: 0.3, gc: 0.18, R: 0.36, belt: 1.0, hCowl: 1.08, cowl: 0.26, ws: 0.98, deck: 0.1, hDeck: 1.14, rake: 1.3, roofR: -0.58, kamm: 1, dlo: 0.4, tumble: 0.26, front: 'slim', rim: 'dark-aero', glassRoof: 1, flush: 1, clad: 0 },
   'Tesla Model S':      { L: 4.98, W: 1.96, H: 1.44, wb: 2.96, nose: 0.66, hCowl: 0.94, bowN: 0.28, front: 'slim', rim: 'turbine', glassRoof: 1, flush: 1 },
   'Tesla Cybertruck':   { front: 'bar', rim: 'dark-aero', steel: 1, flush: 1 },
   'Skoda Enyaq':        { gate: 0.34, gateDrop: 0.03, L: 4.65, H: 1.62, front: 'slim', rim: 'aero' },
