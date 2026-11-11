@@ -181,7 +181,8 @@ export function buildCar(spec, opt = {}) {
   if (type === 'truck') bOpt.glass = { sideR: S.uR + 0.75, pillarC: null };
   const body = buildBody(S, bOpt), sf = surface(S), mid = body.mid;
   // terävät taitteet (olkalinja, konepellin reuna, helma) saavat omat normaalit: pinnat pysyvät sileinä, viivat terävinä
-  if (hero) body.geometry = toCreasedNormals(body.geometry, 0.5);
+  // liikenteen kevyessä mallissa verkko on harvempi, joten taitekulma on suurempi (muuten pinta näyttäisi särmikkäältä)
+  body.geometry = toCreasedNormals(body.geometry, hero ? 0.5 : 0.75);
   const g = new THREE.Group(), bodyG = new THREE.Group(); g.add(bodyG);
   const paint = paintMat(spec.c || '#888888', tk.steel ? 'steel' : tk.solid ? 'solid' : 'metal');
   const roofM = spec.r ? paintMat(spec.r, 'solid') : paint;
