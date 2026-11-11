@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { shapeOf, buildBody, surface, BODY } from './carbody.js';
 import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
 import { canvasTex } from './assets.js';
-import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow, flakeTex } from './carparts.js';
+import { makeWheel, wheelStyleFor, mergeGeos, lampSideTex, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow, flakeTex } from './carparts.js';
 
 // Mallikohtaiset mittasuhteet (metreinä) ja piirteet. Avaimet ovat samat kuin korityypin mitat (carbody.js).
 // front = etuvalojen signatuuri, rim = vanne, doors = ovien määrä.
@@ -218,11 +218,12 @@ export function buildCar(spec, opt = {}) {
   const zh1 = B.nose - 0.025, zh0 = zh1 - (fl === 'round' ? 0.24 : fl === 'split' ? 0.27 : 0.21);
   const front = lampMat('front', fl, hero);
   add(patch((a, b, o) => sf.fasciaN(true, -0.985 + 1.97 * a, zh0 + (zh1 - zh0) * b, o), hero ? 36 : 12, hero ? 8 : 3, 0.004, true), front);
-  if (fl !== 'round') { // etuvalon lasi jatkuu kulman yli lokasuojaan
-    const hm = M.hcorner || (M.hcorner = new THREE.MeshStandardMaterial({ color: 0x12161b, emissive: 0xdfe8ff, emissiveIntensity: 0.06, roughness: 0.25, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
-    const cg = [], len = S.rcF * 0.85, z0 = zh0 + (zh1 - zh0) * 0.42, z1 = zh1 - (zh1 - zh0) * 0.12;
-    for (const side of [-1, 1]) cg.push(patch((a, b, o) => sf.sideAtZ(S.xF - 0.012 - len * a, z0 + (z1 - z0) * (b * (1 - 0.5 * a) + 0.5 * a), side, o), 8, 3, 0.004, side > 0));
-    add(mergeGeos(cg), hm);
+  if (fl !== 'round') { // ajovalo kiertyy kulman yli lokasuojan kylkeen: tumma umpio, päiväajovalon viiva ja projektorilinssi
+    const hm = M.hside || (M.hside = new THREE.MeshPhysicalMaterial({ map: lampSideTex(), emissiveMap: lampSideTex(), emissive: 0xffffff, emissiveIntensity: 1.6, alphaTest: 0.3, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.03, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }));
+    const cg = [], len = S.rcF + 0.3, z0 = zh0 - 0.01, z1 = zh1 + 0.015;
+    // a = 0 keulan kulmassa … 1 taaempana, b = 0 alhaalla … 1 ylhäällä; valo kapenee taaksepäin ja nousee hieman
+    for (const side of [-1, 1]) cg.push(patch((a, b, o) => sf.sideAtZ(S.xF - 0.005 - len * a, z0 + (z1 - z0) * (b * (1 - 0.45 * a) + 0.4 * a), side, o), 12, 3, 0.004, side > 0));
+    const hmesh = add(mergeGeos(cg), hm); g.userData.hside = hm;
   }
 
   // --- sumuvalot (valoumpioiden kiilto tulee niiden omasta kirkaslakkapinnasta, ks. lampMat) ---
@@ -448,7 +449,7 @@ export function buildCar(spec, opt = {}) {
     state.heave = (Math.sin(state.t * 11.3) + Math.sin(state.t * 7.1 + 1)) * 0.0025 * Math.max(0, rough - 0.25);
     bodyG.rotation.x = state.pitch + Math.sin(state.t * 9.1) * 0.0015 * Math.max(0, rough - 0.25); bodyG.rotation.z = -state.roll; bodyG.position.y = state.heave - Math.abs(state.pitch) * 0.4;
     // valot: ajovalot palavat aina (Suomen laki), jarruvalo kirkastaa takavalot
-    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; if (g.userData.busLamp) g.userData.busLamp.emissiveIntensity = u.brake ? 6 : 1.2 + (u.night || 0) * 0.6; }
+    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.hside) g.userData.hside.emissiveIntensity = 1.6 + (u.night || 0) * 2; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; if (g.userData.busLamp) g.userData.busLamp.emissiveIntensity = u.brake ? 6 : 1.2 + (u.night || 0) * 0.6; }
     if (g.userData.flap) { state.flap += ((u.charge ? 1 : 0) - state.flap) * Math.min(1, dt * 3); g.userData.flap.rotation.y = -state.flap * 1.9; g.userData.led.emissiveIntensity = state.flap * (0.6 + 0.4 * Math.sin(state.t * 4)) * 3; }
     if (trailer) trailer.update(u, state);
   }

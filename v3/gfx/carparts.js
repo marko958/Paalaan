@@ -216,3 +216,20 @@ export function flakeTex() {
   t.repeat.set(26, 26);
   return t;
 }
+
+// Ajovalon kylkeen kiertyvä osa: u = 0 keulan kulmassa … 1 taaempana. Tumma umpio kapenee taaksepäin,
+// yläreunassa päiväajovalon viiva ja etuosassa projektorilinssi.
+let sideTex = null;
+export function lampSideTex() {
+  if (sideTex) return sideTex;
+  sideTex = canvasTex(256, 64, (g, W, H) => {
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#10141a'; g.beginPath(); g.moveTo(0, H * 0.06); g.lineTo(W * 0.92, H * 0.3); g.quadraticCurveTo(W, H * 0.42, W * 0.9, H * 0.62); g.lineTo(0, H * 0.94); g.closePath(); g.fill();
+    g.strokeStyle = '#3a4250'; g.lineWidth = 2; g.stroke();
+    g.strokeStyle = '#f2f6ff'; g.lineWidth = 5; g.beginPath(); g.moveTo(4, H * 0.2); g.lineTo(W * 0.86, H * 0.38); g.stroke();
+    const gr = g.createRadialGradient(W * 0.13, H * 0.58, 1, W * 0.13, H * 0.58, H * 0.26); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#b9c6d8'); gr.addColorStop(1, '#2a3240');
+    g.fillStyle = gr; g.beginPath(); g.arc(W * 0.13, H * 0.58, H * 0.24, 0, 7); g.fill();
+    g.fillStyle = '#c9d2de'; g.beginPath(); g.arc(W * 0.33, H * 0.6, H * 0.14, 0, 7); g.fill();
+  }, { clamp: true });
+  return sideTex;
+}
