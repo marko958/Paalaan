@@ -11,7 +11,7 @@ import { makeWheel, wheelStyleFor, mergeGeos, lampSideTex, lampTex, plateTex, gr
 // front = etuvalojen signatuuri, rim = vanne, doors = ovien määrä.
 export const TWEAK = {
   'Ford Mondeo':        { L: 4.73, H: 1.43, nose: 0.72, hDeck: 1.05, deck: 0.5, front: 'slim', rim: 'steel', solid: 0 },
-  'Opel Astra':         { L: 4.25, H: 1.46, gate: 0.36, front: 'slim', rim: 'spoke5' },
+  'Opel Astra':         { L: 4.25, H: 1.46, gate: 0.4, front: 'slim', rim: 'spoke5' },
   'Toyota Avensis':     { L: 4.70, H: 1.48, hDeck: 1.08, front: 'slim', rim: 'multi' },
   'Toyota Prius':       { front: 'tri', rim: 'aero' },
   'Volvo V70':          { L: 4.82, H: 1.50, gate: 0.14, tumble: 0.26, bowT: 0.08, bowN: 0.15, belt: 0.96, front: 'hammer', rim: 'spoke5' },
@@ -33,7 +33,7 @@ export const TWEAK = {
   'Dacia Spring':       { L: 3.73, W: 1.58, H: 1.52, wb: 2.42, gc: 0.19, R: 0.28, front: 'split', rim: 'steel', clad: 1 },
   'Fiat Topolino':      { L: 2.53, W: 1.40, H: 1.53, wb: 1.73, fo: 0.42, R: 0.26, tw: 0.13, gc: 0.16, nose: 0.82, hCowl: 0.95, cowl: 0.1, ws: 0.5, gate: 0.14, noseLen: 0.13, tailLen: 0.1, bowN: 0.22, bowT: 0.2, roofR: 0.22, front: 'round', rim: 'steel', doors: 2 },
   'Fiat 500e':          { L: 3.63, W: 1.68, H: 1.53, wb: 2.32, bowN: 0.32, bowT: 0.2, gate: 0.3, nose: 0.8, front: 'round', rim: 'multi', doors: 2 },
-  'MG4':                { L: 4.29, W: 1.84, H: 1.50, wb: 2.71, nose: 0.68, hCowl: 0.98, front: 'slim', rim: 'twin5' },
+  'MG4':                { L: 4.29, W: 1.84, H: 1.50, wb: 2.71, nose: 0.68, hCowl: 0.98, gate: 0.52, gateDrop: 0.09, front: 'slim', rim: 'twin5' },
   'VW ID.3':            { L: 4.26, W: 1.81, H: 1.57, wb: 2.77, fo: 0.82, cowl: 0.12, ws: 0.9, nose: 0.82, hCowl: 1.05, front: 'bar', rim: 'aero', blackPillars: 1 },
   'Tesla Model 3':      { L: 4.72, W: 1.85, H: 1.44, wb: 2.88, nose: 0.64, hCowl: 0.95, bowN: 0.3, front: 'slim', rim: 'aero', glassRoof: 1, flush: 1 },
   'Tesla Model Y':      { L: 4.75, W: 1.92, H: 1.62, wb: 2.89, nose: 0.78, bowN: 0.3, front: 'slim', rim: 'dark-aero', glassRoof: 1, flush: 1, clad: 0 },
