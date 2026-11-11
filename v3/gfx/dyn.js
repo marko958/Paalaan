@@ -226,6 +226,8 @@ export class Dyn {
     this.scene.add(o.group);
     if (o.padW) { const p = this.pad(f, o.padW[0] - 0.02, Math.abs(d.x) + (o.padW[1] - Math.abs(d.x)) + 0.9, o.padW[2], o.padMat === 'gravel' ? this.M.concrete : this.M.asphalt); o.padMesh = p; this.scene.add(p); }
     if (o.static || o.fixed) this.settle(o);
+    // kaukana syntyvä kohde häivytetään näkyviin (simulaatio tuo kohteet 110–150 metrin päähän)
+    if ((d.z - (this.st.pos + sim.PZ)) / sim.SEG > 35) this.fadeIn(o);
     return o;
   }
   // Valojen hehku pienenee auton lähestyessä ja sammuu lähellä: iso läikkä kameran vieressä välähdytti koko ruudun.
@@ -233,6 +235,27 @@ export class Dyn {
     if (!o.glows) return;
     const on = o.d.k === 'vasta', k = Math.max(0, Math.min(1, (rel - 10) / 30));
     for (const s of o.glows) { s.visible = k > 0.02 && (on || night > 0.3); s.scale.setScalar((on ? 0.45 + night * 0.75 : 0.35 + night * 0.25) * k); }
+  }
+  // Häivytys: materiaalit vaihdetaan hetkeksi rasteroiduiksi kopioiksi (alphaHash), jolloin läpinäkyvyys ei vaadi lajittelua.
+  fadeIn(o) {
+    const swaps = [];
+    o.group.traverse(m => {
+      if (!m.material || m.isSprite) return;
+      const orig = m.material, arr = Array.isArray(orig) ? orig : [orig];
+      const tmp = arr.map(x => { const c = x.clone(); c.alphaHash = true; c.opacity = 0; c.transparent = false; c.depthWrite = true; return c; });
+      m.material = Array.isArray(orig) ? tmp : tmp[0];
+      swaps.push({ m, orig, tmp });
+    });
+    o.fade = { t: 0, swaps };
+  }
+  fadeStep(o, dt) {
+    const F = o.fade; if (!F) return;
+    F.t += dt / 0.9;
+    const a = Math.min(1, F.t);
+    for (const s of F.swaps) for (const c of s.tmp) c.opacity = a * (s.orig.opacity !== undefined ? s.orig.opacity : 1);
+    if (a < 1) return;
+    for (const s of F.swaps) { s.m.material = s.orig; s.tmp.forEach(c => c.dispose()); }
+    o.fade = null;
   }
   settle(o) {
     const d = o.d, f = d.z / this.sim.SEG;
@@ -245,6 +268,7 @@ export class Dyn {
   }
   rebase() { for (const o of this.map.values()) if (o.static || o.fixed) this.settle(o); for (const g of this.ghosts) this.settle(g); }
   remove(o) {
+    if (o.fade) { for (const s of o.fade.swaps) { s.m.material = s.orig; s.tmp.forEach(c => c.dispose()); } o.fade = null; }
     this.scene.remove(o.group); if (o.padMesh) { this.scene.remove(o.padMesh); o.padMesh.geometry.dispose(); }
     o.group.traverse(m => { if (m.isMesh && m.geometry && !m.geometry.userData.shared && (o.car || m.geometry.type === 'BufferGeometry') && m.geometry !== this.geo.rock) m.geometry.dispose(); });
   }
@@ -258,6 +282,7 @@ export class Dyn {
       let o = map.get(d);
       if (!o) { o = this.make(d); if (!o) continue; map.set(d, o); }
       seen.add(d);
+      if (o.fade) this.fadeStep(o, dt);
       const f = d.z / SEG;
       if (o.car) {
         const P = this.place(o.group, f, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true);

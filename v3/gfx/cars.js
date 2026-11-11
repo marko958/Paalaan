@@ -3,6 +3,7 @@
 // logoja tai merkkien tunnuksia ei ole.
 import * as THREE from 'three';
 import { shapeOf, buildBody, surface, BODY } from './carbody.js';
+import { canvasTex } from './assets.js';
 import { makeWheel, wheelStyleFor, mergeGeos, lampTex, plateTex, grilleTex, blobTex, dropsTex, blobShadow, flakeTex } from './carparts.js';
 
 // Mallikohtaiset mittasuhteet (metreinä) ja piirteet. Avaimet ovat samat kuin korityypin mitat (carbody.js).
@@ -340,6 +341,45 @@ export function buildCar(spec, opt = {}) {
       const led = M.led.clone(); add(port, led);
       bodyG.add(flap); g.userData.flap = flap; g.userData.led = led; }
 
+    // --- paku ja bussi: liukuoven kisko, takaovien sauma, kylkilista, bussin ovet, linjakilpi, puskurit ja takavalot ---
+    if (type === 'van' || type === 'bus') {
+      const strip = [];
+      for (const side of [-1, 1]) strip.push(patch((a, b, o) => sf.side(S.ra + S.Ra + 0.06 + (S.fa - S.Ra - 0.06 - S.ra - S.Ra - 0.06) * a, 0.14 + 0.07 * b, side, o), 16, 1, 0.004, side < 0));
+      // puskurit: musta muovinauha keulan ja perän alaosassa
+      strip.push(patch((a, b, o) => sf.fasciaN(false, -0.97 + 1.94 * a, S.zr0 + 0.02 + 0.24 * b, o), 18, 2, 0.006, false));
+      strip.push(patch((a, b, o) => sf.fasciaN(true, -0.97 + 1.94 * a, S.zf0 + 0.02 + 0.22 * b, o), 18, 2, 0.006, true));
+      add(mergeGeos(strip), M.plastic);
+      const sm = [];
+      // takaovien pystysauma ja kahva
+      if (type === 'van') sm.push(patch((a, b, o) => sf.fasciaN(false, -0.006 + 0.012 * a, S.zr0 + 0.3 + (S.H - 0.45 - S.zr0) * b, o), 1, 10, 0.0015, false));
+      if (type === 'van') // liukuoven kisko oikealla kyljellä ikkunalinjan alla
+        sm.push(patch((a, b, o) => sf.sideAtZ(S.ra - 0.1 + (body.glassBounds.pillarB - 0.95 - S.ra + 0.1) * a, B.belt - 0.03 + 0.035 * b, 1, o), 12, 1, 0.003, false));
+      add(mergeGeos(sm), M.seam);
+      if (type === 'van') add((() => { const h = rbox(0.2, 0.035, 0.04); sf.fasciaN(false, 0.06, S.zr0 + 0.75 + (type === 'bus' ? 0.4 : 0), V); h.translate(V.x + 0.08, V.y, V.z + 0.02); return h; })(), M.black);
+      if (type === 'bus') {
+        // ovet oikealla: etuovi etuylityksessä ja keskiovi, lasia kehyksineen
+        const fr = [], gl = [], X0 = S.fa + 0.3, X1 = S.fa + 1.4, Xm = (S.ra + S.fa) / 2 + 0.5;
+        for (const [a0, a1] of [[X0, X1], [Xm - 0.6, Xm + 0.6]]) {
+          gl.push(patch((a, b, o) => sf.sideAtZ(a0 + (a1 - a0) * a, B.gc + 0.32 + (S.H - 0.55 - B.gc - 0.32) * b, 1, o), 6, 8, 0.006, false));
+          for (const X of [a0, (a0 + a1) / 2, a1]) fr.push(patch((a, b, o) => sf.sideAtZ(X - 0.025 + 0.05 * a, B.gc + 0.3 + (S.H - 0.52 - B.gc - 0.3) * b, 1, o), 1, 8, 0.008, false));
+          fr.push(patch((a, b, o) => sf.sideAtZ(a0 + (a1 - a0) * a, B.gc + 0.27 + 0.06 * b, 1, o), 6, 1, 0.008, false));
+        }
+        add(mergeGeos(gl), M.glass); add(mergeGeos(fr), M.black);
+        // linjakilpi keulassa ja perässä: oranssi LED-teksti mustalla
+        if (!M.dest) { const t = canvasTex(512, 64, (c, W, Hh) => { c.fillStyle = '#050505'; c.fillRect(0, 0, W, Hh); c.fillStyle = '#ff9a1a'; c.font = 'bold 44px Arial, Helvetica, sans-serif'; c.textBaseline = 'middle';
+            c.fillText('84', 16, Hh / 2 + 2); c.textAlign = 'center'; c.fillText('KESKUSTA', W / 2 + 40, Hh / 2 + 2); }, { clamp: true });
+          M.dest = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0xffffff, emissiveIntensity: 1.6, roughness: 0.3, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }); }
+        // etukilpi tuulilasin yläreunaan (bussin keula on lähes pystysuoraa lasia)
+        add(patch((a, b, o) => sf.top(S.uA + 0.012 + 0.05 * (1 - b), 0.7 - 1.4 * a, o), 8, 1, 0.008, false), M.dest);
+        add(patch((a, b, o) => sf.fasciaN(false, -0.46 + 0.92 * a, S.H - 0.42 + 0.17 * b, o), 8, 1, 0.006, false), M.dest);
+        // isot pystytakavalot ja ilmastointikone katolla
+        const lampM = new THREE.MeshStandardMaterial({ color: 0x5a0a0c, emissive: 0xff2a1c, emissiveIntensity: 1.2, roughness: 0.2, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+        const lg = [];
+        for (const sd of [-1, 1]) lg.push(patch((a, b, o) => sf.fasciaN(false, sd * (0.8 + 0.15 * a), S.zr0 + 0.32 + 0.75 * b, o), 2, 6, 0.006, sd < 0));
+        add(mergeGeos(lg), lampM); g.userData.busLamp = lampM;
+        { const ac = rbox(1.4, 0.26, 2.6); sf.top((S.uR + S.uA) / 2, 0, V); ac.translate(V.x, V.y + 0.13, V.z); add(ac, M.frame, true); }
+      }
+    }
     // --- kunto: mikrobetonipaikat harmaina läikkinä, ruoste, lommojen naarmut ---
     if (!M.concrete) { M.concrete = decal(blobTex(3, [150, 150, 146]), { roughness: 1 }); M.rust = decal(blobTex(8, [110, 62, 28]), { roughness: 1 }); M.scuff = decal(blobTex(5, [40, 40, 42]), { roughness: 0.9 }); }
     const spots = [[false, -0.55, S.zr0 + 0.3, 0.3], [false, 0.5, S.zr0 + 0.42, 0.26], [null, 1, S.ra - 0.55, 0.34], [null, -1, S.ra + 0.9, 0.3]];
@@ -389,7 +429,7 @@ export function buildCar(spec, opt = {}) {
     state.heave = (Math.sin(state.t * 11.3) + Math.sin(state.t * 7.1 + 1)) * 0.0025 * Math.max(0, rough - 0.25);
     bodyG.rotation.x = state.pitch + Math.sin(state.t * 9.1) * 0.0015 * Math.max(0, rough - 0.25); bodyG.rotation.z = -state.roll; bodyG.position.y = state.heave - Math.abs(state.pitch) * 0.4;
     // valot: ajovalot palavat aina (Suomen laki), jarruvalo kirkastaa takavalot
-    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; }
+    if (hero) { rear.emissiveIntensity = u.brake ? 5.5 : 1.1 + (u.night || 0) * 0.8; front.emissiveIntensity = 2.2 + (u.night || 0) * 3; if (g.userData.stopM) g.userData.stopM.emissiveIntensity = u.brake ? 7 : 0.2; if (g.userData.busLamp) g.userData.busLamp.emissiveIntensity = u.brake ? 6 : 1.2 + (u.night || 0) * 0.6; }
     if (g.userData.flap) { state.flap += ((u.charge ? 1 : 0) - state.flap) * Math.min(1, dt * 3); g.userData.flap.rotation.y = -state.flap * 1.9; g.userData.led.emissiveIntensity = state.flap * (0.6 + 0.4 * Math.sin(state.t * 4)) * 3; }
     if (trailer) trailer.update(u, state);
   }
