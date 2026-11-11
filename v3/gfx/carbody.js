@@ -90,7 +90,8 @@ export function shapeOf(type, o = {}) {
   if (ang) { top.pop(); } else top.push([(uA + uCowl) / 2, (H - 0.045 + hC) / 2 + 0.012]);
   top.push([uCowl, hC]);
   const hoodLen = L - noseLen - uCowl;
-  top.push([uCowl + hoodLen * 0.5, hC - (hC - hNose) * (ang ? 0.5 : 0.36)], [L - noseLen - 0.1, hNose + 0.03], [L - noseLen, hNose - 0.015]);
+  // konepelti: lähes suora ja litteä, etureuna terävä (aiemmin pyöreä kumpu)
+  top.push([uCowl + hoodLen * 0.5, hC - (hC - hNose) * (ang ? 0.5 : 0.46)], [L - noseLen - 0.05, hNose + 0.012], [L - noseLen + 0.008, hNose - 0.02]);
   { const zb1 = Math.max(zf0 + 0.2, Math.min(hNose - 0.2, zf0 + 0.3));
     top.push([L - noseLen * 0.66, hNose - 0.11], [L - noseLen * 0.36, zb1 + 0.05], [L - noseLen * 0.15, zb1], [L - noseLen * 0.04, zf0 + 0.09], [L, zf0]); }
   top.sort((a, b) => a[0] - b[0]);
@@ -116,7 +117,7 @@ export function shapeOf(type, o = {}) {
   const bow = lin([[0, -B.bowT], [tf, -B.bowT + 0.96 * tf], [Math.max(tf + 0.12, uD + 0.1), -bowG], [uRoofR, -bowG * 0.7], [uPeak, 0], [uA, bowW], [uCowl, bowW],
     [L - noseLen - 0.4, Math.max(0.03, (B.bowN - noseLen) * 0.6 + 0.03)], [L - noseLen, B.bowN - 0.96 * noseLen], [L, B.bowN]].sort((a, b) => a[0] - b[0]));
   const cr = B.crown !== undefined ? B.crown : 1;
-  const crown = pchip([[0, 0], [tf + 0.06, 0.012 * cr], [uD + 0.05, 0.02 * cr], [uRoofR + 0.1, 0.034 * cr], [uA, 0.034 * cr], [uCowl, 0.03 * cr], [L - noseLen - 0.08, 0.022 * cr], [L - noseLen * 0.5, 0.004], [L, 0]].sort((a, b) => a[0] - b[0]));
+  const crown = pchip([[0, 0], [tf + 0.06, 0.012 * cr], [uD + 0.05, 0.02 * cr], [uRoofR + 0.1, 0.034 * cr], [uA, 0.034 * cr], [uCowl, 0.022 * cr], [L - noseLen - 0.08, 0.012 * cr], [L - noseLen * 0.5, 0.003], [L, 0]].sort((a, b) => a[0] - b[0]));
   const S = { xR, xF, rcR, rcF, B, L, W, H, fa, ra, uCowl, uA, uR: uRoofR, uPeak, uD, hD, tf, noseLen, zr0, zf0, zTop, zSh, zBot, plan, bow, crown, ang, gateZ, beltR };
   S.Ra = B.R + (B.archGap || 0.034); // pieni rako renkaan ja kaaren välissä, kuten oikeissa autoissa
   S.za = B.R;
