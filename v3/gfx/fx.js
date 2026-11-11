@@ -47,6 +47,7 @@ export class Weather {
 }
 
 // Pöly, höyry ja savu: pieni hiukkasallas, jota päivitetään suorittimella
+// Hiukkaset häivytetään 3–8 metrin päässä kamerasta, ettei kameran edessä näy isoja läiskiä.
 export class Puffs {
   constructor(scene, max = 220) {
     this.max = max; this.n = 0; this.p = [];
@@ -57,7 +58,7 @@ export class Puffs {
     const tex = canvasTex(64, 64, (c, W) => { const gr = c.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, W, W); }, { clamp: true });
     this.mat = new THREE.ShaderMaterial({ uniforms: { uTex: { value: tex } }, transparent: true, depthWrite: false, fog: false,
       vertexShader: `attribute vec4 aCol; attribute float aSize; varying vec4 vC;
-        void main() { vC = aCol; vec4 mv = modelViewMatrix * vec4(position, 1.0); vC.a *= smoothstep(2.0, 5.0, -mv.z); gl_Position = projectionMatrix * mv; gl_PointSize = min(260.0, aSize * (420.0 / max(1.0, -mv.z))); }`,
+        void main() { vC = aCol; vec4 mv = modelViewMatrix * vec4(position, 1.0); vC.a *= smoothstep(3.0, 8.0, -mv.z); gl_Position = projectionMatrix * mv; gl_PointSize = min(260.0, aSize * (420.0 / max(1.0, -mv.z))); }`,
       fragmentShader: `uniform sampler2D uTex; varying vec4 vC;
         void main() { float a = texture2D(uTex, gl_PointCoord).a * vC.a; if (a < 0.01) discard; gl_FragColor = vec4(vC.rgb, a);
           #include <tonemapping_fragment>
@@ -74,7 +75,8 @@ export class Puffs {
   shift(dx, dy, dz) { for (const q of this.p) { q.x += dx; q.y += dy; q.z += dz; } }
   update(dt) {
     const P = this.p;
-    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.t += dt; if (q.t >= q.life) { P.splice(i, 1); continue; } q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.vx *= 1 - dt * 1.5; q.vz *= 1 - dt * 1.5; q.size += q.grow * dt; }
+    // ilmanvastus hidastaa sivu- ja pituussuuntaa vähitellen (suurella alkunopeudella pöly jää auton perään)
+    for (let i = P.length - 1; i >= 0; i--) { const q = P[i]; q.t += dt; if (q.t >= q.life) { P.splice(i, 1); continue; } q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; const k = Math.max(0, 1 - dt * 2.2); q.vx *= k; q.vz *= k; q.vy *= Math.max(0, 1 - dt * 1.2); q.size += q.grow * dt; }
     for (let i = 0; i < P.length; i++) { const q = P[i], k = 1 - q.t / q.life;
       this.pos[i * 3] = q.x; this.pos[i * 3 + 1] = q.y; this.pos[i * 3 + 2] = q.z; this.size[i] = q.size;
       this.aux[i * 4] = q.col[0]; this.aux[i * 4 + 1] = q.col[1]; this.aux[i * 4 + 2] = q.col[2]; this.aux[i * 4 + 3] = q.a * k * Math.min(1, q.t * 8); }

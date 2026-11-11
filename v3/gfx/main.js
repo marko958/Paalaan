@@ -38,6 +38,7 @@ const chunks = new Map();
 const P = { x: 0, y: 0, z: 0, th: 0, slope: 0 }, P2 = { x: 0, y: 0, z: 0, th: 0, slope: 0 };
 const car = { obj: null, name: '', key: '', yaw: 0, vlat: 0, slope: 0, prevX: 0.5, pos: new THREE.Vector3(), v: 0 };
 const lamps = { group: new THREE.Group(), spot: null };
+const FELL_TINT = new THREE.Color(0.2, 0.24, 0.34);
 const cam = { th: 0, init: false, roll: 0, override: null, lag: 0.5, y: null };
 let rampMesh = null, rampKey = '';
 const stats = { fps: 0, acc: 0, n: 0, ms: 0 };
@@ -137,7 +138,10 @@ function applySeason() {
   const lap = roadKind === 'lappi' || roadKind === 'kuusamo';
   backdrop.material.map = lap ? backdrop.userData.fell : backdrop.userData.forest;
   backdrop.material.color.copy(sea.snow ? new THREE.Color(0.62, 0.66, 0.72) : sea.autumn ? new THREE.Color(0.2, 0.19, 0.1) : sea.bare ? new THREE.Color(0.13, 0.12, 0.1) : new THREE.Color(0.1, 0.17, 0.09));
-  if (lap) backdrop.material.color.setRGB(0.85, 0.88, 0.95);
+  if (lap) backdrop.material.color.setRGB(0.42, 0.47, 0.58); // lumiset tunturit sinisenharmaina, jotta ne erottuvat vaaleasta taivaasta
+  backdrop.userData.lap = lap;
+  const fogOn = !(lap && !wx.kind); // selkeällä säällä tunturit erottuvat terävinä, sateessa ne häviävät sumuun
+  if (backdrop.material.fog !== fogOn) { backdrop.material.fog = fogOn; backdrop.material.needsUpdate = true; }
   floor.material.color.copy(sea.snow ? new THREE.Color(0.8, 0.82, 0.86) : avgColor(sea.bare ? 'multa' : 'metsa').multiplyScalar(0.8));
 }
 function refreshSigns(ch) { for (const s of ch.sc.signs) s.face.material = PR.limitMat(sim.limTxt(sim.limitOf(s.lim))); }
@@ -303,7 +307,10 @@ function frame(dt) {
 
   env.update(car.pos, env.fogMul || 1);
   const R = Q.draw * CH * 0.93;
-  backdrop.position.set(camera.position.x, car.pos.y + R * 0.045 - 6, camera.position.z); backdrop.scale.set(R, R * 0.09, R);
+  const bh = backdrop.userData.lap ? 0.22 : 0.09; // tunturit nousevat metsänrajaa korkeammalle
+  // tunturien väri taivaanrannasta tummennettuna, jotta ne erottuvat päivällä, hämärässä ja kaamoksessa
+  if (backdrop.userData.lap) backdrop.material.color.copy(env.fogColor).multiplyScalar(0.36).lerp(FELL_TINT, 0.15);
+  backdrop.position.set(camera.position.x, car.pos.y + R * bh / 2 - 6, camera.position.z); backdrop.scale.set(R, R * bh, R);
   floor.position.set(camera.position.x, car.pos.y - 7, camera.position.z); floor.scale.setScalar(R * 1.02);
   // hiukkaset: pöllyävä lumi ja vesisumu renkaista, pakokaasun höyry pakkasella, vian savu, pöly pientareella
   if (dt > 0) {
@@ -315,7 +322,8 @@ function frame(dt) {
       fxState.acc -= 0.03;
       const kmh = speed * 3.6, hw = o.S.W * 0.42;
       if (!st.veh.bus || true) {
-        if ((fxState.snow || fxState.wet) && kmh > 35 && Math.random() < Q.fx) for (const s of [-1, 1]) { const p = at(s * hw, rear - 0.3, 0.25), c = fxState.snow ? [0.92, 0.94, 0.98] : [0.7, 0.74, 0.8]; puffs.emit(p[0], p[1], p[2], bx * 2 + (Math.random() - 0.5), 0.9 + Math.random(), bz * 2 + (Math.random() - 0.5), 0.3, c, fxState.snow ? 0.3 : 0.14, 0.8 + Math.random() * 0.5, 1.6); }
+        // pöllyävä lumi ja vesisumu: ilmavirta kuljettaa pölyä auton mukana, joten se jää perään matalaksi verhoksi eikä lennä kameraan
+        if ((fxState.snow || fxState.wet) && kmh > 35 && Math.random() < Q.fx) for (const s of [-1, 1]) { const p = at(s * hw * (0.6 + Math.random() * 0.4), rear - 0.25, 0.18), c = fxState.snow ? [0.92, 0.94, 0.98] : [0.7, 0.74, 0.8], fw = -speed * 0.82; puffs.emit(p[0], p[1], p[2], bx * fw + rx * s * (0.4 + Math.random() * 0.6), 0.35 + Math.random() * 0.45, bz * fw + rz * s * (0.4 + Math.random() * 0.6), 0.16, c, fxState.snow ? 0.2 : 0.1, 0.55 + Math.random() * 0.35, 1.3); }
         if (off && kmh > 20 && !fxState.snow && Math.random() < 0.7) { const p = at((Math.random() - 0.5) * 1.4, rear - 0.2, 0.2); puffs.emit(p[0], p[1], p[2], bx * 1.5, 0.8, bz * 1.5, 0.6, [0.5, 0.42, 0.32], 0.3, 1.1, 2.2); }
         if (o.exhaust && fxState.cold && Math.random() < 0.5) { const p = at(o.exhaust.x, rear + 0.05, o.exhaust.y + 0.02); puffs.emit(p[0], p[1], p[2], bx * 1.2, 0.5, bz * 1.2, 0.16, [0.95, 0.95, 0.97], 0.3, 1.0, 0.9); }
         if (st.veh.minor && Math.random() < 0.55) { const p = at(-hw * 0.6, rear, 0.35); puffs.emit(p[0], p[1], p[2], bx * 1.0 + (Math.random() - 0.5) * 0.4, 0.8 + Math.random() * 0.6, bz * 1.0, 0.22, [0.2, 0.2, 0.21], 0.5, 1.6, 0.9); }
