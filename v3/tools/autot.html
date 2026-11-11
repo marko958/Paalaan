@@ -24,7 +24,7 @@ const name = q.get('m') || 'Ford Mondeo';
 const names = name.split('|');
 window.cars = [];
 names.forEach((nm, i) => {
-  const m = MODELS.find(([n]) => n.startsWith(nm));
+  const m = MODELS.find(([n]) => n === nm) || MODELS.find(([n]) => n.startsWith(nm));
   const spec = m ? m[1] : { b: nm, c: q.get('c') ? '#' + q.get('c') : '#8a9199', tl: q.get('tl') || 'wide' };
   const car = buildCar(spec, { name: m ? m[0] : nm, lod: +(q.get('lod') || 0), ev: q.get('ev') === '1' || undefined, type: q.get('type') || undefined, mb: +(q.get('mb') || 0), dent: +(q.get('dent') || 0), box: q.get('box') === '1', tow: q.get('tow') || '' });
   car.group.position.x = (i - (names.length - 1) / 2) * 2.6;
