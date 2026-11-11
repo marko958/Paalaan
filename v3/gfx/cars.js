@@ -322,9 +322,12 @@ export function buildCar(spec, opt = {}) {
     const mg = [], mgl = [], mb = [];
     for (const side of [-1, 1]) {
       sf.glassSide(S.uCowl - 0.2, 0.05, side, V);
-      const pod = new THREE.SphereGeometry(1, 14, 10); pod.scale(0.1, 0.065, 0.055); pod.translate(V.x + side * 0.125, V.y + 0.05, V.z + 0.01); mg.push(pod);
-      const stalk = new THREE.BoxGeometry(0.1, 0.022, 0.06); stalk.translate(V.x + side * 0.05, V.y + 0.012, V.z + 0.0); mb.push(stalk);
-      const gl = new THREE.CircleGeometry(1, 14); gl.scale(0.085, 0.05, 1); gl.translate(V.x + side * 0.125, V.y + 0.05, V.z + 0.058); mgl.push(gl);
+      // peilin kotelo: leveä, etuosa pyöreä ja takapinta litteä (peililasi taaksepäin), ulkoreuna kapenee
+      const pod = new THREE.SphereGeometry(1, 18, 12), pp = pod.attributes.position;
+      for (let i = 0; i < pp.count; i++) { let x = pp.getX(i), y = pp.getY(i), z = pp.getZ(i); if (z > 0) z *= 0.18; y *= 1 - 0.18 * Math.max(0, side * x); pp.setXYZ(i, x * 0.12, y * 0.072, z * 0.075); }
+      pod.computeVertexNormals(); pod.translate(V.x + side * 0.15, V.y + 0.06, V.z + 0.035); mg.push(pod);
+      const stalk = new THREE.BoxGeometry(0.11, 0.03, 0.07); stalk.translate(V.x + side * 0.06, V.y + 0.02, V.z + 0.02); mb.push(stalk);
+      const gl = new THREE.CircleGeometry(1, 20); gl.scale(0.105, 0.058, 1); gl.translate(V.x + side * 0.15, V.y + 0.06, V.z + 0.035 + 0.075 * 0.18 + 0.002); mgl.push(gl);
     }
     add(mergeGeos(mg), paint, true); add(mergeGeos(mb), M.black); add(mergeGeos(mgl), M.mirror);
 
