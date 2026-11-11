@@ -218,8 +218,10 @@ export function buildBody(S, opt = {}) {
   // Sedaneissa ja fastbackeissa sivulasi jatkuu takalasin kaltevuutta pitkin taaksepäin (kolmioikkuna), ja takaoven
   // ja kolmioikkunan välissä on C-pilari. Aiemmin lasi loppui katon takareunaan, jolloin ikkuna jäi lyhyeksi.
   const dlo = B.dlo !== undefined ? B.dlo : ({ sedan: 0.62, fastback: 0.42, coupe: 0.45, prius: 0.4, suvc: 0.5 })[S.B._type] ?? 0.6;
-  const sideR = glass.sideR !== undefined ? glass.sideR : (B.tail === 'deck' ? S.uD + (S.uR - S.uD) * dlo : S.uR + 0.14);
-  const pillarC = glass.pillarC !== undefined ? glass.pillarC : (B.tail === 'gate' && S.uR < S.ra + 0.1 ? S.ra + 0.12 : B.tail === 'deck' && sideR < S.ra + 0.2 ? Math.max(sideR + 0.22, S.ra + 0.32) : null);
+  // viistoperissä sivulasi jatkuu kaltevan takalasin suuntaisesti taaksepäin (kolmioikkuna C-pilarin takana)
+  const gateDlo = B.tail === 'gate' && (S.B._type === 'hatch' || S.B._type === 'mini') && B.gate > 0.3;
+  const sideR = glass.sideR !== undefined ? glass.sideR : (B.tail === 'deck' ? S.uD + (S.uR - S.uD) * dlo : gateDlo ? Math.min(S.uR + 0.14, S.tf + B.gate * 0.5) : S.uR + 0.14);
+  const pillarC = glass.pillarC !== undefined ? glass.pillarC : (B.tail === 'gate' && S.uR < S.ra + 0.1 ? S.ra + 0.12 : (B.tail === 'deck' || gateDlo) && sideR < S.ra + 0.2 ? Math.max(sideR + 0.22, S.ra + 0.32) : null);
   const sideF = S.uCowl - 0.02;
   const fX = [S.ra - S.Ra, S.ra + S.Ra, S.fa - S.Ra, S.fa + S.Ra, S.ra, S.fa, pillarB - pw, pillarB + pw, sideR, sideR - 0.03];
   if (pillarC !== null) fX.push(pillarC - pw, pillarC + pw);
