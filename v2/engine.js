@@ -213,7 +213,8 @@ function newState(t) {
   };
 }
 const ST = () => S.stat || (S.stat = {deer:0, poro:0, crash:0, cam:0, camEur:0, vippi:0, gig:0, km:0, bill:0, billT:''});
-function gotCar(car) { S.cars.push(car); S.joyM = S.m; (S.owned = S.owned || []).push(C(car.c).name); }
+function gotCar(car) { S.cars.push(car); S.joyM = S.m; (S.owned = S.owned || []).push(C(car.c).name);
+  if (C(car.c).fl.includes('V') && !S.gigs && !car.reg) Q.push(()=>gigsOffer(next)); } // paku: kysytään keikoista oston jälkeen
 const sohF = car => (C(car.c).type==='e' && car.soh!==undefined) ? Math.min(1, Math.max(0.5, (car.soh-50)/40)) : 1;
 const mult = car => { const k = C(car.c); return S.M.all * (k.type==='e'?S.M.ev:(S.M.ice||1)) * (k.fl.includes('T')?S.M.tesla:1) * sohF(car); };
 function genSoh(i) { const k = C(i); if (k.fl.includes('F')) return ri(80,86); if (k.type!=='e' || k.fl.includes('N')) return k.type==='e' ? 100 : undefined; const y = +(k.name.match(/(19|20)\d\d/)||[2024])[0]; const age = Math.max(0, 2027 + (S.m-1)/12 - y); return Math.round(Math.max(62, Math.min(100, 100 - age*2.2*(k.fl.includes('S')?1.6:1) - rnd(0,4)))); }
@@ -728,9 +729,7 @@ function sideMenu() {
   else ch.push([`Myy ${TT().name.toLowerCase()} (noin ${eur(trailerValue())})`, trailerSell]);
   const romu = !vanOK() && S.trailer && TT() === TRAILERS.auto;
   if (S.trailer && !vanOK() && !trailerOK() && !S.gigs) ch.push([`${romu ? 'Romukeikat autotrailerilla' : 'Pimeät muuttokeikat peräkärryllä'} (${!d ? 'ei toimivaa autoa' : !towOK(d) ? C(d.c).name + ': ei vetokoukkua' : `yhdistelmä ${comboKg(d).toLocaleString('fi-FI')} kg: vaatii ${licNeed(d)}-ajokortin`})`, ()=>{}, true]);
-  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? (romu ? 'Lopeta romukeikat' : 'Lopeta pimeät muuttokeikat') : vanOK() ? 'Pimeät muuttokeikat pakulla (asiakkaat tien varressa, 150–400 €/keikka)' : romu ? 'Romukeikat autotrailerilla (romut purkamolle, 150–300 €/keikka, laillinen)' : `Pimeät muuttokeikat peräkärryllä (${TT() === TRAILERS.jarru ? '150–320' : '100–220'} €/keikka, isompi kuorma maksaa enemmän)`, ()=>{ S.gigs = !S.gigs;
-    if (romu) return sayTo('ROMUKEIKAT', [S.gigs ? '+Ilmoitus nettiin: "Haen romuautot ilmaiseksi." Romut odottavat tien varressa ROMU-kyltin kohdalla: pysähdy ja odota, kun auto vinssataan traileriin. Purkamo maksaa tilille.' : 'Lopetit romukeikat.', S.gigs ? '!Romu painaa: katso, kestääkö vetokoukku. Ylipainosta poliisi sakottaa, ja dieselin hiukkassuodatin tukkeutuu raskaan vedon alla helposti.' : ''], sideMenu);
-    sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok." Asiakkaat odottavat tien varressa MUUTTO-kyltin kohdalla: pysähdy ja odota, kun kuorma kannetaan. Purkupaikalla sama juttu.' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua. Kuorman paino näkyy ennen noutoa: jos se ylittää auton vetomassan, poliisi voi punnita.') : ''], sideMenu); }]);
+  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? (romu ? 'Lopeta romukeikat' : 'Lopeta pimeät muuttokeikat') : vanOK() ? 'Pimeät muuttokeikat pakulla (asiakkaat tien varressa, 150–400 €/keikka)' : romu ? 'Romukeikat autotrailerilla (romut purkamolle, 150–300 €/keikka, laillinen)' : `Pimeät muuttokeikat peräkärryllä (${TT() === TRAILERS.jarru ? '150–320' : '100–220'} €/keikka, isompi kuorma maksaa enemmän)`, ()=>gigsToggle(sideMenu)]);
   if (S.lic !== 'BE') ch.push([S.lic === 'B' ? 'Ajokortti: B96-koulutus 300 € (yhdistelmä enintään 4 250 kg)' : 'Ajokortti: BE-kortti 900 € (raskaat yhdistelmät)', ()=>{ const c = S.lic === 'B' ? 300 : 900; payOrVippi(c); S.lic = S.lic === 'B' ? 'B96' : 'BE';
     sayTo('AJOKORTTI', [`+${S.lic === 'B96' ? 'B96-koulutus käyty: seitsemän tuntia, kahvia ja peruutusta kärryn kanssa.' : 'BE-kortti taskussa. Ajokoe meni läpi toisella yrityksellä.'}`, `Nyt saat ajaa yhdistelmää, jonka kokonaismassa on enintään ${S.lic === 'B96' ? '4 250 kg' : 'yli 4 250 kg'}.`], sideMenu); }]);
   ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
@@ -738,6 +737,22 @@ function sideMenu() {
   ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
   ch.push(['Takaisin', menu]);
   scr('SIVUTULOT', ['Lisätuloja ja riskejä. Sinulla on kassassa ' + eur(S.cash) + '.'], ch);
+}
+// muutto- tai romukeikat päälle tai pois (Sivutulot-valikosta tai heti kärryn tai pakun oston jälkeen)
+function gigsToggle(back) {
+  const romu = !vanOK() && S.trailer && TT() === TRAILERS.auto;
+  S.gigs = !S.gigs;
+  if (romu) return sayTo('ROMUKEIKAT', [S.gigs ? '+Ilmoitus nettiin: "Haen romuautot ilmaiseksi." Romut odottavat tien varressa ROMU-kyltin kohdalla: pysähdy ja odota, kun auto vinssataan traileriin. Purkamo maksaa tilille.' : 'Lopetit romukeikat.', S.gigs ? '!Romu painaa: katso, kestääkö vetokoukku. Ylipainosta poliisi sakottaa, ja dieselin hiukkassuodatin tukkeutuu raskaan vedon alla helposti.' : ''], back);
+  sayTo('MUUTTOKEIKAT', [S.gigs ? '+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok." Asiakkaat odottavat tien varressa MUUTTO-kyltin kohdalla: pysähdy ja odota, kun kuorma kannetaan. Purkupaikalla sama juttu.' : 'Lopetit keikat. Selkä kiittää.', S.gigs ? (vanOK() ? '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.' : '!Auto ja kärry kuluvat, kärryn kanssa ajetaan enintään 80 km/h, keikoilla sattuu, ja verottaja voi kiinnostua. Kuorman paino näkyy ennen noutoa: jos se ylittää auton vetomassan, poliisi voi punnita.') : ''], back);;
+}
+// Kärryn tai pakun oston jälkeen kysytään heti, aloitetaanko keikat (erillinen valikkokohta jäi monelta huomaamatta)
+function gigsOffer(back) {
+  if (S.gigs) return back();
+  const romu = !vanOK() && S.trailer && TT() === TRAILERS.auto, d = drivenCar(), name = romu ? 'ROMUKEIKAT' : 'MUUTTOKEIKAT';
+  if (!vanOK() && !trailerOK()) return sayTo(name, [`!Keikkoja ei voi vielä aloittaa: ${!d ? 'ei toimivaa autoa' : !towOK(d) ? C(d.c).name + ': ei vetokoukkua' : `yhdistelmä ${comboKg(d).toLocaleString('fi-FI')} kg vaatii ${licNeed(d)}-ajokortin`}.`, 'Keikat saa päälle Sivutulot-valikosta, kun kalusto on kunnossa.'], back);
+  scr(name, [romu ? 'Aloitetaanko romukeikat heti? Romut haetaan tien varresta ja viedään purkamolle (150–300 €/keikka, laillinen).'
+      : `Aloitetaanko pimeät muuttokeikat heti? Asiakkaat odottavat tien varressa (${vanOK() ? '150–400' : TT() === TRAILERS.jarru ? '150–320' : '100–220'} €/keikka).`,
+    'Keikat voi lopettaa milloin tahansa Sivutulot-valikosta.'], [['Kyllä, aloita keikat', ()=>gigsToggle(back)], ['Ei vielä', back]]);
 }
 // ---------- PERÄKÄRRY ----------
 function trailerValue() { return S.trailer ? Math.max(100, r100(S.trailer.paid * 0.7 * Math.pow(0.95, S.trailer.wear))) : 0; }
@@ -753,7 +768,7 @@ function trailerBuy() {
   lines.push('Kärryn kanssa ajetaan enintään 80 km/h. Isompi kärry tuo isompia keikkoja, mutta vaatii vetokykyä ja ehkä isomman kortin.');
   scr('PERÄKÄRRY', lines, offers.map(o => { const T = TRAILERS[o.kind], need = d && towOK(d) ? (towSpec(d).mass + T.max <= LIC.B ? '' : towSpec(d).mass + T.max <= LIC.B96 ? ' · vaatii B96' : ' · vaatii BE') : '';
     return [`${T.name} (${T.d}): ${o.d.toLowerCase()} · ${eur(o.price)}${need}`, ()=>{ payOrVippi(o.price); S.trailer = {paid:o.price, wear:0, d:o.d, kind:o.kind};
-      sayTo('PERÄKÄRRY', [`+${T.name} pihassa: ${o.d.toLowerCase()}.`, o.kind === 'auto' ? 'Romukeikat saa päälle Sivutulot-valikosta. Purkamo maksaa laillisesti tilille.' : 'Muuttokeikat saa päälle Sivutulot-valikosta. Keikat tuovat pakua vähemmän, mutta kärry on halpa.'], sideMenu); }]; }).concat([['Takaisin', sideMenu]]));
+      sayTo('PERÄKÄRRY', [`+${T.name} pihassa: ${o.d.toLowerCase()}.`, o.kind === 'auto' ? 'Purkamo maksaa romukeikoista laillisesti tilille.' : 'Kärrykeikat tuovat pakua vähemmän, mutta kärry on halpa.'], ()=>gigsOffer(sideMenu)); }]; }).concat([['Takaisin', sideMenu]]));
 }
 function trailerSell() {
   const v = trailerValue(); S.cash += v; S.trailer = null;
