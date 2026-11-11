@@ -281,7 +281,7 @@ function frame(dt) {
   const tr = car.obj.trailer ? (car.obj.trailer.kind === 'romu' ? 5.2 : 3.4) : 0; // kärryn kanssa kamera kauempaa ja korkeammalta
   // etäisyys lasketaan auton perästä ja korkeus auton korkeudesta, jotta bussi ja paku eivät peitä näkymää
   const big = Math.max(0, car.obj.S.H - 1.7);
-  const dist = car.obj.mid + 3.5 + sp * 0.7 + tr + big * 2.2, h = 2.0 + sp * 0.2 + tr * 0.22 + big * 1.9;
+  const dist = car.obj.mid + 3.5 + sp * 0.7 + tr + big * 4.2, h = 2.0 + sp * 0.2 + tr * 0.22 + big * 2.3;
   const fx = Math.sin(cam.th), fz = -Math.cos(cam.th);
   // kamera seuraa sivusuunnassa viiveellä: auto liikkuu ruudulla, maailma ei nyi
   cam.lag += (st.x - cam.lag) * Math.min(1, dt * 3.2 + (dt ? 0 : 0));
