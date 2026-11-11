@@ -36,7 +36,7 @@
   <h1 id="title"></h1>
   <div id="lines" class="lines"></div>
   <div id="choices" class="choices"></div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v45 (10.11. klo 23.43) · Näppäimet 1–9 valitsevat</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · Beta v46 (11.11. klo 23.06) · Näppäimet 1–9 valitsevat</div>
 </div>
 <script>
 // PAALAAN! – autolainavankilapeli (beta)
@@ -531,6 +531,13 @@ function scr(title, lines, choices) { UI.show({title, lines, choices: choices.ma
 function next() { if (S.over) return; if (S.cash < 0 && invTotal() > 0) return deficitPrompt(); const f = Q.shift(); if (f) f(); else menu(); }
 function say(title, lines) { scr(title, lines, [['Jatka', next]]); }
 function sayTo(title, lines, back) { scr(title, lines, [['Jatka', back]]); }
+// pakun oston jälkeen kysytään heti, aloitetaanko muuttokeikat (erillinen valikkokohta jäi monelta huomaamatta)
+function gigsOffer() {
+  if (S.gigs || !vanOK()) return next();
+  scr('MUUTTOKEIKAT', ['Pakettiauto pihassa. Aloitetaanko pimeät muuttokeikat heti (+200–700 €/kk)?', 'Keikat voi lopettaa Sivutulot-valikosta.'], [
+    ['Kyllä, aloita keikat', ()=>{ S.gigs = true; sayTo('MUUTTOKEIKAT', ['+Marketplace-ilmoitus on nettiin: "Muutot ja kuljetukset, edullisesti, käteinen ok."', '!Pakettiauto kuluu, keikoilla sattuu, ja verottaja voi kiinnostua.'], next); }],
+    ['Ei vielä', next]]);
+}
 
 function start() {
   scr('PAALAAN!', [
@@ -1361,6 +1368,7 @@ function doBuy(s, trade, loan, paid) {
   car.base = nv / mult(car);
   setWarranty(car, !C(s.c).fl.includes('N'));
   S.cars.push(car); S.joyM = S.m;
+  if (C(s.c).fl.includes('V') && !S.gigs) Q.push(gigsOffer);
   S.stock = S.stock.filter(x=>x!==s);
   const lines = [`+${k.name} on sinun!`];
   if (loan) lines.push(`Laina ${eur(loan.bal)}, auton arvo ${eur(nv)}.`);
@@ -1424,6 +1432,7 @@ function auctionPay(A, total, loan) {
   car.base = A.V / mult(car);
   setWarranty(car, false);
   S.cars.push(car); S.joyM = S.m;
+  if (C(A.id).fl.includes('V') && !S.gigs) Q.push(gigsOffer);
   const lines = [`+${C(A.id).name} on sinun.`];
   if (A.hidden) {
     if (RND()<0.5) { car.base *= 0.75; lines.push('!Piilovika: kori on kitattu ja maalattu. Arvo −25 %.'); }
