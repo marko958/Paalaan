@@ -211,7 +211,7 @@ export function buildCar(spec, opt = {}) {
   }
   // --- etuvalot ---
   const fl = tk.front || (tl === 'bar' ? 'bar' : tl === 'pixel' ? 'pixel' : tl === 'round' ? 'round' : tl === 'tri' ? 'tri' : tl === 'vertical' ? 'hammer' : 'slim');
-  const zh1 = B.nose - 0.025, zh0 = zh1 - (fl === 'round' ? 0.22 : fl === 'split' ? 0.24 : 0.17);
+  const zh1 = B.nose - 0.025, zh0 = zh1 - (fl === 'round' ? 0.24 : fl === 'split' ? 0.27 : 0.21);
   const front = lampMat('front', fl, hero);
   add(patch((a, b, o) => sf.fasciaN(true, -0.985 + 1.97 * a, zh0 + (zh1 - zh0) * b, o), hero ? 36 : 12, hero ? 8 : 3, 0.004, true), front);
   if (fl !== 'round') { // etuvalon lasi jatkuu kulman yli lokasuojaan
@@ -221,6 +221,28 @@ export function buildCar(spec, opt = {}) {
     add(mergeGeos(cg), hm);
   }
 
+  // --- valojen lasikuvut: läpinäkyvä kirkas kuori valoumpion päällä heijastaa ympäristöä ja antaa syvyyttä ---
+  if (hero && type !== 'bus') {
+    if (!M.lens) M.lens = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0.03, clearcoat: 1, clearcoatRoughness: 0.02, transparent: true, opacity: 0.22, depthWrite: false, envMapIntensity: 1.6 });
+    const lg = [], wide = t => t === 'bar' || t === 'pixel';
+    const cover = (front, z0, z1, y0, y1, flip) => lg.push(patch((a, b, o) => sf.fasciaN(front, y0 + (y1 - y0) * a, z0 + (z1 - z0) * b, o), 10, 4, 0.012, flip));
+    if (wide(fl)) cover(true, zh0 - 0.01, zh1 + 0.01, -0.99, 0.99, true);
+    else for (const sd of [-1, 1]) cover(true, zh0 - 0.01, zh1 + 0.01, sd < 0 ? -0.99 : 0.5, sd < 0 ? -0.5 : 0.99, true);
+    if (tl !== 'low') { if (wide(tl)) cover(false, zl0 - 0.01, zl1 + 0.01, -0.99, 0.99, false); else for (const sd of [-1, 1]) cover(false, zl0 - 0.01, zl1 + 0.01, sd < 0 ? -0.99 : 0.55, sd < 0 ? -0.55 : 0.99, false); }
+    const lens = add(mergeGeos(lg), M.lens); lens.renderOrder = 2;
+    // sumuvalot polttomoottoriautoissa: pyöreä lamppu mustassa kehyksessä puskurin kulmissa
+    if (!ev && type !== 'truck') {
+      if (!M.fogL) M.fogL = new THREE.MeshStandardMaterial({ color: 0xdfe6ee, emissive: 0xfff2d8, emissiveIntensity: 0.15, roughness: 0.05, metalness: 0.3 });
+      const ring = [], bulb = [], N = new THREE.Vector3(), W2s = sf.sec(S.L - 0.05).yR;
+      for (const sd of [-1, 1]) {
+        sf.fascia(true, sd * W2s * 0.74, S.zf0 + 0.15, V, N);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), N);
+        const r1 = new THREE.RingGeometry(0.045, 0.068, 18); r1.applyQuaternion(q); r1.translate(V.x + N.x * 0.006, V.y + N.y * 0.006, V.z + N.z * 0.006); ring.push(r1);
+        const c1 = new THREE.CircleGeometry(0.046, 18); c1.applyQuaternion(q); c1.translate(V.x + N.x * 0.004, V.y + N.y * 0.004, V.z + N.z * 0.004); bulb.push(c1);
+      }
+      add(mergeGeos(ring), M.black); g.userData.fogL = add(mergeGeos(bulb), M.fogL);
+    }
+  }
   // --- rekisterikilvet ---
   const pm = plateMat(opt.plate !== undefined ? opt.plate : (plateN++ % 12));
   const plate = (frontSide, z) => { const hw = 0.26 / Math.max(0.3, sf.sec(frontSide ? S.L - 0.03 : 0.03).yR); add(patch((a, b, o) => sf.fasciaN(frontSide, (frontSide ? -1 : 1) * (-hw + 2 * hw * a), z + 0.115 * b, o), 6, 2, 0.006, false), pm); };
