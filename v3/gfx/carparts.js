@@ -3,7 +3,8 @@ import * as THREE from 'three';
 import { canvasTex } from './assets.js';
 
 const rubber = new THREE.MeshStandardMaterial({ color: 0x111112, roughness: 0.88, metalness: 0 });
-const alloy = new THREE.MeshStandardMaterial({ color: 0xb9bcc0, roughness: 0.28, metalness: 0.95 });
+const alloy = new THREE.MeshStandardMaterial({ color: 0xa9adb2, roughness: 0.34, metalness: 0.85 });
+const rimShadow = new THREE.MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.9, metalness: 0 });
 const darkAlloy = new THREE.MeshStandardMaterial({ color: 0x2a2b2e, roughness: 0.35, metalness: 0.9 });
 const aeroM = new THREE.MeshStandardMaterial({ color: 0x6f7378, roughness: 0.4, metalness: 0.85 });
 const steelM = new THREE.MeshStandardMaterial({ color: 0x6a6d70, roughness: 0.5, metalness: 0.9 });
@@ -26,7 +27,7 @@ const geoCache = new Map();
 function tireGeo(R, w, lod) {
   const key = `t${R.toFixed(3)}:${w.toFixed(3)}:${lod}`;
   if (geoCache.has(key)) return geoCache.get(key);
-  const rim = R * 0.64, h = w / 2, pts = [];
+  const rim = R * 0.67, h = w / 2, pts = [];
   const prof = [[rim, -h * 0.82], [rim + 0.012, -h * 0.9], [R * 0.80, -h * 1.02], [R * 0.93, -h * 0.98], [R * 0.985, -h * 0.82], [R, -h * 0.6], [R, 0], [R, h * 0.6], [R * 0.985, h * 0.82], [R * 0.93, h * 0.98], [R * 0.80, h * 1.02], [rim + 0.012, h * 0.9], [rim, h * 0.82]];
   for (const [r, x] of prof) pts.push(new THREE.Vector2(r, x));
   const g = new THREE.LatheGeometry(pts, lod ? 14 : 36);
@@ -41,11 +42,11 @@ function tireGeo(R, w, lod) {
 function rimGeo(R, w, style, lod) {
   const key = `r${R.toFixed(3)}:${w.toFixed(3)}:${style}:${lod}`;
   if (geoCache.has(key)) return geoCache.get(key);
-  const r = R * 0.64, parts = [];
+  const r = R * 0.67, parts = [];
   // kehä (tynnyri) ja ulkoreunan laippa
   const barrel = new THREE.LatheGeometry([new THREE.Vector2(r * 0.9, -w * 0.4), new THREE.Vector2(r * 0.86, -w * 0.1), new THREE.Vector2(r * 0.9, w * 0.3), new THREE.Vector2(r + 0.004, w * 0.42), new THREE.Vector2(r + 0.004, w * 0.46), new THREE.Vector2(r * 0.93, w * 0.44)], lod ? 12 : 30);
   barrel.rotateZ(-Math.PI / 2); parts.push(barrel);
-  const face = w * 0.36; // puolien taso (ulkopinta x = +)
+  const face = w * 0.4, dish = style === 'aero' || style === 'steel' ? 0.008 : 0.045; // puolien taso (ulkopinta x = +) ja koveruus
   const hub = new THREE.CylinderGeometry(r * 0.2, r * 0.24, 0.05, lod ? 8 : 18); hub.rotateZ(-Math.PI / 2); hub.translate(face - 0.01, 0, 0); parts.push(hub);
   const spoke = (n, w0, w1, twin, lean, thick) => {
     for (let k = 0; k < n; k++) for (const s of twin ? [-1, 1] : [0]) {
@@ -56,6 +57,9 @@ function rimGeo(R, w, style, lod) {
       g.rotateY(Math.PI / 2); g.translate(face - thick, 0, 0); // nyt säde on −z:ssä? korjataan alla
       g.rotateX(Math.PI / 2);
       g.rotateX(k / n * Math.PI * 2 + s * (twin || 0) + lean);
+      // kovera vanne: puolat painuvat ulkoreunaa kohti sisään
+      const p = g.attributes.position; for (let i = 0; i < p.count; i++) { const d = Math.hypot(p.getY(i), p.getZ(i)); p.setX(i, p.getX(i) - dish * Math.pow(d / r, 1.6)); }
+      g.computeVertexNormals();
       parts.push(g);
     }
   };
@@ -87,10 +91,12 @@ export function makeWheel(R, w, style, lod) {
   const group = new THREE.Group(), spin = new THREE.Group();
   if (!tireMat) { tireMat = rubber.clone(); tireMat.normalMap = tread(); tireMat.normalScale = new THREE.Vector2(0.9, 0.9); }
   const tire = new THREE.Mesh(tireGeo(R, w, lod), lod ? rubber : tireMat); tire.castShadow = true;
+  // tumma pohja puolien takana: vanteen sisäosa varjossa, jolloin puolat erottuvat
+  const back = new THREE.Mesh(new THREE.CircleGeometry(R * 0.6, lod ? 12 : 28), rimShadow); back.rotation.y = Math.PI / 2; back.position.x = -w * 0.15; back.geometry.userData.shared = false;
   const dark = style === 'steel' ? false : /dark/.test(style);
   const st = style.replace('dark-', '');
   const rim = new THREE.Mesh(rimGeo(R, w, st, lod), st === 'steel' ? steelM : dark ? darkAlloy : st === 'aero' ? aeroM : alloy); rim.castShadow = true;
-  spin.add(tire, rim);
+  spin.add(tire, rim, back);
   if (!lod && st !== 'steel' && st !== 'aero') { // jarrulevy ja satula vanteen takana
     const disc = new THREE.CylinderGeometry(R * 0.5, R * 0.5, 0.022, 28); disc.rotateZ(-Math.PI / 2); disc.translate(w * 0.12, 0, 0);
     spin.add(new THREE.Mesh(disc, steelM));
