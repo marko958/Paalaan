@@ -529,6 +529,7 @@ const Drive = (() => {
   // runkojen ja seinien puolikkaat leveydet piirretyn kuvan mukaan (1 = tien puolikas = 2000 yksikköä)
   const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09 };
   const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan' };
+  const CAR_GAP = 4.4 * SEG; // 3.0: kahden auton keskipisteiden väli puskurikosketuksessa
   const CAR_HW = 0.11; // auto on 72 px leveä, tien puolikas pelaajan kohdalla 320 px
   function hits(o) {
     if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.03 + CAR_HW);
@@ -722,7 +723,8 @@ const Drive = (() => {
     if (icy) st.x += dt * 0.35 * sp * Math.sin(performance.now() / 300); // takapää elää
     // 3.0: ohjaus pehmenee (rattiliike kasvaa ja palautuu vähitellen) ja sivuttaisnopeus on 3D-mittakaavaan sovitettu
     { const tgt = (keys.right ? 1 : 0) - (keys.left ? 1 : 0); st.steerIn = (st.steerIn || 0) + (tgt - (st.steerIn || 0)) * Math.min(1, dt * (tgt ? 7 : 10)); }
-    st.x += steer * 0.62 * st.steerIn;
+    if (v.bus) st.x += (0.5 - st.x) * Math.min(1, dt * 1.5); // 3.0: bussi kulkee omalla kaistallaan automaattisesti
+    else st.x += steer * 0.62 * st.steerIn;
     if (v.minor) st.x += dt * 0.05 * sp; // korjaamaton vika vetää sivulle
     if (v.car && v.car.mixed) st.x += dt * 0.1 * sp * Math.sin(performance.now() / 650); // kolme leveää ja yksi kapea: auto vaeltaa
     st.x -= steer * sp * pseg.curve * (slick ? 0.46 : 0.32) * 0.3; // 3.0: kaarteet ovat näkymässä loivempia, joten sivuttaisveto on pienempi
@@ -760,7 +762,10 @@ const Drive = (() => {
       if (d.k === 'auto' || d.k === 'vasta') {
         d.z += d.v * dt;
         const rel = d.z - z1;
-        if (!v.bus && d.prel > 0 && rel <= 0 && Math.abs(d.x - st.x) < 0.22) { hitTraffic(d, Math.round(Math.abs(st.speed - d.v) / KMH)); return; }
+        // 3.0: autoilla on pituus, joten osuma tulee puskurien kohdatessa (noin 4,4 m keskipisteiden välillä), ei vasta auton sisällä
+        if (!v.bus && d.prel > CAR_GAP && rel <= CAR_GAP && Math.abs(d.x - st.x) < 0.25) { hitTraffic(d, Math.round(Math.abs(st.speed - d.v) / KMH)); return; }
+        // bussi ei törmää (kuten 2.0:ssa), joten edellä ajava pitää välin eikä bussi aja sen läpi
+        if (v.bus && d.k === 'auto' && rel > 0 && rel < CAR_GAP * 3.2 && d.v < st.speed) d.v = st.speed;
         d.prel = rel;
         if (rel < -150 || rel > DRAW * SEG * 1.2) st.dyn.splice(st.dyn.indexOf(d), 1);
         continue;
