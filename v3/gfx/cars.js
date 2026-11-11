@@ -251,10 +251,16 @@ export function buildCar(spec, opt = {}) {
   // --- keula: polttomoottorilla maski ja alaritilä, sähköautolla umpinainen keula ja kapea ilmanotto ---
   const gz0 = S.zf0 + 0.035, lowH = ev ? 0.07 : 0.12;
   add(patch((a, b, o) => sf.fasciaN(true, -0.62 + 1.24 * a, gz0 + lowH * b, o), 12, 2, 0.003, true), grilleMat('low', { roughness: 0.5 }));
+  // maski valosignatuurin mukaan: kaksoismaski (quad), iso kuusikulmainen (split), leveä vaakamaski (muut);
+  // sähköautoissa musta paneeli valojen välissä (umpinainen keula)
   if (!ev) {
-    const up = tk.upright ? 0.36 : (zh1 - zh0) * 0.82, gy = tk.upright ? 0.3 : 0.47;
-    add(patch((a, b, o) => sf.fasciaN(true, -gy + 2 * gy * a, (tk.upright ? zh1 - 0.34 : zh0 + 0.01) + up * b, o), 12, 3, 0.003, true), grilleMat(has('chrome') || tk.upright ? 'chrome' : 'mesh', { roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }));
+    const gm = (k, o) => grilleMat(k, Object.assign({ roughness: 0.4, metalness: has('chrome') ? 0.6 : 0.1 }, o));
+    if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh1 - 0.34 + 0.36 * b, o), 12, 3, 0.003, true), gm('chrome'));
+    else if (fl === 'quad') add(patch((a, b, o) => sf.fasciaN(true, -0.36 + 0.72 * a, zh0 - 0.02 + (zh1 - zh0) * 1.05 * b, o), 12, 3, 0.003, true), gm('twin', { metalness: 0.5 }));
+    else if (fl === 'split') add(patch((a, b, o) => sf.fasciaN(true, -0.42 + 0.84 * a, S.zf0 + 0.12 + (zh1 - S.zf0 - 0.14) * b, o), 12, 5, 0.003, true), gm('hex'));
+    else add(patch((a, b, o) => sf.fasciaN(true, -0.5 + a, zh0 + 0.01 + (zh1 - zh0) * 0.8 * b, o), 12, 3, 0.003, true), gm(has('chrome') ? 'chrome' : 'mesh'));
   } else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), grilleMat('chrome', { roughness: 0.2, metalness: 0.8 }));
+  else if (hero && fl !== 'bar' && fl !== 'round') add(patch((a, b, o) => sf.fasciaN(true, -0.5 + a, zh0 + (zh1 - zh0) * 0.3 + (zh1 - zh0) * 0.45 * b, o), 12, 2, 0.003, true), grilleMat('evband', { roughness: 0.15, metalness: 0.2 }));
   // --- perän alaosa: musta helma, diffuusori ja pakoputket ---
   add(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, S.zr0 + 0.015 + 0.1 * b, o), 12, 2, 0.003, false), grilleMat(has('diff') ? 'diff' : 'valance', { roughness: 0.7 }));
   const pipe = y => { const geo = new THREE.CylinderGeometry(0.036, 0.036, 0.12, hero ? 14 : 6, 1, true); geo.rotateX(Math.PI / 2); sf.fasciaN(false, y / yR0, S.zr0 + 0.04, V); geo.translate(V.x, V.y - 0.005, V.z - 0.01); add(geo, M.chrome); const inner = new THREE.CircleGeometry(0.032, 10); inner.translate(V.x, V.y - 0.005, V.z + 0.03); add(inner, M.under); };

@@ -173,6 +173,15 @@ export function grilleTex(kind) {
     if (kind === 'low') { g.fillStyle = '#1c1d1f'; for (let y = 16; y < H - 8; y += 14) g.fillRect(10, y, W - 20, 4); }
     else if (kind === 'mesh') { g.strokeStyle = '#26282b'; g.lineWidth = 2; for (let x = -H; x < W; x += 12) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x + H, H); g.moveTo(x + H, 0); g.lineTo(x, H); g.stroke(); } g.strokeStyle = '#3a3d41'; g.lineWidth = 4; rr(g, 3, 3, W - 6, H - 6, 10); g.stroke(); }
     else if (kind === 'chrome') { g.fillStyle = '#c9ccd0'; for (let x = 12; x < W - 8; x += 13) g.fillRect(x, 6, 5, H - 12); g.strokeStyle = '#e6e8ea'; g.lineWidth = 6; rr(g, 4, 4, W - 8, H - 8, 9); g.stroke(); }
+    else if (kind === 'twin') { // kaksi pystymaskia kromikehyksin
+      g.clearRect(0, 0, W, H);
+      for (const x0 of [W * 0.06, W * 0.54]) { g.fillStyle = '#08090a'; rr(g, x0, 3, W * 0.4, H - 6, 16); g.fill(); g.strokeStyle = '#c9ccd0'; g.lineWidth = 4; rr(g, x0, 3, W * 0.4, H - 6, 16); g.stroke();
+        g.fillStyle = '#2a2c30'; for (let x = x0 + 10; x < x0 + W * 0.4 - 6; x += 9) g.fillRect(x, 8, 3, H - 16); } }
+    else if (kind === 'hex') { // iso kuusikulmainen maski, ristikko
+      g.clearRect(0, 0, W, H); g.fillStyle = '#070708'; g.beginPath(); g.moveTo(W * 0.1, 2); g.lineTo(W * 0.9, 2); g.lineTo(W - 2, H * 0.45); g.lineTo(W * 0.88, H - 2); g.lineTo(W * 0.12, H - 2); g.lineTo(2, H * 0.45); g.closePath(); g.fill();
+      g.strokeStyle = '#2b2d31'; g.lineWidth = 2; for (let y = 6; y < H; y += 8) for (let x = (y / 8 % 2) * 7; x < W; x += 14) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + 5, y + 4); g.lineTo(x + 10, y); g.stroke(); }
+      g.strokeStyle = '#8a8d92'; g.lineWidth = 3; g.beginPath(); g.moveTo(W * 0.1, 2); g.lineTo(W * 0.9, 2); g.lineTo(W - 2, H * 0.45); g.lineTo(W * 0.88, H - 2); g.lineTo(W * 0.12, H - 2); g.lineTo(2, H * 0.45); g.closePath(); g.stroke(); }
+    else if (kind === 'evband') { g.clearRect(0, 0, W, H); g.fillStyle = '#0a0b0d'; rr(g, 2, H * 0.15, W - 4, H * 0.7, 10); g.fill(); g.fillStyle = 'rgba(255,255,255,0.08)'; rr(g, 6, H * 0.18, W - 12, H * 0.16, 6); g.fill(); } // sähköauton musta paneeli
     else if (kind === 'diff') { g.fillStyle = '#2b2d30'; for (let x = 40; x < W - 30; x += 30) g.fillRect(x, 8, 5, H - 12); }
   }, { clamp: true });
 }
