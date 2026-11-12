@@ -38,7 +38,7 @@ export const TWEAK = {
   'Tesla Model 3':      { L: 4.72, W: 1.85, H: 1.44, wb: 2.88, nose: 0.64, hCowl: 0.95, bowN: 0.3, front: 'slim', rim: 'aero', glassRoof: 1, flush: 1 },
   'Tesla Model Y':      { L: 4.75, W: 1.92, H: 1.62, wb: 2.89, nose: 0.8, bowN: 0.3, gc: 0.18, R: 0.36, belt: 1.0, hCowl: 1.08, cowl: 0.26, ws: 0.98, deck: 0.1, hDeck: 1.14, rake: 1.3, roofR: -0.58, kamm: 1, dlo: 0.4, tumble: 0.26, front: 'slim', rim: 'dark-aero', glassRoof: 1, flush: 1, clad: 0 },
   'Tesla Model S':      { L: 4.98, W: 1.96, H: 1.44, wb: 2.96, nose: 0.66, hCowl: 0.94, bowN: 0.28, front: 'slim', rim: 'turbine', glassRoof: 1, flush: 1 },
-  'Tesla Cybertruck':   { front: 'bar', rim: 'dark-aero', steel: 1, flush: 1 },
+  'Tesla Cybertruck':   { nose: 1.02, hCowl: 1.31, noseLen: 0.06, front: 'bar', rim: 'dark-aero', steel: 1, flush: 1 },
   'Skoda Enyaq':        { gate: 0.34, gateDrop: 0.03, L: 4.65, H: 1.62, front: 'slim', rim: 'aero' },
   'VW ID.4':            { L: 4.58, H: 1.64, cowl: 0.2, ws: 0.84, front: 'bar', rim: 'aero', floating: 1 },
   'Polestar 2':         { L: 4.61, W: 1.86, H: 1.48, gc: 0.17, hDeck: 1.12, belt: 0.98, tumble: 0.34, rs: 0.03, bowT: 0.1, front: 'hammer', rim: 'dark-twin5' },
@@ -60,7 +60,7 @@ export const TWEAK = {
   'Porsche Macan':      { L: 4.78, W: 1.94, H: 1.62, wb: 2.89, front: 'quad', rim: 'turbine', clad: 0 },
   'Lucid Air':          { L: 4.98, W: 1.94, H: 1.41, wb: 2.96, cowl: 0.1, ws: 1.1, nose: 0.68, front: 'bar', rim: 'aero', floating: 1, glassRoof: 1 },
   'Lotus Eletre':       { gate: 0.58, gateDrop: 0.14, L: 5.10, W: 2.0, H: 1.63, wb: 3.02, nose: 0.8, front: 'split', rim: 'dark-turbine', red: 1 },
-  'Rolls-Royce Spectre': { L: 5.45, W: 2.08, H: 1.56, wb: 3.21, fo: 0.92, cowl: 0.85, nose: 0.9, hCowl: 1.08, belt: 1.02, hDeck: 1.0, tumble: 0.32, bowN: 0.1, noseLen: 0.14, front: 'split', rim: 'multi', doors: 2, upright: 1 },
+  'Rolls-Royce Spectre': { L: 5.45, W: 2.08, H: 1.56, wb: 3.21, fo: 0.92, cowl: 0.85, nose: 0.9, hCowl: 1.08, belt: 1.0, hDeck: 0.98, deck: 0.26, rake: 1.65, roofR: -0.95, dlo: 0.4, tumble: 0.32, bowN: 0.1, noseLen: 0.14, front: 'split', rim: 'multi', doors: 2, upright: 1 },
   'Toyota Proace':      { front: 'slim', rim: 'steel' },
   'Audi e-tron 55':     { L: 4.90, W: 1.94, H: 1.63, wb: 2.93, front: 'split', rim: 'twin5' },
   'Citroën ë-SpaceTourer': { L: 4.96, H: 1.9, front: 'split', rim: 'spoke5', windows: 1 },
@@ -491,7 +491,7 @@ function interior(S, body, type, seatM, tk) {
     seats.push(bx(w, 0.56, 0.12, x, fl + 0.5, zOf(X - 0.03), 0.28));                                           // selkänoja
     seats.push(bx(w * 0.5, 0.17, 0.09, x, Math.min(top - 0.1, fl + 0.88), zOf(X - 0.12), 0.2));                // niskatuki
   };
-  const Xf = gb.pillarB + 0.1;
+  const Xf = Math.min(gb.pillarB + 0.1, S.uCowl - 0.95); // istuin ei saa olla kojelaudan sisällä
   seat(-0.37, Xf, 0.5); seat(0.37, Xf, 0.5);
   const rear = type !== 'truck' && !(type === 'van' && !tk.windows) && S.ra + 0.42 < Xf - 0.55;
   if (rear) { const Xr = Math.max(S.ra + 0.3, gb.sideR + 0.25);

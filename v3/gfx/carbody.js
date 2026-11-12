@@ -216,7 +216,8 @@ export function buildBody(S, opt = {}) {
   // lasien rajat (tuulilasi ja takalasi profiilin u:na, sivulasit kyljen X:nä)
   const wsF = S.uCowl - 0.015, wsR = S.uA + 0.03;
   const rgF = B.tail === 'deck' ? S.uR - 0.04 : S.uR - 0.05, rgR = B.tail === 'deck' ? S.uD + 0.05 : S.tf + 0.012;
-  const pillarB = glass.pillarB !== undefined ? glass.pillarB : S.fa - 1.13, pw = 0.045;
+  // B-pilari etuoven takareunassa: pitkäkeulaisissa (ohjaamo taaempana) se siirtyy tuulilasin juuren mukana taaksepäin
+  const pillarB = glass.pillarB !== undefined ? glass.pillarB : Math.min(S.fa - 1.13, S.uCowl - 0.8), pw = 0.045;
   // Sedaneissa ja fastbackeissa sivulasi jatkuu takalasin kaltevuutta pitkin taaksepäin (kolmioikkuna), ja takaoven
   // ja kolmioikkunan välissä on C-pilari. Aiemmin lasi loppui katon takareunaan, jolloin ikkuna jäi lyhyeksi.
   const dlo = B.dlo !== undefined ? B.dlo : ({ sedan: 0.62, fastback: 0.42, coupe: 0.45, prius: 0.4, suvc: 0.5 })[S.B._type] ?? 0.6;
