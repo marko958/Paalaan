@@ -839,6 +839,7 @@ const Drive = (() => {
   const { mix, veil, em, rect, trap, disc, vgrad } = Gfx, PC = Gfx.C;
   const K = {}; for (const n in PC) K[n] = mix(PC[n]);
   const KI = Gfx.HEX.map((h, i) => mix(i));
+  let scr;          // koko ruutu: pelikuva ja tekstipaneelit
   let og, bg, vg, octx;   // og = valmis 320×200-kuva (pinta), octx = sama canvasina, vg = näkyvä canvas
   let T = 0;        // animaatiokello sekunteina
   let AMB = 0;      // pimeän taso 0–4
@@ -938,11 +939,11 @@ const Drive = (() => {
     if (night) {
       for (let i = 0; i < 80; i++) {
         if (hash(i * 31 + Math.floor(T * 2.5 + i)) < 0.07) continue; // tuike
-        rect(b, wrap(hash(i) * W - off * 2, W) | 0, (hash(i + 99) * 92) | 0, 1, 1, KI[i % 9 === 0 ? PC.yellow : i % 5 === 0 ? PC.lblue : i % 3 === 0 ? PC.lgrey : PC.white]);
+        rect(b, wrap(hash(i) * W - off * 2, W) | 0, (24 + hash(i + 99) * 70) | 0, 1, 1, KI[i % 9 === 0 ? PC.yellow : i % 5 === 0 ? PC.lblue : i % 3 === 0 ? PC.lgrey : PC.white]);
       }
       const mx = wrap(70 - off * 2, W + 40) - 20, ph = S.m % 4;
-      disc(b, mx, 26, 7, 7, K.white); rect(b, mx - 3, 24, 2, 2, K.lgrey); rect(b, mx + 1, 28, 3, 2, K.lgrey); rect(b, mx + 2, 22, 1, 1, K.lgrey);
-      if (ph) disc(b, mx + (ph === 1 ? 5 : ph === 2 ? -5 : 3), 26, 7, 7, K.black);
+      disc(b, mx, 40, 7, 7, K.white); rect(b, mx - 3, 38, 2, 2, K.lgrey); rect(b, mx + 1, 42, 3, 2, K.lgrey); rect(b, mx + 2, 36, 1, 1, K.lgrey);
+      if (ph) disc(b, mx + (ph === 1 ? 5 : ph === 2 ? -5 : 3), 40, 7, 7, K.black);
       if (sea.lap || (sea.temp <= -3 && rr(S.m, 70) < 0.7)) { // revontulet
         for (let x = 0; x < W; x += 2) for (let i = 0; i < 2; i++) {
           const u = x + off * 3, yb = 44 + i * 22 + Math.sin(u * 0.031 + T * 0.25 + i * 2) * 9 + Math.sin(u * 0.083 - T * 0.4) * 4;
@@ -956,13 +957,13 @@ const Drive = (() => {
     } else if (!over) {
       const sx = wrap(236 - off * 3, W + 60) - 30;
       if (dusk) { disc(b, sx, base - 13, 13, 13, K.yellow); disc(b, sx, base - 13, 9, 9, K.white); rect(b, sx - 14, base - 9, 28, 1, K.lred); rect(b, sx - 14, base - 5, 28, 2, K.lred); }
-      else { const sy = sea.snow ? 66 : sea.autumn || sea.bare ? 52 : 30; disc(b, sx, sy, 10, 10, veil(PC.yellow, 6)); disc(b, sx, sy, 7, 7, K.yellow); disc(b, sx - 1, sy - 1, 4, 4, K.white); }
+      else { const sy = sea.snow ? 70 : sea.autumn || sea.bare ? 58 : 44; disc(b, sx, sy, 10, 10, veil(PC.yellow, 6)); disc(b, sx, sy, 7, 7, K.yellow); disc(b, sx - 1, sy - 1, 4, 4, K.white); }
     }
     // pilvet: litteäpohjaiset kumpupilvet, pilvisellä säällä harmaita lauttoja
     if (!night || over) {
       const cn = over ? 11 : 6, top = dusk ? K.lred : over ? K.lgrey : K.white, bot = night ? K.dgrey : dusk ? K.purple : over ? K.grey : mix(PC.lgrey, PC.white, 6);
       for (let i = 0; i < cn; i++) {
-        const cw = (over ? 34 : 20) + hash(i + 300) * 26, cx = wrap(hash(i + 310) * (W + 120) - off * 4 + T * (1 + hash(i + 320)), W + 120) - 60, cy = 14 + hash(i + 330) * (over ? 70 : 48);
+        const cw = (over ? 34 : 20) + hash(i + 300) * 26, cx = wrap(hash(i + 310) * (W + 120) - off * 4 + T * (1 + hash(i + 320)), W + 120) - 60, cy = 34 + hash(i + 330) * (over ? 52 : 34);
         const ch = cw * 0.26;
         disc(b, cx, cy + 2, cw, ch, bot, cy + 3); disc(b, cx + cw * 0.45, cy + 2, cw * 0.6, ch * 0.8, bot, cy + 3); disc(b, cx - cw * 0.5, cy + 2, cw * 0.55, ch * 0.7, bot, cy + 3);
         if (!night) { disc(b, cx, cy, cw * 0.9, ch, top, cy + 1); disc(b, cx + cw * 0.45, cy, cw * 0.5, ch * 0.75, top, cy + 1); disc(b, cx - cw * 0.5, cy, cw * 0.45, ch * 0.62, top, cy + 1); }
@@ -1337,35 +1338,52 @@ const Drive = (() => {
     const T = st.trip, kmh = Math.max(40, st.speed / KMH), eta = T.t + (T.km - T.done) / kmh;
     return `${T.name}: ${Math.round(T.done)}/${T.km} KM · KELLO ${hhmm(T.t)}/${T.hours}.00 · ARVIO ${hhmm(eta)}${eta > T.hours ? ' MYÖHÄSSÄ' : ''}`;
   }
+  // Paneelit ja viestit piirretään samaan 320×200-kuvaan 8×8-merkistöllä (40 merkkiä riville) yksiväriselle taustalle,
+  // kuten C64-peleissä: ylärivi ja kaksi alariviä ovat tekstiä, niiden välissä 176 riviä pelikuvaa.
+  const PAN_TOP = 8, PAN_BOT = 16, CROP = PAN_TOP + PAN_BOT;
+  const t8 = (str, col, row, fg, bg) => Gfx.text8(scr, str, col * 8, row * 8, fg, bg);
+  // viestilaatikko: rivit keskitettynä mustalle pohjalle, palauttaa seuraavan vapaan rivin (pikseleinä)
+  function msgBox(lines, y, fg) {
+    const w = Math.max(...lines.map(l => l.length)) + 2, x0 = Math.floor((40 - w) / 2) * 8;
+    rect(scr, x0, y, w * 8, lines.length * 8 + 1, K.black);
+    lines.forEach((l, i) => Gfx.text8(scr, l, x0 + 8 + Math.floor((w - 2 - l.length) / 2) * 8, y + 1 + i * 8, fg, -1));
+    return y + lines.length * 8 + 2;
+  }
   function drawHud() {
-    hudSet('month', `KK ${S.m}/${LAST} · ${KK[(S.m - 1) % 12].toUpperCase()}KUU ${2027 + Math.floor((S.m - 1) / 12)} · ${keliTxt()}`);
-    hudSet('cash', `KASSA ${eur(S.cash)}`);
-    hudSet('cashCls', S.cash < 0 ? 'neg' : '', 'className');
-    hudSet('bar', Math.min(100, st.monthT / MONTH_S * 100).toFixed(1) + '%', 'width');
+    // pelikuva paneelien väliin: taivaan ylimmät rivit jäävät pois
+    scr.buf.set(og.buf.subarray(CROP * W, H * W), PAN_TOP * W);
+    // ylärivi: kuukausi ja kassa, alareunassa kuukauden eteneminen
+    rect(scr, 0, 0, W, 8, K.blue);
+    t8(`KK ${S.m}/${LAST} ${KK[(S.m - 1) % 12]}KUU ${2027 + Math.floor((S.m - 1) / 12)}`, 0, 0, PC.white, -1);
+    { const c = `KASSA ${eur(S.cash)}`; t8(c, 40 - c.length, 0, S.cash < 0 ? PC.lred : PC.yellow, -1); }
+    rect(scr, 0, 7, W, 1, K.dgrey); rect(scr, 0, 7, Math.round(Math.min(1, st.monthT / MONTH_S) * W), 1, K.yellow);
+    // alarivit: rajoitus, nopeus ja auto; energia ja keli
+    rect(scr, 0, H - 16, W, 16, K.black);
     const kmh = Math.round(st.speed / KMH), lim = limitOf(segAt(st.pos + PZ).lim);
-    hudSet('speed', `${kmh} km/h`);
-    hudSet('speedCls', kmh > lim ? 'over' : '', 'className');
-    hudSet('lim', st.veh.bus ? '' : limTxt(lim));
-    hudSet('limD', st.veh.bus ? 'none' : 'inline-flex', 'display');
-    hudSet('car', st.veh.name + (st.veh.tsa ? ' (työsuhdeauto)' : ''));
-    hudSet('en', energyHud());
+    let col = 0;
+    if (!st.veh.bus) { const l = limTxt(lim); t8(' ', 0, 23, PC.white, PC.red); t8(l, 1, 23, PC.black, PC.white); t8(' ', 1 + l.length, 23, PC.white, PC.red); col = l.length + 3; } // rajoitusmerkki: punaiset reunat
+    const sp = `${kmh} KM/H`; t8(sp, col, 23, kmh > lim ? PC.lred : PC.white, -1); col += sp.length + 1;
+    { let nm = st.veh.name + (st.veh.tsa ? ' (TSA)' : ''); if (nm.length > 40 - col) nm = nm.slice(0, 40 - col); t8(nm, 40 - nm.length, 23, PC.lgrey, -1); }
+    const en = energyHud().replace(/ %/g, '%').replace(/ · /g, ' '), keli = keliTxt().replace(' °C', '°C').replace(/ · /g, ' '), temp = keli.split(' ')[0];
+    t8(en, 0, 24, PC.cyan, -1);
+    { const k = en.length + 1 + keli.length <= 40 ? keli : en.length + 1 + temp.length <= 40 ? temp : ''; if (k) t8(k, 40 - k.length, 24, PC.lgreen, -1); }
+    // viestit pelikuvan yläreunaan: keikka tai matka, autoliike, kaksi uusinta ilmoitusta
+    let y = PAN_TOP + 2;
     const gh = st.trip ? tripHud() : gigHud();
-    let lh = '';
+    if (gh) y = msgBox(Gfx.wrap8(gh, 38), y, PC.cyan);
     { const lot = st.dyn.find(d => d.lot && !d.used);
-      if (lot) { const d = lot.at - Math.floor((st.pos + PZ) / SEG); if (d < 150 && d >= -STOP_WIN) lh = d > STOP_WIN ? `AUTOLIIKE ${gpsDown() ? 'TULOSSA' : d * 5 + ' M'} · PYSÄHDY PIHAAN OIKEAAN REUNAAN` : 'AUTOLIIKE · PYSÄHDY TÄHÄN'; } }
-    const msgs = (gh ? `<p class="gig">${escH(gh)}</p>` : '') + (lh ? `<p class="gig">${escH(lh)}</p>` : '') + st.toasts.map(t => {
-      const c = t.t[0] === '!' ? 'r' : t.t[0] === '+' ? 'g' : '';
-      return `<p class="${c}">${escH(c ? t.t.slice(1) : t.t)}</p>`;
-    }).join('');
-    hudSet('msgs', msgs, 'innerHTML');
-    let ramp = '';
-    if (st.ramp) {
-      const d = st.ramp.start - Math.floor((st.pos + PZ) / SEG);
-      if (d > -RAMP_LEN) ramp = gpsDown() ? (d < 25 ? 'LIITTYMÄ → oikealle = valikko' : '') : d > 0 ? `LIITTYMÄ ${d * 5} m → oikealle = valikko` : 'LIITTYMÄ → oikealle = valikko';
+      if (lot) { const d = lot.at - Math.floor((st.pos + PZ) / SEG); if (d < 150 && d >= -STOP_WIN) y = msgBox(Gfx.wrap8(d > STOP_WIN ? `AUTOLIIKE ${gpsDown() ? 'TULOSSA' : d * 5 + ' M'} · PYSÄHDY PIHAAN OIKEAAN REUNAAN` : 'AUTOLIIKE · PYSÄHDY TÄHÄN', 38), y, PC.cyan); } }
+    for (const t of st.toasts.slice(-2)) {
+      const c = t.t[0] === '!' ? PC.lred : t.t[0] === '+' ? PC.lgreen : PC.white;
+      y = msgBox(Gfx.wrap8(c === PC.white ? t.t : t.t.slice(1), 38).slice(0, 4), y, c);
     }
-    hudSet('ramp', ramp);
-    hudSet('hint', st.hint ? '← → ohjaa · ↓ jarru · P tauko' : '');
-    hudSet('pause', st.userPause ? 'flex' : 'none', 'display');
+    if (st.ramp && Math.floor(T * 2.5) % 2) {
+      const d = st.ramp.start - Math.floor((st.pos + PZ) / SEG);
+      const r = d <= -RAMP_LEN ? '' : gpsDown() ? (d < 25 ? 'LIITTYMÄ → OIKEALLE = VALIKKO' : '') : d > 0 ? `LIITTYMÄ ${d * 5} M → OIKEALLE = VALIKKO` : 'LIITTYMÄ → OIKEALLE = VALIKKO';
+      if (r) msgBox([r], 118, PC.yellow);
+    }
+    if (st.hint) msgBox(['← → OHJAA · ↓ JARRU · P TAUKO'], 96, PC.white);
+    if (st.userPause) { rect(scr, 0, PAN_TOP, W, H - CROP, veil(PC.black, 8)); msgBox(['TAUKO · P JATKAA'], 84, PC.yellow); }
     hudSet('quick', quickHtml(), 'innerHTML'); // sama sisältö koko pikavalinnan ajan, joten napit eivät vaihdu kesken painalluksen
     hudSet('quickD', st.quick && !st.paused ? 'block' : 'none', 'display');
     if (st.quick) { const b = document.getElementById('q-bar'); if (b) b.style.width = Math.max(0, st.quick.t / st.quick.T * 100).toFixed(1) + '%'; }
@@ -1401,8 +1419,8 @@ const Drive = (() => {
     drawCar(sea, dt);
     drawWeather(dt);
     if (st.flash > 0) rect(og, 0, 0, W, H, veil(PC.white, st.flash * 20));
-    Gfx.blit(og, octx); vg.imageSmoothingEnabled = false; vg.drawImage(octx.canvas, 0, 0, cv.width, cv.height);
     drawHud();
+    Gfx.blit(scr, octx); vg.imageSmoothingEnabled = false; vg.drawImage(octx.canvas, 0, 0, cv.width, cv.height);
   }
 
   // ---------- silmukka ----------
@@ -1410,7 +1428,7 @@ const Drive = (() => {
     if (!st.active) return;
     st.raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - st.last) / 1000); st.last = now; st.dt = dt;
-    if (!st.paused && !st.userPause) {
+    if (!st.paused && !st.userPause && !st.freeze) { // freeze: testit pysäyttävät maailman kuvaa varten
       T = now / 1000;
       update(st.quick ? dt * 0.4 : dt); // pikavalinnan ajan peli hidastuu
       if (!st.active) return;
@@ -1429,13 +1447,12 @@ const Drive = (() => {
   function init() {
     cv = document.getElementById('road'); vg = cv.getContext('2d');
     { const c = document.createElement('canvas'); c.width = W; c.height = H; octx = c.getContext('2d'); }
-    og = Gfx.surface(W, H); g = Gfx.surface(W, H); bg = Gfx.surface(W, H);
+    og = Gfx.surface(W, H); g = Gfx.surface(W, H); bg = Gfx.surface(W, H); scr = Gfx.surface(W, H);
     // näkyvä canvas on 320×200 kokonaislukukertoimella suurennettuna, jotta rasteri ei moiroi epätasaisessa skaalauksessa
     const fitCanvas = () => { const n = Math.max(1, Math.min(6, Math.ceil((cv.clientWidth || 640) * (window.devicePixelRatio || 1) / W - 0.05))); if (cv.width !== W * n) { cv.width = W * n; cv.height = H * n; } };
     fitCanvas(); window.addEventListener('resize', fitCanvas); st.fitCanvas = fitCanvas;
     const $ = id => document.getElementById(id);
-    Object.assign(hud, { quick:$('quick'), quickD:$('quick').style, en:$('h-en'), month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
-    if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
+    Object.assign(hud, { quick:$('quick'), quickD:$('quick').style });
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
       if (st.quick && /^[1-9]$/.test(e.key)) { quickPick(+e.key - 1); e.preventDefault(); return; }
@@ -1464,7 +1481,7 @@ const Drive = (() => {
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
-    st.x = 0.5; st.vx = 0; st.sa = 0; st.scrCd = 0;
+    st.x = 0.5; st.vx = 0; st.sa = 0; st.scrCd = 0; st.freeze = false;
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();

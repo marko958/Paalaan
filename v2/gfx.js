@@ -205,6 +205,62 @@ const Gfx = (() => {
     return 0;
   }
 
+  // ---------- 8×8-merkistö paneeleihin ----------
+  // Oma piirros C64-henkeen: 6 pikseliä leveät merkit kahden pikselin rungolla, 40 merkkiä riville. Vain isot kirjaimet.
+  const F8SRC = {
+    A:'.XXXX. XX..XX XX..XX XXXXXX XX..XX XX..XX XX..XX', B:'XXXXX. XX..XX XX..XX XXXXX. XX..XX XX..XX XXXXX.', C:'.XXXX. XX..XX XX.... XX.... XX.... XX..XX .XXXX.',
+    D:'XXXX.. XX.XX. XX..XX XX..XX XX..XX XX.XX. XXXX..', E:'XXXXXX XX.... XX.... XXXXX. XX.... XX.... XXXXXX', F:'XXXXXX XX.... XX.... XXXXX. XX.... XX.... XX....',
+    G:'.XXXX. XX..XX XX.... XX.XXX XX..XX XX..XX .XXXXX', H:'XX..XX XX..XX XX..XX XXXXXX XX..XX XX..XX XX..XX', I:'.XXXX. ..XX.. ..XX.. ..XX.. ..XX.. ..XX.. .XXXX.',
+    J:'..XXXX ...XX. ...XX. ...XX. ...XX. XX.XX. .XXX..', K:'XX..XX XX.XX. XXXX.. XXX... XXXX.. XX.XX. XX..XX', L:'XX.... XX.... XX.... XX.... XX.... XX.... XXXXXX',
+    M:'XX..XX XXXXXX XXXXXX XX..XX XX..XX XX..XX XX..XX', N:'XX..XX XXX.XX XXXXXX XXXXXX XX.XXX XX..XX XX..XX', O:'.XXXX. XX..XX XX..XX XX..XX XX..XX XX..XX .XXXX.',
+    P:'XXXXX. XX..XX XX..XX XXXXX. XX.... XX.... XX....', Q:'.XXXX. XX..XX XX..XX XX..XX XX.XXX .XXXX. ....XX', R:'XXXXX. XX..XX XX..XX XXXXX. XXXX.. XX.XX. XX..XX',
+    S:'.XXXX. XX..XX XX.... .XXXX. ....XX XX..XX .XXXX.', T:'XXXXXX ..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX..', U:'XX..XX XX..XX XX..XX XX..XX XX..XX XX..XX .XXXX.',
+    V:'XX..XX XX..XX XX..XX XX..XX XX..XX .XXXX. ..XX..', W:'XX..XX XX..XX XX..XX XX..XX XXXXXX XXXXXX XX..XX', X:'XX..XX XX..XX .XXXX. ..XX.. .XXXX. XX..XX XX..XX',
+    Y:'XX..XX XX..XX .XXXX. ..XX.. ..XX.. ..XX.. ..XX..', Z:'XXXXXX ....XX ...XX. ..XX.. .XX... XX.... XXXXXX',
+    'Ä':'XX..XX ...... .XXXX. XX..XX XXXXXX XX..XX XX..XX', 'Ö':'XX..XX ...... .XXXX. XX..XX XX..XX XX..XX .XXXX.', 'Å':'..XX.. ...... .XXXX. XX..XX XXXXXX XX..XX XX..XX',
+    0:'.XXXX. XX..XX XX.XXX XXX.XX XX..XX XX..XX .XXXX.', 1:'..XX.. .XXX.. ..XX.. ..XX.. ..XX.. ..XX.. .XXXX.', 2:'.XXXX. XX..XX ....XX ...XX. ..XX.. .XX... XXXXXX',
+    3:'.XXXX. XX..XX ....XX ..XXX. ....XX XX..XX .XXXX.', 4:'...XX. ..XXX. .XXXX. XX.XX. XXXXXX ...XX. ...XX.', 5:'XXXXXX XX.... XXXXX. ....XX ....XX XX..XX .XXXX.',
+    6:'.XXXX. XX.... XX.... XXXXX. XX..XX XX..XX .XXXX.', 7:'XXXXXX ....XX ...XX. ..XX.. ..XX.. ..XX.. ..XX..', 8:'.XXXX. XX..XX XX..XX .XXXX. XX..XX XX..XX .XXXX.',
+    9:'.XXXX. XX..XX XX..XX .XXXXX ....XX ....XX .XXXX.',
+    '.':'...... ...... ...... ...... ...... ..XX.. ..XX..', ',':'...... ...... ...... ...... ..XX.. ..XX.. .XX...', '!':'..XX.. ..XX.. ..XX.. ..XX.. ...... ..XX.. ..XX..',
+    '?':'.XXXX. XX..XX ....XX ...XX. ..XX.. ...... ..XX..', '-':'...... ...... ...... XXXXXX ...... ...... ......', '+':'...... ..XX.. ..XX.. XXXXXX ..XX.. ..XX.. ......',
+    ':':'...... ..XX.. ..XX.. ...... ..XX.. ..XX.. ......', '/':'....XX ...XX. ...XX. ..XX.. .XX... .XX... XX....', '%':'XX..XX XX.XX. ...XX. ..XX.. .XX... .XX.XX XX..XX',
+    '€':'..XXXX .XX... XXXXX. .XX... XXXXX. .XX... ..XXXX', '·':'...... ...... ..XX.. ..XX.. ...... ...... ......', "'":'..XX.. ..XX.. .XX... ...... ...... ...... ......',
+    '(':'...XX. ..XX.. .XX... .XX... .XX... ..XX.. ...XX.', ')':'.XX... ..XX.. ...XX. ...XX. ...XX. ..XX.. .XX...', '=':'...... ...... XXXXXX ...... XXXXXX ...... ......',
+    '>':'...... ..XX.. ...XX. XXXXXX ...XX. ..XX.. ......', '<':'...... ..XX.. .XX... XXXXXX .XX... ..XX.. ......', '°':'.XXX.. XX.XX. .XXX.. ...... ...... ...... ......',
+    '~':'...... ...... .XX..X XXXXXX X..XX. ...... ......', '*':'...... XX..XX .XXXX. XXXXXX .XXXX. XX..XX ......', 'v':'..XX.. ..XX.. ..XX.. XXXXXX .XXXX. ..XX.. ......',
+    '#':'.X..X. XXXXXX .X..X. .X..X. XXXXXX .X..X. ......',
+    '|':'..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX..', '[':'.XXXX. .XX... .XX... .XX... .XX... .XX... .XXXX.', ']':'.XXXX. ...XX. ...XX. ...XX. ...XX. ...XX. .XXXX.',
+    ';':'...... ..XX.. ..XX.. ...... ..XX.. ..XX.. .XX...', '…':'...... ...... ...... ...... ...... X.XX.X X.XX.X', '_':'...... ...... ...... ...... ...... ...... XXXXXX',
+    '"':'XX.XX. XX.XX. .X..X. ...... ...... ...... ......', '$':'..XX.. .XXXXX XX.... .XXXX. ....XX XXXXX. ..XX..', '×':'...... XX..XX .XXXX. ..XX.. .XXXX. XX..XX ......',
+    'Ë':'XX..XX ...... XXXXXX XX.... XXXXX. XX.... XXXXXX', 'Ü':'XX..XX ...... XX..XX XX..XX XX..XX XX..XX .XXXX.', '█':'XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX', '&':'.XXX.. XX.XX. .XXX.. XXX.XX XX.XX. XX.XX. .XX.XX',
+  };
+  const A8 = { 'É':'E', '–':'-', '−':'-', '—':'-', '→':'>', '←':'<', '↓':'v', '’':"'", '★':'*' };
+  const F8 = {};
+  for (const ch in F8SRC) F8[ch] = F8SRC[ch].split(' ').map(r => { let b = 0; for (let i = 0; i < 6; i++) if (r[i] === 'X') b |= 1 << i; return b; });
+  // teksti 8×8-ruudukkoon: x, y pikseleinä, fg = väri-indeksi, bg = taustan indeksi tai −1 (ei taustaa), scale = 1 tai 2
+  function text8(sf, str, x, y, fg, bg, scale) {
+    const sc = scale || 1; str = String(str).toUpperCase();
+    const fk = mix(fg), bk = bg >= 0 ? mix(bg) : null;
+    for (const c0 of str) {
+      const ch = A8[c0] || c0, G = F8[ch];
+      if (bk) rect(sf, x, y, 8 * sc, 8 * sc, bk);
+      if (G) for (let r = 0; r < 7; r++) { const b = G[r]; if (b) for (let i = 0; i < 6; i++) if (b & (1 << i)) rect(sf, x + (1 + i) * sc, y + r * sc, sc, sc, fk); }
+      x += 8 * sc;
+    }
+  }
+  // rivitys sanarajoista enintään cols merkin riveiksi
+  function wrap8(str, cols) {
+    const out = []; let line = '';
+    for (const w of String(str).split(' ')) {
+      if (line && (line + ' ' + w).length > cols) { out.push(line); line = w; }
+      else line = line ? line + ' ' + w : w;
+      while (line.length > cols) { out.push(line.slice(0, cols)); line = line.slice(cols); }
+    }
+    if (line) out.push(line);
+    return out;
+  }
+
   // ---------- valokartta ----------
   // light[i] = 0..255: kuinka paljon pikseli on valossa. Ajovalojen keila lasketaan kerran, muut valot leimataan päälle.
   const light = new Uint8Array(W * H), cone = new Uint8Array(W * H);
@@ -246,5 +302,5 @@ const Gfx = (() => {
     ctx.putImageData(sf.img, 0, 0);
   }
 
-  return { W, H, HEX, C, surface, clear, push, pop, ink, mix, veil, em, shade, dimInk, dimIdx, rect, trap, disc, line, vgrad, text, textW, fit, light, lightReset, glow, post, blit };
+  return { W, H, HEX, C, surface, clear, push, pop, ink, mix, veil, em, shade, dimInk, dimIdx, rect, trap, disc, line, vgrad, text, textW, fit, text8, wrap8, light, lightReset, glow, post, blit };
 })();

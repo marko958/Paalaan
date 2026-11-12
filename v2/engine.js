@@ -1776,7 +1776,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
       const c = l[0]==='!' ? 'r' : l[0]==='+' ? 'g' : '';
       return `<p class="${c}">${esc(c ? l.slice(1) : l)}</p>`;
     }).join('');
-    const box = $('choices'); box.innerHTML = ''; current = s.choices;
+    const box = $('choices'); box.innerHTML = ''; current = s.choices; sel = -1;
     s.choices.forEach((c,i) => {
       const b = document.createElement('button');
       b.innerHTML = (i<9?`<span class="k">${i+1}</span>`:'') + esc(c.t);
@@ -1786,10 +1786,22 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
       box.appendChild(b);
     });
   }});
+  // kursori: nuolet ylös ja alas siirtävät käänteisväristä valintariviä, Enter tai välilyönti valitsee
+  let sel = -1;
+  const btns = () => [...$('choices').children];
+  const mark = () => btns().forEach((b, i) => b.classList.toggle('sel', i === sel));
+  const pick = i => { if (current[i] && !current[i].dis) { Snd.play('click'); sel = -1; current[i].f(); window.scrollTo(0,0); } };
   document.addEventListener('keydown', e => {
     if (Drive.blockKeys()) return;
     const n = parseInt(e.key,10);
-    if (n>=1 && n<=9 && current[n-1] && !current[n-1].dis) { Snd.play('click'); current[n-1].f(); window.scrollTo(0,0); }
+    if (n>=1 && n<=9) return pick(n-1);
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const d = e.key === 'ArrowDown' ? 1 : -1, N = current.length;
+      if (!N) return;
+      let i = sel < 0 || sel >= N ? (d > 0 ? -1 : N) : sel;
+      for (let k = 0; k < N; k++) { i = (i + d + N) % N; if (!current[i].dis) break; }
+      sel = i; mark(); btns()[sel].scrollIntoView({ block:'nearest' }); e.preventDefault();
+    } else if ((e.key === 'Enter' || e.key === ' ') && sel >= 0 && sel < current.length) { e.preventDefault(); pick(sel); }
   });
   start();
 })();
