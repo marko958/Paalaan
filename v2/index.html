@@ -35,6 +35,8 @@
   #hud { position:absolute; inset:0; pointer-events:none; color:#fff; font-size:clamp(16px, 3.3vw, 23px); line-height:1.05;
     text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
   #hud p { margin:0 0 3px; }
+  /* alpha 38: tekstit piirretään pelikuvaan 8×8-merkistöllä; vanhat HTML-tekstit ovat piilossa */
+  .h-top, .h-prog, #h-msgs, #h-hint, #h-ramp, .h-bot, #h-pause { display:none !important; }
   .h-top { display:flex; justify-content:space-between; gap:8px; padding:3px 8px 2px; background:rgba(0,0,0,.6); }
   .h-top .neg { color:#FF8A80; }
   .h-prog { height:4px; background:#222; } .h-prog i { display:block; height:100%; width:0; background:var(--yel); }
@@ -95,13 +97,13 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 37 (12.11. klo 23.31) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a> · <a href="autot.html" style="color:inherit">Autogalleria</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 38 (12.11. klo 23.45) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a> · <a href="autot.html" style="color:inherit">Autogalleria</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
 </div>
 <!-- ?v=N ohittaa selaimen välimuistin: kasvata numeroa jokaisessa julkaisussa -->
-<script src="sound.js?v=37"></script>
-<script src="gfx.js?v=37"></script>
-<script src="cars.js?v=37"></script>
-<script src="drive.js?v=37"></script>
-<script src="engine.js?v=37"></script>
+<script src="sound.js?v=38"></script>
+<script src="gfx.js?v=38"></script>
+<script src="cars.js?v=38"></script>
+<script src="drive.js?v=38"></script>
+<script src="engine.js?v=38"></script>
 </body>
 </html>
