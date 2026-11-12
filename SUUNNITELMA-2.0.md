@@ -85,6 +85,7 @@ Ominaisuudet johdetaan nykyisistä `CARS`-tiedoista, joten uutta autotietokantaa
 ## 7. Ulkoasu, ohjaus ja ääni
 
 - **Grafiikka:** canvasilla piirretty pseudo-3D-tie (segmenttitie, joka kaartuu ja mäkeilee). Kuva piirretään 320×200-resoluutiolla ja skaalataan pikselintarkasti. Värit ovat samat C64-värit kuin 1.0:ssa.
+  - ✅ 2.0 alpha 34: oma kuvapuskuri (`v2/gfx.js`), jossa jokainen pikseli on C64-paletin indeksi; rasterisävyt, pikselifontti kyltteihin, valokartta pimeään. Automallit ovat tiedostossa `v2/cars.js`, ja `v2/autot.html` näyttää ne kaikki.
 - **Oma suomalainen maisema:** männyt, peltoaukeat, lumipenkat talvella, kaamospimeä, valtatien kyltit sekä brändittömät marketit ja asemat. Tyylilaji on retroajopeli, mutta kaikki grafiikka, äänet ja reitti ovat omia.
 - **Ohjaus:**
   - Tietokoneella nuolet tai A/D ohjaavat, ylös/W kaasuttaa ja alas/S tai välilyönti jarruttaa.
@@ -99,6 +100,8 @@ Ominaisuudet johdetaan nykyisistä `CARS`-tiedoista, joten uutta autotietokantaa
 /v2/index.html      2.0:n sivu: ruudut, HUD ja canvas
 /v2/engine.js       1.0:n pelilogiikka kopiona (monthTick, tapahtumat, autoliike, rahoitus…)
 /v2/drive.js        ajotila: tie, ohjaus, esteet, asemat, keikat, liikkeet
+/v2/gfx.js          grafiikkaydin: 320×200-kuvapuskuri, C64-paletti, rasterit, fontti, valokartta
+/v2/cars.js         automallit pikselikuvina takaa ja edestä
 ```
 
 - **2.0 on haara 1.0:sta.** `engine.js` aloitetaan kopiona 1.0:n logiikasta, ja sitä muutetaan vapaasti, joten 1.0 ei voi rikkoutua 2.0:n muutoksista. Huono puoli: jos 1.0:aan tehdään korjauksia (kuten Scala-korjaus), ne pitää viedä 2.0:aan käsin.

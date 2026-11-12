@@ -30,7 +30,7 @@
   .foot { margin-top:18px; opacity:.6; font-size:17px; }
   /* 2.0: ajotila */
   #drive { display:none; }
-  #drive canvas { display:block; width:100%; height:auto; aspect-ratio:320/200; background:#000; image-rendering:crisp-edges; image-rendering:pixelated; touch-action:none; }
+  #drive canvas { display:block; width:100%; height:auto; aspect-ratio:320/200; background:#000; touch-action:none; }
   .view { position:relative; }
   #hud { position:absolute; inset:0; pointer-events:none; color:#fff; font-size:clamp(16px, 3.3vw, 23px); line-height:1.05;
     text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
@@ -71,7 +71,7 @@
   <div id="status" class="status" hidden></div>
   <div id="drive">
     <div class="view">
-      <canvas id="road" width="640" height="400"></canvas>
+      <canvas id="road" width="320" height="200"></canvas>
       <div id="hud">
         <div class="h-top"><span id="h-month"></span><span id="h-cash"></span></div>
         <div class="h-prog"><i id="h-bar"></i></div>
@@ -95,11 +95,13 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 33 (12.11. klo 11.32) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
+  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 37 (12.11. klo 23.31) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a> · <a href="autot.html" style="color:inherit">Autogalleria</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
 </div>
 <!-- ?v=N ohittaa selaimen välimuistin: kasvata numeroa jokaisessa julkaisussa -->
-<script src="sound.js?v=32"></script>
-<script src="drive.js?v=32"></script>
-<script src="engine.js?v=32"></script>
+<script src="sound.js?v=37"></script>
+<script src="gfx.js?v=37"></script>
+<script src="cars.js?v=37"></script>
+<script src="drive.js?v=37"></script>
+<script src="engine.js?v=37"></script>
 </body>
 </html>
