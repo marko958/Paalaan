@@ -1361,7 +1361,7 @@ const Drive = (() => {
     rect(scr, 0, H - 16, W, 16, K.black);
     const kmh = Math.round(st.speed / KMH), lim = limitOf(segAt(st.pos + PZ).lim);
     let col = 0;
-    if (!st.veh.bus) { const l = ` ${limTxt(lim)} `; t8(l, 0, 23, PC.black, PC.white); rect(scr, 0, H - 16, l.length * 8, 1, K.red); rect(scr, 0, H - 9, l.length * 8, 1, K.red); rect(scr, 0, H - 16, 1, 8, K.red); rect(scr, l.length * 8 - 1, H - 16, 1, 8, K.red); col = l.length + 1; }
+    if (!st.veh.bus) { const l = limTxt(lim); t8(' ', 0, 23, PC.white, PC.red); t8(l, 1, 23, PC.black, PC.white); t8(' ', 1 + l.length, 23, PC.white, PC.red); col = l.length + 3; } // rajoitusmerkki: punaiset reunat
     const sp = `${kmh} KM/H`; t8(sp, col, 23, kmh > lim ? PC.lred : PC.white, -1); col += sp.length + 1;
     { let nm = st.veh.name + (st.veh.tsa ? ' (TSA)' : ''); if (nm.length > 40 - col) nm = nm.slice(0, 40 - col); t8(nm, 40 - nm.length, 23, PC.lgrey, -1); }
     const en = energyHud().replace(/ %/g, '%').replace(/ · /g, ' '), keli = keliTxt().replace(' °C', '°C').replace(/ · /g, ' '), temp = keli.split(' ')[0];
@@ -1452,8 +1452,7 @@ const Drive = (() => {
     const fitCanvas = () => { const n = Math.max(1, Math.min(6, Math.ceil((cv.clientWidth || 640) * (window.devicePixelRatio || 1) / W - 0.05))); if (cv.width !== W * n) { cv.width = W * n; cv.height = H * n; } };
     fitCanvas(); window.addEventListener('resize', fitCanvas); st.fitCanvas = fitCanvas;
     const $ = id => document.getElementById(id);
-    Object.assign(hud, { quick:$('quick'), quickD:$('quick').style, en:$('h-en'), month:$('h-month'), cash:$('h-cash'), cashCls:$('h-cash'), bar:$('h-bar').style, speed:$('h-speed'), speedCls:$('h-speed'), lim:$('h-lim'), limD:$('h-lim').style, car:$('h-car'), msgs:$('h-msgs'), ramp:$('h-ramp'), hint:$('h-hint'), pause:$('h-pause').style });
-    if (document.fonts && document.fonts.load) document.fonts.load('10px VT323');
+    Object.assign(hud, { quick:$('quick'), quickD:$('quick').style });
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
       if (st.quick && /^[1-9]$/.test(e.key)) { quickPick(+e.key - 1); e.preventDefault(); return; }

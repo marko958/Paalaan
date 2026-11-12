@@ -5,66 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PAALAAN! 2.0 – autolainavankilapeli (alpha)</title>
 <style>
-  /* VT323-fontti ladataan omalta palvelimelta (SIL OFL, ks. fonts/OFL.txt): ei pyyntöjä Googlelle */
-  @font-face { font-family:'VT323'; font-style:normal; font-weight:400; font-display:swap; src:url(../fonts/vt323.woff2) format('woff2'); }
-  :root { --border:#7869C4; --screen:#40318D; --fg:#A59FF8; --hi:#FFFFFF; --red:#FF8A80; --green:#A9FF9F; --yel:#EEEE77; }
+  /* alpha 39: valikot ovat C64:n ruutu. Yksi 8×8-merkistö (fonts/paalaan8.woff2, tehty tools/fontti8.py:llä pelin omista
+     merkeistä), 40 merkkiä riville, Colodore-paletin 16 väriä, ei läpinäkyvyyttä. 1em = yksi merkkiruutu, 0.125em = yksi pikseli. */
+  @font-face { font-family:'Paalaan8'; font-style:normal; font-weight:400; font-display:block; src:url(../fonts/paalaan8.woff2) format('woff2'); }
+  :root { --border:#706DEB; --screen:#2E2C9B; --fg:#B2B2B2; --dim:#706DEB; --hi:#FFFFFF; --red:#C46C71; --green:#A9FF9F; --yel:#EDF171; --cyan:#75CEC8; --black:#000000; font-size:16px; }
   * { box-sizing:border-box; }
-  html,body { margin:0; background:var(--border); color:var(--fg); font-family:'VT323', ui-monospace, monospace; font-size:21px; line-height:1.15; }
-  .screen { position:relative; max-width:760px; margin:0 auto; min-height:100vh; background:var(--screen); padding:14px 14px 28px; }
-  @media (min-width:800px){ body{padding:28px 0} .screen{min-height:auto; border:4px solid var(--screen)} }
-  .status { border:2px solid var(--fg); padding:6px 8px; margin-bottom:12px; white-space:pre-wrap; }
-  .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:0 14px; }
-  .bar { font-family:inherit; letter-spacing:0; }
+  html,body { margin:0; background:var(--border); color:var(--fg); font-family:'Paalaan8', ui-monospace, monospace; line-height:1; text-transform:uppercase;
+    -webkit-font-smoothing:none; font-smooth:never; -webkit-text-size-adjust:100%; }
+  body { font-size:1rem; padding:1em 0 2em; }
+  .screen { position:relative; width:40em; margin:0 auto; min-height:25em; background:var(--screen); padding-bottom:1em; }
+  .status { border:.125em solid var(--cyan); color:var(--cyan); padding:.375em .875em; margin-bottom:1em; white-space:pre-wrap; }
+  .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:0 1em; }
+  .status div { padding:.125em 0; line-height:1.25; }
   .jail { color:var(--red); animation:blink 1s steps(2) infinite; }
-  @keyframes blink { 50% { opacity:0 } }
-  h1 { font-size:26px; font-weight:normal; color:var(--hi); margin:4px 0 8px; text-transform:uppercase; }
-  .lines p { margin:0 0 4px; white-space:pre-wrap; }
-  .lines .r { color:var(--red); } .lines .g { color:var(--green); } .lines .dim { opacity:.75 }
-  .choices { margin-top:14px; display:flex; flex-direction:column; gap:7px; }
-  button { font:inherit; text-align:left; color:var(--screen); background:var(--fg); border:0; padding:8px 10px; cursor:pointer; }
-  button:hover, button:focus-visible { background:var(--hi); outline:none; }
-  button:disabled { background:transparent; color:var(--fg); opacity:.45; border:1px dashed var(--fg); cursor:default; }
-  button .k { color:var(--border); margin-right:6px; }
-  button.paa { background:var(--yel); }
-  .cursor { display:inline-block; width:.6em; background:var(--fg); animation:blink 1s steps(2) infinite; }
-  .foot { margin-top:18px; opacity:.6; font-size:17px; }
-  /* 2.0: ajotila */
+  @keyframes blink { 50% { visibility:hidden } }
+  #panel { padding:0 1em; }
+  h1 { font-size:1em; font-weight:normal; color:var(--hi); margin:0 0 1em; }
+  /* rivitetyn tekstin riviväli on 10 pikseliä, jotta ääkkösten pisteet eivät osu ylempään riviin */
+  .lines p { margin:0 0 .5em; white-space:pre-wrap; overflow-wrap:break-word; line-height:1.25; }
+  .lines .r { color:var(--red); } .lines .g { color:var(--green); } .lines .dim { color:var(--dim); }
+  .choices { margin-top:1em; display:flex; flex-direction:column; gap:.5em; }
+  /* valinta on käänteisvärinen rivi; kursorinäppäimillä valittu rivi on valkoinen */
+  button { font:inherit; text-transform:inherit; text-align:left; color:var(--screen); background:var(--dim); border:0; border-radius:0; padding:.875em 1em; cursor:pointer; line-height:1.25; }
+  button:hover, button:focus-visible, button.sel { background:var(--hi); outline:none; }
+  button:disabled { background:transparent; color:var(--dim); cursor:default; }
+  button .k { margin-right:1em; }
+  button.paa { background:var(--yel); } button.paa:hover, button.paa.sel { background:var(--hi); }
+  .cursor { display:inline-block; width:1em; background:var(--dim); animation:blink 1s steps(2) infinite; }
+  .foot { margin:2em 1em 0; color:var(--dim); } .foot a { color:inherit; }
+  .foot p { margin:0 0 .5em; line-height:1.25; }
+  /* 2.0: ajotila. Canvas on 40em leveä, joten sen pikselit ja valikkofontin pikselit ovat samankokoisia. */
   #drive { display:none; }
   #drive canvas { display:block; width:100%; height:auto; aspect-ratio:320/200; background:#000; touch-action:none; }
   .view { position:relative; }
-  #hud { position:absolute; inset:0; pointer-events:none; color:#fff; font-size:clamp(16px, 3.3vw, 23px); line-height:1.05;
-    text-shadow:2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; }
-  #hud p { margin:0 0 3px; }
-  /* alpha 38: tekstit piirretään pelikuvaan 8×8-merkistöllä; vanhat HTML-tekstit ovat piilossa */
-  .h-top, .h-prog, #h-msgs, #h-hint, #h-ramp, .h-bot, #h-pause { display:none !important; }
-  .h-top { display:flex; justify-content:space-between; gap:8px; padding:3px 8px 2px; background:rgba(0,0,0,.6); }
-  .h-top .neg { color:#FF8A80; }
-  .h-prog { height:4px; background:#222; } .h-prog i { display:block; height:100%; width:0; background:var(--yel); }
-  #h-msgs { text-align:center; padding:6px 10px 0; }
-  #h-msgs .gig { color:#A5E8FF; } #h-msgs .r { color:#FF8A80; } #h-msgs .g { color:#A9FF9F; }
-  #h-hint { position:absolute; left:0; right:0; bottom:44%; text-align:center; }
-  #h-ramp { position:absolute; left:8px; right:8px; bottom:26%; text-align:center; color:var(--yel); font-size:1.15em; animation:blink 0.8s steps(2) infinite; }
-  .h-bot { position:absolute; left:8px; right:8px; bottom:4px; display:flex; justify-content:space-between; align-items:flex-end; gap:8px; }
-  #h-speed { font-size:1.6em; white-space:nowrap; } #h-speed.over { color:#FF8A80; }
-  .h-sp { display:flex; align-items:center; gap:8px; }
-  #h-right { max-width:52%; text-align:right; } #h-en { color:#A5E8FF; }
-  #h-lim { display:inline-flex; align-items:center; justify-content:center; width:2.1em; height:2.1em; border-radius:50%; background:#fff; border:0.3em solid #D02020; color:#000; text-shadow:none; font-size:1em; box-sizing:border-box; } 
-  /* alpha 30: pikavalinta tien päällä */
-  #quick { position:absolute; left:6%; right:6%; top:17%; display:none; pointer-events:auto; background:rgba(64,49,141,.92); border:2px solid var(--fg); padding:6px 8px 4px; font-size:clamp(15px, 3vw, 20px); line-height:1.1; text-shadow:none; color:var(--fg); }
-  #quick p { margin:0 0 3px; } #quick .r { color:var(--red); } #quick .g { color:var(--green); }
-  #quick .q-t { color:var(--hi); text-transform:uppercase; margin-bottom:3px; }
-  #quick .q-ch { display:flex; flex-direction:column; gap:4px; margin-top:5px; }
-  #quick button { padding:4px 8px; font-size:inherit; }
-  #quick button.def { outline:2px solid var(--yel); }
-  #quick .q-bar { height:3px; background:#222; margin-top:5px; } #quick .q-bar i { display:block; height:100%; background:var(--yel); }
-  #h-pause { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.5); font-size:1.8em; }
-  .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:8px; margin-top:10px; }
-  .pad button { text-align:center; font-size:26px; padding:14px 0; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #hud { position:absolute; inset:0; pointer-events:none; }
+  /* pikavalinta tien päällä */
+  #quick { position:absolute; left:1em; right:1em; top:2em; display:none; pointer-events:auto; background:var(--screen); border:.125em solid var(--cyan); padding:.875em; color:var(--fg); }
+  #quick p { margin:0 0 .5em; line-height:1.25; } #quick .r { color:var(--red); } #quick .g { color:var(--green); }
+  #quick .q-t { color:var(--hi); margin-bottom:1em; }
+  #quick .q-ch { display:flex; flex-direction:column; gap:.5em; margin-top:1em; }
+  #quick button { padding:.75em 1em; }
+  #quick button.def { background:var(--yel); }
+  #quick .q-bar { height:.25em; background:var(--black); margin-top:.75em; } #quick .q-bar i { display:block; height:100%; background:var(--yel); }
+  .pad { display:grid; grid-template-columns:1fr 1.2fr 1fr; gap:1em; margin:1em 1em 0; }
+  .pad button { text-align:center; padding:2em 0; touch-action:none; user-select:none; -webkit-user-select:none; }
   .pad button.on { background:var(--hi); }
-  .help { margin-top:8px; opacity:.75; font-size:17px; }
+  .help { margin:1em 1em 0; color:var(--dim); line-height:1.25; }
   body.driving #drive { display:block; }
   body.driving #status, body.driving #panel { display:none; }
-  body.driving.paused #panel { display:block; position:absolute; left:14px; right:14px; top:14px; padding:10px 12px 14px; background:var(--screen); border:2px solid var(--fg); box-shadow:0 0 0 4px var(--screen); z-index:2; }
+  body.driving.paused #panel { display:block; position:absolute; left:1em; right:1em; top:2em; padding:.875em; background:var(--screen); border:.125em solid var(--cyan); z-index:2; }
   body.driving.paused .pad { visibility:hidden; }
 </style>
 </head>
@@ -74,21 +63,13 @@
   <div id="drive">
     <div class="view">
       <canvas id="road" width="320" height="200"></canvas>
-      <div id="hud">
-        <div class="h-top"><span id="h-month"></span><span id="h-cash"></span></div>
-        <div class="h-prog"><i id="h-bar"></i></div>
-        <div id="h-msgs"></div>
-        <div id="h-hint"></div>
-        <div id="h-ramp"></div>
-        <div class="h-bot"><span class="h-sp"><span id="h-lim"></span><span id="h-speed"></span></span><span id="h-right"><span id="h-en"></span><br><span id="h-car"></span></span></div>
-        <div id="h-pause">TAUKO · P jatkaa</div>
-      </div>
+      <div id="hud"></div>
       <div id="quick"></div>
     </div>
     <div class="pad">
-      <button data-k="left" aria-label="Vasemmalle">◀</button>
+      <button data-k="left" aria-label="Vasemmalle">←</button>
       <button data-k="brake">JARRU</button>
-      <button data-k="right" aria-label="Oikealle">▶</button>
+      <button data-k="right" aria-label="Oikealle">→</button>
     </div>
     <div class="help">← → ohjaa · ↓ tai välilyönti jarruttaa · P tauko · Kuukauden lopussa liittymä: aja oikealle kaistalle, niin pääset valikkoon. Wolt, taksi, latausasemat ja autoliikkeet: pysähdy kohdalle oikeaan reunaan. Pikavalinnat tien päällä: 1–3 tai napauta, muuten 5 sekunnin päästä toteutuu keltaisella merkitty.</div>
   </div>
@@ -97,13 +78,29 @@
     <div id="lines" class="lines"></div>
     <div id="choices" class="choices"></div>
   </div>
-  <div class="foot">READY.<span class="cursor">&nbsp;</span> · 2.0 alpha 38 (12.11. klo 23.45) · Näppäimet 1–9 valitsevat · <a href="../" style="color:inherit">Klassinen 1.0</a> · <a href="autot.html" style="color:inherit">Autogalleria</a><br>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</div>
+  <div class="foot">
+    <p>READY.</p><p><span class="cursor">&nbsp;</span></p>
+    <p>2.0 alpha 39 (12.11. klo 23.50) · Valinta: 1–9 tai nuolet ja Enter</p>
+    <p><a href="../">Klassinen 1.0</a> · <a href="autot.html">Autogalleria</a></p>
+    <p>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</p>
+  </div>
 </div>
 <!-- ?v=N ohittaa selaimen välimuistin: kasvata numeroa jokaisessa julkaisussa -->
-<script src="sound.js?v=38"></script>
-<script src="gfx.js?v=38"></script>
-<script src="cars.js?v=38"></script>
-<script src="drive.js?v=38"></script>
-<script src="engine.js?v=38"></script>
+<script>
+(function () {
+  function fit() {
+    var w = document.documentElement.clientWidth, d = window.devicePixelRatio || 1;
+    var fs = Math.floor(w / (w < 520 ? 41 : 42) * d) / d;
+    if (d < 1.5 && fs >= 16) fs = Math.floor(fs / 8) * 8;
+    document.documentElement.style.fontSize = Math.max(8, Math.min(24, fs)) + 'px';
+  }
+  fit(); window.addEventListener('resize', fit);
+})();
+</script>
+<script src="sound.js?v=39"></script>
+<script src="gfx.js?v=39"></script>
+<script src="cars.js?v=39"></script>
+<script src="drive.js?v=39"></script>
+<script src="engine.js?v=39"></script>
 </body>
 </html>

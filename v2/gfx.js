@@ -217,7 +217,7 @@ const Gfx = (() => {
     S:'.XXXX. XX..XX XX.... .XXXX. ....XX XX..XX .XXXX.', T:'XXXXXX ..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX..', U:'XX..XX XX..XX XX..XX XX..XX XX..XX XX..XX .XXXX.',
     V:'XX..XX XX..XX XX..XX XX..XX XX..XX .XXXX. ..XX..', W:'XX..XX XX..XX XX..XX XX..XX XXXXXX XXXXXX XX..XX', X:'XX..XX XX..XX .XXXX. ..XX.. .XXXX. XX..XX XX..XX',
     Y:'XX..XX XX..XX .XXXX. ..XX.. ..XX.. ..XX.. ..XX..', Z:'XXXXXX ....XX ...XX. ..XX.. .XX... XX.... XXXXXX',
-    'Ä':'XX..XX .XXXX. XX..XX XX..XX XXXXXX XX..XX XX..XX', 'Ö':'XX..XX .XXXX. XX..XX XX..XX XX..XX XX..XX .XXXX.', 'Å':'..XX.. .XXXX. XX..XX XX..XX XXXXXX XX..XX XX..XX',
+    'Ä':'XX..XX ...... .XXXX. XX..XX XXXXXX XX..XX XX..XX', 'Ö':'XX..XX ...... .XXXX. XX..XX XX..XX XX..XX .XXXX.', 'Å':'..XX.. ...... .XXXX. XX..XX XXXXXX XX..XX XX..XX',
     0:'.XXXX. XX..XX XX.XXX XXX.XX XX..XX XX..XX .XXXX.', 1:'..XX.. .XXX.. ..XX.. ..XX.. ..XX.. ..XX.. .XXXX.', 2:'.XXXX. XX..XX ....XX ...XX. ..XX.. .XX... XXXXXX',
     3:'.XXXX. XX..XX ....XX ..XXX. ....XX XX..XX .XXXX.', 4:'...XX. ..XXX. .XXXX. XX.XX. XXXXXX ...XX. ...XX.', 5:'XXXXXX XX.... XXXXX. ....XX ....XX XX..XX .XXXX.',
     6:'.XXXX. XX.... XX.... XXXXX. XX..XX XX..XX .XXXX.', 7:'XXXXXX ....XX ...XX. ..XX.. ..XX.. ..XX.. ..XX..', 8:'.XXXX. XX..XX XX..XX .XXXX. XX..XX XX..XX .XXXX.',
@@ -229,9 +229,13 @@ const Gfx = (() => {
     '(':'...XX. ..XX.. .XX... .XX... .XX... ..XX.. ...XX.', ')':'.XX... ..XX.. ...XX. ...XX. ...XX. ..XX.. .XX...', '=':'...... ...... XXXXXX ...... XXXXXX ...... ......',
     '>':'...... ..XX.. ...XX. XXXXXX ...XX. ..XX.. ......', '<':'...... ..XX.. .XX... XXXXXX .XX... ..XX.. ......', '°':'.XXX.. XX.XX. .XXX.. ...... ...... ...... ......',
     '~':'...... ...... .XX..X XXXXXX X..XX. ...... ......', '*':'...... XX..XX .XXXX. XXXXXX .XXXX. XX..XX ......', 'v':'..XX.. ..XX.. ..XX.. XXXXXX .XXXX. ..XX.. ......',
-    '#':'.X..X. XXXXXX .X..X. .X..X. XXXXXX .X..X. ......', '&':'.XXX.. XX.XX. .XXX.. XXX.XX XX.XX. XX.XX. .XX.XX',
+    '#':'.X..X. XXXXXX .X..X. .X..X. XXXXXX .X..X. ......',
+    '|':'..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX.. ..XX..', '[':'.XXXX. .XX... .XX... .XX... .XX... .XX... .XXXX.', ']':'.XXXX. ...XX. ...XX. ...XX. ...XX. ...XX. .XXXX.',
+    ';':'...... ..XX.. ..XX.. ...... ..XX.. ..XX.. .XX...', '…':'...... ...... ...... ...... ...... X.XX.X X.XX.X', '_':'...... ...... ...... ...... ...... ...... XXXXXX',
+    '"':'XX.XX. XX.XX. .X..X. ...... ...... ...... ......', '$':'..XX.. .XXXXX XX.... .XXXX. ....XX XXXXX. ..XX..', '×':'...... XX..XX .XXXX. ..XX.. .XXXX. XX..XX ......',
+    'Ë':'XX..XX ...... XXXXXX XX.... XXXXX. XX.... XXXXXX', 'Ü':'XX..XX ...... XX..XX XX..XX XX..XX XX..XX .XXXX.', '█':'XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX XXXXXX', '&':'.XXX.. XX.XX. .XXX.. XXX.XX XX.XX. XX.XX. .XX.XX',
   };
-  const A8 = { 'É':'E', 'Ë':'E', 'Ü':'U', '–':'-', '−':'-', '—':'-', '→':'>', '←':'<', '↓':'v', '×':'X', '"':"'", '’':"'", '★':'*', ';':',', '[':'(', ']':')' };
+  const A8 = { 'É':'E', '–':'-', '−':'-', '—':'-', '→':'>', '←':'<', '↓':'v', '’':"'", '★':'*' };
   const F8 = {};
   for (const ch in F8SRC) F8[ch] = F8SRC[ch].split(' ').map(r => { let b = 0; for (let i = 0; i < 6; i++) if (r[i] === 'X') b |= 1 << i; return b; });
   // teksti 8×8-ruudukkoon: x, y pikseleinä, fg = väri-indeksi, bg = taustan indeksi tai −1 (ei taustaa), scale = 1 tai 2
