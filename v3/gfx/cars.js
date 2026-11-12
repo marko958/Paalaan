@@ -23,7 +23,7 @@ export const TWEAK = {
   'Renault Zoe':        { L: 4.08, W: 1.73, H: 1.56, wb: 2.59, fo: 0.82, cowl: 0.18, ws: 0.92, nose: 0.78, gate: 0.42, gateDrop: 0.07, bowN: 0.34, bowT: 0.2, cornerR: 0.28, cornerF: 0.32, front: 'slim', rim: 'aero' },
   'VW e-Golf':          { L: 4.27, H: 1.45, gate: 0.3, tumble: 0.3, front: 'slim', rim: 'aero' },
   'BMW i3':             { L: 4.0, W: 1.78, H: 1.58, wb: 2.57, R: 0.345, tw: 0.16, gate: 0.14, beltR: 1.12, front: 'slim', rim: 'dark-aero', blackPillars: 1 },
-  'Hyundai Ioniq 5':    { L: 4.64, W: 1.89, H: 1.60, wb: 3.0, fo: 0.85, R: 0.36, gate: 0.42, tumble: 0.3, bowN: 0.12, bowT: 0.08, rs: 0.025, haunch: 0.02, belt: 1.02, nose: 0.86, hCowl: 1.1, front: 'pixel', rim: 'turbine', clad: 1 },
+  'Hyundai Ioniq 5':    { L: 4.64, W: 1.89, H: 1.60, wb: 3.0, fo: 0.85, R: 0.36, gate: 0.3, gateDrop: 0.05, tumble: 0.24, bowN: 0.12, bowT: 0.08, cornerR: 0.08, cornerF: 0.1, rb: 0.025, rs: 0.025, haunch: 0.02, belt: 1.07, nose: 0.86, hCowl: 1.1, front: 'pixel', rim: 'turbine', clad: 1 },
   'Hyundai Ioniq':      { front: 'slim', rim: 'aero' },
   'Hyundai Kona':       { L: 4.2, W: 1.8, H: 1.57, wb: 2.6, gc: 0.19, R: 0.34, gate: 0.42, gateDrop: 0.06, front: 'split', rim: 'spoke5', clad: 1 },
   'Kia e-Soul':         { L: 4.2, W: 1.8, H: 1.6, wb: 2.6, gate: 0.1, front: 'bar', rim: 'spoke5', blackPillars: 1 },
