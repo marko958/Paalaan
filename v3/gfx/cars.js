@@ -68,6 +68,8 @@ export const TWEAK = {
   'Kia PV5 Cargo':      { L: 4.70, H: 1.92, wb: 3.0, fo: 0.78, nose: 1.0, hCowl: 1.27, cowl: -0.42, ws: 0.56, bowN: 0.12, cornerF: 0.26, front: 'hammer', rim: 'steel' },
   'Renault Fluence':    { L: 4.75, H: 1.48, R: 0.31, cowl: 0.3, belt: 0.92, hDeck: 1.1, deck: 0.62, front: 'slim', rim: 'multi' },
   'Ford Focus Electric': { L: 4.39, H: 1.47, nose: 0.69, cowl: 0.24, ws: 0.92, beltR: 1.0, gate: 0.48, gateDrop: 0.07, bowN: 0.22, cornerF: 0.18, front: 'slim', rim: 'spoke5' },
+  // liikenteen kuorma-auto: umpikorinen jakeluauto (van-korityyppi isoilla mitoilla, vain ohjaamossa lasit)
+  'Kuorma-auto':        { L: 7.4, W: 2.45, H: 3.15, wb: 4.3, fo: 1.2, R: 0.48, gc: 0.3, nose: 1.25, hCowl: 1.62, cowl: -0.85, ws: 0.62, belt: 1.55, gate: 0.02, bowN: 0.1, bowT: 0.02, cornerR: 0.06, cornerF: 0.18, front: 'slim', rim: 'steel', solid: 1 },
   'Elcat':              { L: 3.3, W: 1.4, H: 1.78, wb: 1.9, fo: 0.72, R: 0.25, tw: 0.13, gc: 0.17, nose: 0.9, hCowl: 1.05, cowl: -0.36, ws: 0.42, belt: 1.02, bowN: 0.08, front: 'round', rim: 'steel', solid: 1 },
 };
 const tweakOf = name => { if (!name) return {}; let best = ''; for (const k in TWEAK) if (name.startsWith(k) && k.length > best.length) best = k; return TWEAK[best] || {}; };
