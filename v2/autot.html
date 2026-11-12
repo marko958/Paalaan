@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAALAAN! 2.0 – autogalleria</title>
+<style>
+  @font-face { font-family:'VT323'; src:url(../fonts/vt323.woff2) format('woff2'); }
+  body { margin:0; padding:12px; background:#40318D; color:#A59FF8; font-family:'VT323', monospace; font-size:20px; }
+  canvas { display:block; width:100%; max-width:1280px; height:auto; image-rendering:pixelated; image-rendering:crisp-edges; background:#000; }
+  a { color:inherit; } label { margin-right:14px; }
+</style>
+</head>
+<body>
+<p>PAALAAN! 2.0 – autogalleria: jokainen malli takaa, käännöksessä, jarruttaen ja edestä. <a href="./">Takaisin peliin</a></p>
+<p><label><input type="checkbox" id="night"> Pimeä</label><label><input type="checkbox" id="snow"> Talvi</label></p>
+<canvas id="c" width="640" height="100"></canvas>
+<script src="gfx.js"></script>
+<script src="cars.js"></script>
+<script>
+'use strict';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let g;
+const all = Cars.MODELS.map(([n, sp]) => [n, sp]).concat([['Bussi', { b:'bus', c:'#ECECEC' }], ['Kuorma-auto', { b:'lorry', c:'#2F6DB5' }]]);
+function draw() {
+  const night = document.getElementById('night').checked, snow = document.getElementById('snow').checked;
+  const CW = 320, CH = 78, cols = 2, rows = Math.ceil(all.length / cols);
+  cv.width = CW * cols; cv.height = rows * CH + 100; g = Gfx.surface(cv.width, cv.height);
+  Gfx.rect(g, 0, 0, cv.width, cv.height, Gfx.ink(night ? 'black' : 'grey'));
+  all.forEach(([name, sp], i) => {
+    const x0 = (i % cols) * CW, y0 = Math.floor(i / cols) * CH, by = y0 + CH - 6, hv = sp.b === 'bus' || sp.b === 'lorry', k = hv ? 0.55 : 1;
+    Gfx.rect(g, x0, y0 + CH - 8, CW, 8, Gfx.ink(night ? 'dgrey' : snow ? 'lgrey' : 'dgrey'));
+    Gfx.text(g, name, x0 + 3, y0 + 4, 1, Gfx.ink('white'));
+    const o = { night: night ? 1 : 0, snow, anim: 0 };
+    Cars.rear(g, sp, x0 + 44, by, k, o);
+    Cars.rear(g, sp, x0 + 126, by, k, Object.assign({}, o, { steer: 1, brake: true }));
+    Cars.front(g, sp, x0 + 208, by, k, o);
+    Cars.rear(g, sp, x0 + 262, by, k * 0.5, o);
+    Cars.front(g, sp, x0 + 292, by, k * 0.3, o);
+    Cars.rear(g, sp, x0 + 310, by, k * 0.14, o);
+  });
+  const y = rows * CH + 10;
+  Gfx.text(g, 'AÄBCDEFGHIJKLMNOÖPQRSTUVWXYZÅ 0123456789 .,!?-+:/%€·()=><°', 6, y + 4, 2, Gfx.ink('white'));
+  Gfx.text(g, 'LIITTYMÄ 500 M · MG4 – YLIHYVITYS 12 000 €! · AUTOLIIKE · KÄYTY · ASEMA · LATAUS 150 KW', 6, y + 24, 1, Gfx.ink('yellow'));
+  Gfx.HEX.forEach((h, i) => { Gfx.rect(g, 6 + i * 20, y + 40, 18, 12, Gfx.mix(i)); });
+  ['#A8ADB4', '#7A1F24', '#23314F', '#1F2633', '#2F6DB5', '#B9C23A', '#D9B526', '#9ED3C5', '#7FB8A4', '#D0412C', '#2E5B4C', '#5B6B4E', '#E8C32A', '#F28C28', '#3A6EA5', '#7C8C7A', '#B9B2A4', '#2B2F46'].forEach((h, i) => {
+    Gfx.rect(g, 6 + i * 20, y + 60, 18, 8, Gfx.shade(h, 1.32)); Gfx.rect(g, 6 + i * 20, y + 68, 18, 8, Gfx.ink(h)); Gfx.rect(g, 6 + i * 20, y + 76, 18, 8, Gfx.shade(h, 0.66)); });
+  Gfx.blit(g, ctx);
+}
+document.querySelectorAll('input').forEach(e => e.addEventListener('change', draw));
+draw();
+</script>
+</body>
+</html>
