@@ -7,7 +7,7 @@
 // Käyttö: autot.html?m=Ford%20Mondeo&az=0.6&el=0.25&d=7  (m = mallin nimen alku tai korityyppi, sky = taivas, lod = 0/1)
 import * as THREE from 'three';
 import { loadManifest, initSky, sky, tex, busy } from '../gfx/assets.js';
-import { buildCar } from '../gfx/cars.js';
+import { buildCar, setCarWeather } from '../gfx/cars.js';
 import { MODELS } from './models.js';
 const q = new URLSearchParams(location.search);
 const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
@@ -31,6 +31,8 @@ names.forEach((nm, i) => {
   scene.add(car.group); window.cars.push(car);
 });
 window.scene = scene; window.THREE = THREE;
+// lika ja sade: dirt=0…1, salt=1 talven suolaväri, wet=1 sadepisarat
+setCarWeather(+(q.get('dirt') || 0), q.get('salt') === '1' ? [0.62, 0.6, 0.57] : [0.26, 0.22, 0.17], +(q.get('wet') || 0));
 function size() { const w = innerWidth, h = innerHeight; renderer.setPixelRatio(devicePixelRatio); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 addEventListener('resize', size); size();
 let az = +(q.get('az') || 0.6), el = +(q.get('el') || 0.22), d = +(q.get('d') || 8), t = 0;
