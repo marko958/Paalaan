@@ -51,7 +51,7 @@ export const TWEAK = {
   'Porsche Taycan':     { L: 4.96, H: 1.38, front: 'quad', rim: 'turbine', red: 1 },
   'Audi RS e-tron GT':  { L: 4.99, H: 1.40, front: 'split', rim: 'dark-turbine', red: 1 },
   'Audi e-tron GT':     { L: 4.99, H: 1.41, front: 'split', rim: 'turbine' },
-  'BMW iX':             { L: 4.95, W: 1.97, H: 1.70, wb: 3.0, front: 'slim', rim: 'turbine', clad: 0 },
+  'BMW iX':             { L: 4.95, W: 1.97, H: 1.70, wb: 3.0, belt: 1.1, gate: 0.28, gateDrop: 0.02, nose: 0.96, front: 'slim', rim: 'turbine', clad: 0, kidney: 1 },
   'Jaguar I-Pace':      { L: 4.68, W: 1.90, H: 1.57, wb: 2.99, fo: 0.80, cowl: 0.12, ws: 0.95, front: 'slim', rim: 'twin5' },
   'Mercedes EQS SUV':   { L: 5.13, W: 1.96, H: 1.72, wb: 3.21, bowN: 0.3, front: 'bar', rim: 'multi', clad: 0 },
   'Mercedes EQS':       { L: 5.22, W: 1.93, H: 1.51, wb: 3.21, fo: 0.9, cowl: 0.05, ws: 1.2, nose: 0.7, hCowl: 0.96, bowN: 0.32, roofR: -1.0, rake: 1.45, front: 'bar', rim: 'multi' },
@@ -61,11 +61,11 @@ export const TWEAK = {
   'Lucid Air':          { L: 4.98, W: 1.94, H: 1.41, wb: 2.96, cowl: 0.1, ws: 1.1, nose: 0.68, front: 'bar', rim: 'aero', floating: 1, glassRoof: 1 },
   'Lotus Eletre':       { gate: 0.58, gateDrop: 0.14, L: 5.10, W: 2.0, H: 1.63, wb: 3.02, nose: 0.8, front: 'split', rim: 'dark-turbine', red: 1 },
   'Rolls-Royce Spectre': { L: 5.45, W: 2.08, H: 1.56, wb: 3.21, fo: 0.92, cowl: 0.85, nose: 0.9, hCowl: 1.08, belt: 1.0, hDeck: 0.98, deck: 0.26, rake: 1.65, roofR: -0.95, dlo: 0.4, tumble: 0.32, bowN: 0.1, noseLen: 0.14, front: 'split', rim: 'multi', doors: 2, upright: 1 },
-  'Toyota Proace':      { front: 'slim', rim: 'steel' },
+  'Toyota Proace':      { nose: 0.9, hCowl: 1.17, cowl: -0.12, ws: 0.88, front: 'slim', rim: 'steel' },
   'Audi e-tron 55':     { L: 4.90, W: 1.94, H: 1.63, wb: 2.93, front: 'split', rim: 'twin5' },
-  'Citroën ë-SpaceTourer': { L: 4.96, H: 1.9, front: 'split', rim: 'spoke5', windows: 1 },
-  'Kia PV5 Passenger':  { L: 4.70, H: 1.90, wb: 3.0, fo: 0.78, cowl: -0.3, bowN: 0.1, front: 'hammer', rim: 'aero', windows: 1, blackPillars: 1 },
-  'Kia PV5 Cargo':      { L: 4.70, H: 1.90, wb: 3.0, fo: 0.78, cowl: -0.3, bowN: 0.1, front: 'hammer', rim: 'steel' },
+  'Citroën ë-SpaceTourer': { L: 4.96, H: 1.9, nose: 0.92, hCowl: 1.18, cowl: -0.14, ws: 0.86, front: 'split', rim: 'spoke5', windows: 1 },
+  'Kia PV5 Passenger':  { L: 4.70, H: 1.92, wb: 3.0, fo: 0.78, nose: 1.0, hCowl: 1.27, cowl: -0.42, ws: 0.56, bowN: 0.12, cornerF: 0.26, front: 'hammer', rim: 'aero', windows: 1, blackPillars: 1 },
+  'Kia PV5 Cargo':      { L: 4.70, H: 1.92, wb: 3.0, fo: 0.78, nose: 1.0, hCowl: 1.27, cowl: -0.42, ws: 0.56, bowN: 0.12, cornerF: 0.26, front: 'hammer', rim: 'steel' },
   'Renault Fluence':    { L: 4.75, H: 1.48, R: 0.31, cowl: 0.3, belt: 0.92, hDeck: 1.1, deck: 0.62, front: 'slim', rim: 'multi' },
   'Ford Focus Electric': { L: 4.39, H: 1.48, gate: 0.42, gateDrop: 0.05, front: 'slim', rim: 'spoke5' },
   'Elcat':              { L: 3.3, W: 1.4, H: 1.78, wb: 1.9, fo: 0.72, R: 0.25, tw: 0.13, gc: 0.17, nose: 0.9, hCowl: 1.05, cowl: -0.36, ws: 0.42, belt: 1.02, bowN: 0.08, front: 'round', rim: 'steel', solid: 1 },
@@ -167,7 +167,7 @@ function plateMat(i) { if (!plates[i]) plates[i] = decal(plateTex(i), { roughnes
 export function buildCar(spec, opt = {}) {
   const type = BODY[spec.b] ? spec.b : 'sedan', x = spec.x || [], has = f => x.includes(f);
   const tk = tweakOf(opt.name), tw = Object.assign({}, tk);
-  for (const k of ['openDoors', 'front', 'rim', 'doors', 'solid', 'steel', 'flush', 'glassRoof', 'floating', 'blackPillars', 'red', 'upright', 'windows']) delete tw[k];
+  for (const k of ['kidney', 'openDoors', 'front', 'rim', 'doors', 'solid', 'steel', 'flush', 'glassRoof', 'floating', 'blackPillars', 'red', 'upright', 'windows']) delete tw[k];
   if (spec.w && !tk.W) tw.W = BODY[type].W * (0.86 + 0.14 * spec.w) * (spec.w < 0.9 ? 0.2 + 0.8 * spec.w / 0.9 : 1);
   if (has('duck')) tw.duck = 1;
   const S = shapeOf(type, tw), B = S.B, lod = opt.lod || 0, hero = !lod;
@@ -260,7 +260,8 @@ export function buildCar(spec, opt = {}) {
     else if (fl === 'quad') add(patch((a, b, o) => sf.fasciaN(true, -0.36 + 0.72 * a, zh0 - 0.02 + (zh1 - zh0) * 1.05 * b, o), 12, 3, 0.003, true), gm('twin', { metalness: 0.5 }));
     else if (fl === 'split') add(patch((a, b, o) => sf.fasciaN(true, -0.42 + 0.84 * a, S.zf0 + 0.12 + (zh1 - S.zf0 - 0.14) * b, o), 12, 5, 0.003, true), gm('hex'));
     else add(patch((a, b, o) => sf.fasciaN(true, -0.5 + a, zh0 + 0.01 + (zh1 - zh0) * 0.8 * b, o), 12, 3, 0.003, true), gm(has('chrome') ? 'chrome' : 'mesh'));
-  } else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), grilleMat('chrome', { roughness: 0.2, metalness: 0.8 }));
+  } else if (tk.kidney) add(patch((a, b, o) => sf.fasciaN(true, -0.32 + 0.64 * a, S.zf0 + 0.16 + (zh1 + 0.02 - S.zf0 - 0.16) * b, o), 12, 5, 0.003, true), grilleMat('twin', { roughness: 0.25, metalness: 0.5 })); // iso pystymaskipari sähköautossakin
+  else if (tk.upright) add(patch((a, b, o) => sf.fasciaN(true, -0.3 + 0.6 * a, zh0 - 0.22 + 0.34 * b, o), 12, 3, 0.003, true), grilleMat('chrome', { roughness: 0.2, metalness: 0.8 }));
   else if (hero && fl !== 'bar' && fl !== 'round') add(patch((a, b, o) => sf.fasciaN(true, -0.5 + a, zh0 + (zh1 - zh0) * 0.3 + (zh1 - zh0) * 0.45 * b, o), 12, 2, 0.003, true), grilleMat('evband', { roughness: 0.15, metalness: 0.2 }));
   // --- perän alaosa: musta helma, diffuusori ja pakoputket ---
   add(patch((a, b, o) => sf.fasciaN(false, -0.8 + 1.6 * a, S.zr0 + 0.015 + 0.1 * b, o), 12, 2, 0.003, false), grilleMat(has('diff') ? 'diff' : 'valance', { roughness: 0.7 }));
