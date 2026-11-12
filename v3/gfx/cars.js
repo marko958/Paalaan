@@ -10,14 +10,14 @@ import { makeWheel, wheelStyleFor, mergeGeos, lampSideTex, lampTex, plateTex, gr
 // Mallikohtaiset mittasuhteet (metreinä) ja piirteet. Avaimet ovat samat kuin korityypin mitat (carbody.js).
 // front = etuvalojen signatuuri, rim = vanne, doors = ovien määrä.
 export const TWEAK = {
-  'Ford Mondeo':        { L: 4.73, H: 1.43, nose: 0.72, hDeck: 1.05, deck: 0.5, front: 'slim', rim: 'steel', solid: 0 },
+  'Ford Mondeo':        { L: 4.73, H: 1.43, R: 0.31, nose: 0.72, cowl: 0.4, belt: 0.87, hDeck: 1.03, deck: 0.5, front: 'slim', rim: 'steel', solid: 0 },
   'Opel Astra':         { L: 4.25, H: 1.46, gate: 0.4, front: 'slim', rim: 'spoke5' },
-  'Toyota Avensis':     { L: 4.70, H: 1.48, hDeck: 1.08, front: 'slim', rim: 'multi' },
+  'Toyota Avensis':     { L: 4.70, H: 1.48, R: 0.315, cowl: 0.34, belt: 0.9, hDeck: 1.07, deck: 0.44, tumble: 0.28, front: 'slim', rim: 'multi' },
   'Toyota Prius':       { front: 'tri', rim: 'aero' },
   'Volvo V70':          { L: 4.82, H: 1.50, gate: 0.14, tumble: 0.26, bowT: 0.08, bowN: 0.15, belt: 0.96, front: 'hammer', rim: 'spoke5' },
   'VW Passat':          { L: 4.77, gate: 0.24, front: 'slim', rim: 'multi' },
-  'Audi A6':            { L: 4.93, wb: 2.91, H: 1.45, nose: 0.74, front: 'split', rim: 'twin5' },
-  'BMW 530d':           { L: 4.91, wb: 2.97, fo: 0.82, cowl: 0.5, H: 1.46, front: 'quad', rim: 'twin5' },
+  'Audi A6':            { L: 4.93, wb: 2.91, H: 1.45, R: 0.345, fo: 0.9, cowl: 0.52, nose: 0.75, belt: 0.9, hDeck: 1.06, deck: 0.56, roofR: -0.24, tumble: 0.27, rs: 0.014, front: 'split', rim: 'twin5' },
+  'BMW 530d':           { L: 4.91, wb: 2.97, fo: 0.82, cowl: 0.6, H: 1.46, R: 0.345, nose: 0.73, belt: 0.88, hDeck: 1.04, deck: 0.5, dlo: 0.56, front: 'quad', rim: 'twin5' },
   'Mitsubishi Outlander': { gate: 0.3, gateDrop: 0.02, L: 4.66, H: 1.68, front: 'slim', rim: 'spoke5' },
   'Nissan Leaf':        { L: 4.45, H: 1.55, nose: 0.78, gate: 0.4, bowN: 0.3, front: 'round', rim: 'aero' },
   'Renault Zoe':        { L: 4.08, W: 1.73, H: 1.56, wb: 2.59, fo: 0.82, bowN: 0.3, front: 'slim', rim: 'aero' },
@@ -56,7 +56,7 @@ export const TWEAK = {
   'Mercedes EQS SUV':   { L: 5.13, W: 1.96, H: 1.72, wb: 3.21, bowN: 0.3, front: 'bar', rim: 'multi', clad: 0 },
   'Mercedes EQS':       { L: 5.22, W: 1.93, H: 1.51, wb: 3.21, fo: 0.9, cowl: 0.05, ws: 1.2, nose: 0.7, hCowl: 0.96, bowN: 0.32, roofR: -1.0, rake: 1.45, front: 'bar', rim: 'multi' },
   'Maybach EQS SUV':    { L: 5.13, W: 2.0, H: 1.72, wb: 3.21, bowN: 0.3, front: 'bar', rim: 'multi', clad: 0 },
-  'BMW i7':             { L: 5.39, W: 1.95, H: 1.54, wb: 3.22, fo: 0.9, cowl: 0.55, nose: 0.82, hCowl: 1.04, hDeck: 1.1, front: 'split', rim: 'multi' },
+  'BMW i7':             { L: 5.39, W: 1.95, H: 1.54, wb: 3.22, fo: 0.9, cowl: 0.62, R: 0.37, nose: 0.86, hCowl: 1.08, belt: 0.98, hDeck: 1.12, deck: 0.58, front: 'split', rim: 'multi' },
   'Porsche Macan':      { L: 4.78, W: 1.94, H: 1.62, wb: 2.89, front: 'quad', rim: 'turbine', clad: 0 },
   'Lucid Air':          { L: 4.98, W: 1.94, H: 1.41, wb: 2.96, cowl: 0.1, ws: 1.1, nose: 0.68, front: 'bar', rim: 'aero', floating: 1, glassRoof: 1 },
   'Lotus Eletre':       { gate: 0.58, gateDrop: 0.14, L: 5.10, W: 2.0, H: 1.63, wb: 3.02, nose: 0.8, front: 'split', rim: 'dark-turbine', red: 1 },
@@ -66,7 +66,7 @@ export const TWEAK = {
   'Citroën ë-SpaceTourer': { L: 4.96, H: 1.9, front: 'split', rim: 'spoke5', windows: 1 },
   'Kia PV5 Passenger':  { L: 4.70, H: 1.90, wb: 3.0, fo: 0.78, cowl: -0.3, bowN: 0.1, front: 'hammer', rim: 'aero', windows: 1, blackPillars: 1 },
   'Kia PV5 Cargo':      { L: 4.70, H: 1.90, wb: 3.0, fo: 0.78, cowl: -0.3, bowN: 0.1, front: 'hammer', rim: 'steel' },
-  'Renault Fluence':    { L: 4.75, H: 1.46, front: 'slim', rim: 'multi' },
+  'Renault Fluence':    { L: 4.75, H: 1.48, R: 0.31, cowl: 0.3, belt: 0.92, hDeck: 1.1, deck: 0.62, front: 'slim', rim: 'multi' },
   'Ford Focus Electric': { L: 4.39, H: 1.48, front: 'slim', rim: 'spoke5' },
   'Elcat':              { L: 3.3, W: 1.4, H: 1.78, wb: 1.9, fo: 0.72, R: 0.25, tw: 0.13, gc: 0.17, nose: 0.9, hCowl: 1.05, cowl: -0.36, ws: 0.42, belt: 1.02, bowN: 0.08, front: 'round', rim: 'steel', solid: 1 },
 };
