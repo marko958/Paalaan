@@ -183,6 +183,9 @@ const Drive = (() => {
     if (prev && !prev.bus && v.bus) toast('!Auto jäi tien varteen. Matka jatkuu bussilla.');
     else if (prev && prev.name !== v.name && !v.bus) toast(`+Alla on nyt ${v.name}.`);
     st.veh = v;
+    { const b = document.getElementById('pad-auto'); if (b) b.hidden = !apOK(); }
+    if (!apOK()) st.auto = false;
+    else if (!st.apHint || (prev && prev.name !== v.name)) { st.apHint = true; toast('Tesla Avustettu Ajo (entinen FSD): T tai ↑ kytkee.', 6); }
   }
 
   // ---------- energia (alpha 17) ----------
@@ -368,7 +371,7 @@ const Drive = (() => {
     if (st.paused) { // paneelista takaisin tielle
       st.paused = false; st.keys = {};
       if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
-    st.vx = 0; st.sa = 0;
+    st.vx = 0; st.sa = 0; st.auto = false; st.apErr = null;
       document.body.classList.remove('paused');
       refreshVehicle(); st.last = performance.now();
     }
@@ -542,7 +545,7 @@ const Drive = (() => {
   }
   function crashStop() {
     if (st.trip && st.trip.cargo) st.trip.broken = true; // kolarissa kuorma menee rikki
-    st.speed = 0; st.shake = 0.6; st.flash = 0.5;
+    st.speed = 0; st.shake = 0.6; st.flash = 0.5; st.auto = false; st.apErr = null;
     st.paused = true; // fysiikka seis heti, paneeli aukeaa hetken päästä
     st.tow = true; // hinataan takaisin tielle, kun tapahtumaikkuna suljetaan
   }
@@ -716,6 +719,42 @@ const Drive = (() => {
     if (v.car && v.car.mixed) g = Math.min(g, 0.6);                                      // rengashotellin sekoittamat kiekot
     return g;
   }
+  // ---------- Tesla Avustettu Ajo (alpha 40) ----------
+  // Pitää kaistan, rajoituksen ja välin edellä ajavaan, mutta tekee satunnaisesti virheitä: ajautuu vastaantulijoiden kaistalle
+  // tai pientareelle, haamujarruttaa tai lukee rajoituksen väärin. Peuroja, kuoppia ja liittymää se ei huomaa lainkaan.
+  // Kuljettaja ottaa ohjat ohjaamalla tai jarruttamalla.
+  const AP_CARS = /^Tesla (Model 3|Model S Plaid|Cybertruck)/;
+  const apOK = () => !!st.veh && !st.veh.bus && AP_CARS.test(st.veh.name);
+  function apOff(msg) { if (!st.auto) return; st.auto = false; st.apErr = null; Snd.play('minus'); if (msg) toast(msg, 4); }
+  function apToggle() {
+    if (!st.active || st.paused || !apOK()) return;
+    if (st.auto) return apOff('Avustettu ajo pois.');
+    if (st.speed < 20 * KMH) return toast('Avustettu ajo kytkeytyy vasta vauhdissa.', 3);
+    st.auto = true; st.apErr = null; st.apT = 10 + Math.random() * 20; Snd.play('plus');
+    toast('+Avustettu Ajo päällä. Seuraa tietä: auto tekee virheitä. Ohjaus tai jarru ottaa ohjat.', 6);
+  }
+  function autopilot(dt, pseg, fa, sp) {
+    const sea = season(), hard = sea.snow || sea.dark > 0.3 || weather().kind ? 1.6 : 1; // lumella, pimeässä ja sateessa virheitä tulee useammin
+    if (st.apErr) { st.apErr.t -= dt; if (st.apErr.t <= 0) st.apErr = null; }
+    else if ((st.apT -= dt * hard) <= 0) {
+      st.apT = 15 + Math.random() * 25;
+      const r = Math.random();
+      st.apErr = r < 0.3 ? { k:'left', t:3.2 } : r < 0.55 ? { k:'right', t:3.2 } : r < 0.8 ? { k:'phantom', t:0.6 } : { k:'fast', t:7 };
+      ST().apErr = (ST().apErr || 0) + 1;
+    }
+    const e = st.apErr ? st.apErr.k : '', drift = e === 'left' || e === 'right';
+    const tx = e === 'left' ? -0.6 : e === 'right' ? 1.6 : 0.5;
+    const A = 2.4 * Math.min(1.2, Math.max(sp, 0.35));
+    const lim = drift ? 0.28 : 1;                                             // virheessä auto ajautuu rauhallisesti, ei riuhtaise
+    const want = Math.max(-1, Math.min(1, Math.max(-lim, Math.min(lim, 3.5 * (tx - st.x) - 0.6 * ((st.vx || 0) - A * sp * pseg.curve * 0.32))) + sp * pseg.curve * 0.32 / fa));
+    let l = limitOf(pseg.lim); if (l === Infinity) l = 130; if (e === 'fast') l += 35;
+    let tgt = Math.min(l, st.veh.vmax) * KMH;
+    for (const d of st.dyn) if (d.k === 'auto' && Math.abs(d.x - st.x) < 0.3) { // väli edellä ajavaan
+      const gap = d.z - (st.pos + PZ);
+      if (gap > 0 && gap < 6 * SEG + st.speed * 1.4) tgt = Math.min(tgt, Math.max(0, d.v - (gap < 6 * SEG ? 10 * KMH : 0)));
+    }
+    return { want, brake: e === 'phantom' || st.speed > tgt + 8 * KMH ? 2 : st.speed > tgt + KMH ? 1 : 0, hold: st.speed > tgt - KMH };
+  }
   const toward = (a, b, step) => (a < b ? Math.min(b, a + step) : Math.max(b, a - step));
   function physics(dt) {
     const v = st.veh, keys = st.keys;
@@ -730,22 +769,33 @@ const Drive = (() => {
     const g0 = grip(), g = g0 * (icy ? 0.3 : 1) * (off ? 0.8 : 1);
     st.grip = g;
 
+    // avustettu ajo: kuljettajan ohjaus tai jarru ottaa ohjat
+    const fa = (0.3 + 0.7 * g0) * (icy ? 0.35 : 1);
+    let ap = null;
+    if (st.auto) {
+      if (keys.left || keys.right || keys.brake) apOff('!Otit ohjat. Avustettu ajo pois (T tai ↑ kytkee takaisin).');
+      else if (!apOK()) st.auto = false;
+      else ap = autopilot(dt, pseg, fa, st.speed / (160 * KMH));
+    }
+    const braking = !!keys.brake || !!(ap && ap.brake === 2);
+    st.braking = braking || !!(ap && ap.brake === 1);
+
     // pituussuunta: automaattikaasu, jarru, mäki ja piennar
     const slope = v.bus ? 0 : Math.max(-0.4, Math.min(0.4, (pseg.p2.world.y - pseg.p1.world.y) / SEG));
     const towK = !v.bus && !v.tsa && towing() ? 0.85 : 1;
     if (v.bus) st.speed += (Math.min(maxU, 80 * KMH) - st.speed) * Math.min(1, dt * 0.8);
-    else if (keys.brake) st.speed -= 70 * (0.2 + 0.8 * g0) * (icy ? 0.3 : 1) * (off ? 0.8 : 1) * towK * KMH * dt;
-    else st.speed += Math.min(v.acc, 30 * g) * KMH * dt * (1 - 0.6 * st.speed / maxU);
+    else if (braking) st.speed -= 70 * (0.2 + 0.8 * g0) * (icy ? 0.3 : 1) * (off ? 0.8 : 1) * towK * KMH * dt;
+    else if (ap && ap.brake === 1) st.speed -= 22 * KMH * dt;
+    else if (!(ap && ap.hold)) st.speed += Math.min(v.acc, 30 * g) * KMH * dt * (1 - 0.6 * st.speed / maxU);
     if (!v.bus && st.speed > 0) st.speed -= slope * 12 * KMH * dt;                        // ylämäki syö vauhtia, alamäki antaa
     if (off && st.speed > (season().snow ? 30 : 45) * KMH) { st.speed -= (season().snow ? 120 : 90) * KMH * dt; st.shake = Math.max(st.shake, 0.08); }
     st.speed = Math.max(0, Math.min(maxU * (1 + 0.15 * Math.max(0, -slope)), st.speed));
 
     // sivusuunta: ratti kääntyy portaattomasti, auto seuraa pidon sallimalla viiveellä, kaarre työntää ulos
     const sp = st.speed / (160 * KMH);
-    const want = st.speed > 0 ? (keys.right ? 1 : 0) - (keys.left ? 1 : 0) : 0;
+    const want = ap ? ap.want : st.speed > 0 ? (keys.right ? 1 : 0) - (keys.left ? 1 : 0) : 0;
     st.sa = toward(st.sa || 0, want, dt * (want ? 8 : 14));
     const A = 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0));                // ohjauksen teho: tien puolikasta sekunnissa
-    const fa = (0.3 + 0.7 * g0) * (icy ? 0.35 : 1);
     const target = st.sa * A * fa;
     st.vx = target + ((st.vx || 0) - target) * Math.exp(-(1 + 23 * g * g) * dt);
     st.slip = A > 0 ? Math.abs(target - st.vx) / A : 0;                                  // 0 = pitää, lähellä 1 = luistaa
@@ -1290,9 +1340,9 @@ const Drive = (() => {
     const sh = st.shake > 0 ? (Math.random() - 0.5) * 6 : 0;
     const sv = Math.max(-1, Math.min(1, (st.sa || 0) + ((st.slip || 0) > 0.35 ? Math.sign(st.vx) * 0.5 : 0))); // luistossa perä kiertää
     const steer = Math.abs(sv) < 0.08 ? 0 : sv;
-    const dive = st.keys.brake && st.speed > 20 * KMH ? 1 : 0;
+    const dive = st.braking && st.speed > 20 * KMH ? 1 : 0;
     const cx = Math.round(W / 2 + sh), by = Math.round(H - 6 - bounce) + dive;
-    const opt = { brake: !!st.keys.brake, night: sea.dark, steer, mb: v.mb, snow: sea.snow, dim: 0, anim: Math.floor(st.pos / 45), box: v.box, taxi: !v.bus && !st.trip && !v.tsa && S.taxi && gigKinds().includes('taxi') };
+    const opt = { brake: !!st.braking, night: sea.dark, steer, mb: v.mb, snow: sea.snow, dim: 0, anim: Math.floor(st.pos / 45), box: v.box, taxi: !v.bus && !st.trip && !v.tsa && S.taxi && gigKinds().includes('taxi') };
     if (v.bus) { Cars.rear(og, { b:'bus', c:'#ECECEC', line:'84' }, cx, by, 0.9, opt); return; }
     const tow = !v.tsa && towing();
     Cars.rear(og, v.spec, cx, tow ? by - 14 : by, 1, opt);
@@ -1363,7 +1413,8 @@ const Drive = (() => {
     let col = 0;
     if (!st.veh.bus) { const l = limTxt(lim); t8(' ', 0, 23, PC.white, PC.red); t8(l, 1, 23, PC.black, PC.white); t8(' ', 1 + l.length, 23, PC.white, PC.red); col = l.length + 3; } // rajoitusmerkki: punaiset reunat
     const sp = `${kmh} KM/H`; t8(sp, col, 23, kmh > lim ? PC.lred : PC.white, -1); col += sp.length + 1;
-    { let nm = st.veh.name + (st.veh.tsa ? ' (TSA)' : ''); if (nm.length > 40 - col) nm = nm.slice(0, 40 - col); t8(nm, 40 - nm.length, 23, PC.lgrey, -1); }
+    if (st.auto) t8('AVUSTETTU AJO', 27, 23, Math.floor(T * 2) % 2 ? PC.lgreen : PC.green, -1);
+    else { let nm = st.veh.name + (st.veh.tsa ? ' (TSA)' : ''); if (nm.length > 40 - col) nm = nm.slice(0, 40 - col); t8(nm, 40 - nm.length, 23, PC.lgrey, -1); }
     const en = energyHud().replace(/ %/g, '%').replace(/ · /g, ' '), keli = keliTxt().replace(' °C', '°C').replace(/ · /g, ' '), temp = keli.split(' ')[0];
     t8(en, 0, 24, PC.cyan, -1);
     { const k = en.length + 1 + keli.length <= 40 ? keli : en.length + 1 + temp.length <= 40 ? temp : ''; if (k) t8(k, 40 - k.length, 24, PC.lgreen, -1); }
@@ -1458,11 +1509,12 @@ const Drive = (() => {
       if (st.quick && /^[1-9]$/.test(e.key)) { quickPick(+e.key - 1); e.preventDefault(); return; }
       if (KEYMAP[e.key]) { st.keys[KEYMAP[e.key]] = true; e.preventDefault(); }
       else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { st.userPause = !st.userPause; e.preventDefault(); }
-      else if (e.key === 'ArrowUp') e.preventDefault();
+      else if (e.key === 'ArrowUp' || e.key === 't' || e.key === 'T' || e.key === 'w' || e.key === 'W') { if (!e.repeat) apToggle(); e.preventDefault(); }
     });
     document.addEventListener('keyup', e => { if (KEYMAP[e.key]) st.keys[KEYMAP[e.key]] = false; });
     document.querySelectorAll('.pad button').forEach(b => {
       const k = b.dataset.k;
+      if (k === 'auto') { b.addEventListener('pointerdown', e => { e.preventDefault(); apToggle(); }); return; }
       const on = e => { e.preventDefault(); st.keys[k] = true; b.classList.add('on'); if (st.userPause) st.userPause = false; };
       const off = () => { st.keys[k] = false; b.classList.remove('on'); };
       b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off);
@@ -1481,7 +1533,7 @@ const Drive = (() => {
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
-    st.x = 0.5; st.vx = 0; st.sa = 0; st.scrCd = 0; st.freeze = false;
+    st.x = 0.5; st.vx = 0; st.sa = 0; st.scrCd = 0; st.freeze = false; st.auto = false; st.apErr = null;
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
@@ -1501,7 +1553,7 @@ const Drive = (() => {
     if (S.vippi > 3000) { stop(); return repossess(); }
     st.paused = false; st.keys = {};
     if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
-    st.vx = 0; st.sa = 0;
+    st.vx = 0; st.sa = 0; st.auto = false; st.apErr = null;
     document.body.classList.remove('paused');
     refreshVehicle();
     if (S.trip && !st.trip) tripBegin();
@@ -1518,6 +1570,6 @@ const Drive = (() => {
     start, resume, stop, rangeOf, hold, quick,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
-    _st: st, _vehicle: vehicle, _render: render, _decor: decorOf, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
+    _st: st, _vehicle: vehicle, _render: render, _ap: apToggle, _decor: decorOf, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
   };
 })();
