@@ -513,14 +513,33 @@ const Drive = (() => {
   // ---------- törmäykset tienvarteen ----------
   // puolikas leveys tien puolikkaina; kyltillä kaksi tolppaa
   // runkojen ja seinien puolikkaat leveydet piirretyn kuvan mukaan (1 = tien puolikas = 2000 yksikköä)
-  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09 };
-  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan' };
+  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09, pylväs:0.03, lamppu:0.03 };
+  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan', pylväs:'sähköpylvääseen', lamppu:'katuvalopylvääseen' };
   const CAR_HW = 0.11; // auto on 72 px leveä, tien puolikas pelaajan kohdalla 320 px
   function hits(o) {
     if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.03 + CAR_HW);
     return HIT[o.k] !== undefined && Math.abs(o.x - st.x) < HIT[o.k] + CAR_HW;
   }
   const rampHides = (seg, o) => st.ramp && seg.i >= st.ramp.start - 2 && seg.i <= st.ramp.end + 2 && o.x > 0.9 && o.x < 2.6;
+  // pensas ei pysäytä, mutta maalipinta kärsii: korjaus maksaa tai arvo laskee
+  function scratch() {
+    const kmh = Math.round(st.speed / KMH);
+    if (kmh < 25 || st.scrCd > 0) return;
+    st.scrCd = 2; st.speed *= 0.88; st.shake = Math.max(st.shake, 0.2); Snd.play('thump');
+    const v = st.veh;
+    if (v.rental) { payOrVippi(150); return toast('!Pensas naarmutti vuokra-auton kyljen. Vuokraamo laskuttaa 150 €.', 5); }
+    if (v.tsa) return quick({ title:'NAARMUT', lines:[`Pensas raapi työsuhdeauton (${v.name}) kyljen ${kmh} km/h:n vauhdissa.`, '!Leasingyhtiö tarkastaa maalipinnan palautuksessa.'], choices:[
+      { t:'Kiillotuta omalla rahalla (180 €)', f: () => { payOrVippi(180); toast('Naarmut kiillotettiin pois. Pomo ei kuullut mitään.'); } },
+      { t:'Anna olla: pomo huomaa', f: () => { S.boss++; toast('!Pomo kiersi auton parkkihallissa ja nosti kulmakarvojaan.'); } }] });
+    const car = st.trip && st.trip.car && S.cars.includes(st.trip.car) ? st.trip.car : drivenCar();
+    if (!car) return;
+    const k = C(car.c), cost = k.price > 50000 ? 480 : 260;
+    const leave = () => { car.base *= 0.97; car.scr = (car.scr || 0) + 1; toast(`!Naarmut jäivät kylkeen. Arvo −3 %${car.scr > 1 ? ` (jo ${car.scr}. kerta)` : ''}.`); };
+    if (st.quick) return leave(); // toinen valinta on jo ruudulla: naarmut jäävät
+    quick({ title:'NAARMUT', lines:[`${k.name} raapaisi pensasta ${kmh} km/h:n vauhdissa. Oksat vetivät kylkeen pitkät naarmut.`], choices:[
+      { t:`Maalaus ja kiillotus (${eur(cost)})`, f: () => { payOrVippi(cost); toast('Kylki maalattiin ja kiillotettiin. Arvo säilyi.'); } },
+      { t:'Jätä naarmut (arvo −3 %)', f: leave }] });
+  }
   function crashStop() {
     if (st.trip && st.trip.cargo) st.trip.broken = true; // kolarissa kuorma menee rikki
     st.speed = 0; st.shake = 0.6; st.flash = 0.5;
@@ -707,6 +726,7 @@ const Drive = (() => {
     const rightEdge = onRamp ? 1 + RAMP_W : 1;
     const off = st.x < -1 || st.x > rightEdge;
     const icy = !v.bus && st.ice > 0; if (st.ice > 0) st.ice -= dt;
+    if (st.scrCd > 0) st.scrCd -= dt;
     const g0 = grip(), g = g0 * (icy ? 0.3 : 1) * (off ? 0.8 : 1);
     st.grip = g;
 
@@ -734,6 +754,7 @@ const Drive = (() => {
     if (v.minor) dx += 0.05 * sp;                                                        // korjaamaton vika vetää sivulle
     if (v.car && v.car.mixed) dx += 0.1 * sp * Math.sin(T * 1.5);                        // kolme leveää ja yksi kapea: auto vaeltaa
     st.x += dx * dt;
+    if (st.testHold !== undefined) st.x = st.testHold; // testit: pidä auto sivusuunnassa paikallaan
     if (st.x < -2.6) { st.x = -2.6; st.vx = 0; } else if (st.x > 2.8) { st.x = 2.8; st.vx = 0; }
     st.skyOff += pseg.curve * sp * dt * 6;
     st.pos += st.speed * dt;
@@ -793,6 +814,10 @@ const Drive = (() => {
       for (let i = Math.floor(z0 / SEG); i <= Math.floor(z1 / SEG); i++) {
         const seg = segs[i];
         for (const o of seg.sprites) if (!rampHides(seg, o) && hits(o)) { crash(o); return; }
+        for (const o of decorVisible(seg)) {
+          if (o.k === 'pensas') { if (Math.abs(o.x - st.x) < 0.14 + CAR_HW) scratch(); }
+          else if (hits(o)) { crash(o); return; }
+        }
       }
       for (const d of st.dyn) if (d.k === 'kyltti' && d.z >= z0 - SEG && d.z < z1 && hits(d)) { crash(d); return; }
     }
@@ -957,7 +982,7 @@ const Drive = (() => {
     if (GP.haze >= 0) rect(b, 0, base + 2, W, H - base - 2, veil(GP.haze, 8));
   }
 
-  // tien varren koristeet: pensaat, kivet, lupiinit, heinäpaalit, sähkölinja, katuvalot ja aurausviitat. Niihin ei voi törmätä.
+  // tien varren koristeet: pensaat, kivet, lupiinit, heinäpaalit, sähkölinja, katuvalot ja aurausviitat. Sähköpylvääseen ja katuvaloon voi törmätä, pensas naarmuttaa; muiden läpi pääsee.
   function decorOf(seg) {
     if (seg.decor) return seg.decor;
     const n = seg.i, d = seg.decor = [], kind = seg.kind, sd = rr(n, 50) < 0.5 ? -1 : 1;
@@ -977,6 +1002,12 @@ const Drive = (() => {
     return d;
   }
 
+  // koristeet, jotka ovat oikeasti paikalla: liittymän, asemien, liikkeiden ja kylttien kohdalta ne on raivattu
+  function decorVisible(seg) {
+    const d = decorOf(seg);
+    if (!d.length) return d;
+    return d.filter(o => !rampHides(seg, o) && !st.dyn.some(c => CLEARS.includes(c.k) && Math.sign(c.x) === Math.sign(o.x) && seg.i >= Math.floor(c.z / SEG) - 14 && seg.i <= Math.floor(c.z / SEG) + 3));
+  }
   // spritet: cx = keskikohta, by = alareuna, s = pikseliä per maailman yksikkö, clipY = mäen harjan rivi
   function sprite(o, cx, by, s, sea, n, clipY) {
     const X = v => Math.round(cx + v * s), Y = v => Math.round(by - v * s);
@@ -1229,17 +1260,16 @@ const Drive = (() => {
   const CLEARS = ['asema', 'liike', 'mainos', 'muutto', 'romu', 'ravintola', 'kyltti'];
   function drawSprites(sea) {
     const base = Math.floor(st.pos / SEG);
-    const byIdx = {}, clr = [];
-    for (const d of st.dyn) { const i = Math.floor(d.z / SEG); (byIdx[i] = byIdx[i] || []).push(d); if (CLEARS.includes(d.k)) clr.push(i, Math.sign(d.x)); }
-    const cleared = (i, x) => { for (let k = 0; k < clr.length; k += 2) if (clr[k + 1] === Math.sign(x) && i >= clr[k] - 14 && i <= clr[k] + 3) return true; return false; };
+    const byIdx = {};
+    for (const d of st.dyn) { const i = Math.floor(d.z / SEG); (byIdx[i] = byIdx[i] || []).push(d); }
     for (let n = DRAW - 1; n >= 0; n--) {
       const seg = segs[base + n];
       if (!seg || seg.p1.camera.z <= CAMD || seg.clip <= 0) continue;
       const sc = seg.p1.screen, s = sc.scale * W / 2;
       if (s * 3000 < 0.6) continue;
       let list = st.ramp ? seg.sprites.filter(o => !rampHides(seg, o)) : seg.sprites;
-      const dec = decorOf(seg);
-      if (dec.length) list = list.concat(dec.filter(o => !rampHides(seg, o) && !cleared(seg.i, o.x)));
+      const dec = decorVisible(seg);
+      if (dec.length) list = list.concat(dec);
       if (sea.snow && seg.i % 3 === 0) list = list.concat(st.ramp ? PENK.filter(o => !rampHides(seg, o)) : PENK);
       if (byIdx[seg.i]) list = list.concat(byIdx[seg.i]);
       if (!list.length) continue;
@@ -1434,7 +1464,7 @@ const Drive = (() => {
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
-    st.x = 0.5; st.vx = 0; st.sa = 0;
+    st.x = 0.5; st.vx = 0; st.sa = 0; st.scrCd = 0;
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
@@ -1471,6 +1501,6 @@ const Drive = (() => {
     start, resume, stop, rangeOf, hold, quick,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
-    _st: st, _vehicle: vehicle, _render: render, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
+    _st: st, _vehicle: vehicle, _render: render, _decor: decorOf, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
   };
 })();
