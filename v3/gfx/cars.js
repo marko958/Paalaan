@@ -31,8 +31,8 @@ export const TWEAK = {
   'Kia EV6':            { L: 4.68, W: 1.88, H: 1.55, wb: 2.9, front: 'slim', rim: 'turbine' },
   'Peugeot e-208':      { L: 4.06, W: 1.75, H: 1.43, wb: 2.54, nose: 0.7, cowl: 0.34, gate: 0.46, gateDrop: 0.06, front: 'tri', rim: 'twin5' },
   'Dacia Spring':       { L: 3.73, W: 1.58, H: 1.52, wb: 2.42, gc: 0.19, R: 0.28, front: 'split', rim: 'steel', clad: 1 },
-  'Fiat Topolino':      { L: 2.53, W: 1.40, H: 1.53, wb: 1.73, fo: 0.42, R: 0.26, tw: 0.13, gc: 0.16, nose: 0.82, hCowl: 0.95, cowl: 0.1, ws: 0.5, gate: 0.14, noseLen: 0.13, tailLen: 0.1, bowN: 0.22, bowT: 0.2, roofR: 0.22, front: 'round', rim: 'steel', doors: 2 },
-  'Fiat 500e':          { L: 3.63, W: 1.68, H: 1.53, wb: 2.32, bowN: 0.32, bowT: 0.2, gate: 0.3, nose: 0.8, front: 'round', rim: 'multi', doors: 2 },
+  'Fiat Topolino':      { L: 2.53, W: 1.40, H: 1.53, wb: 1.73, fo: 0.4, R: 0.25, tw: 0.135, gc: 0.15, nose: 0.74, hCowl: 0.86, cowl: -0.02, ws: 0.34, belt: 0.84, gate: 0.07, roofR: 0.16, noseLen: 0.12, tailLen: 0.12, bowN: 0.14, bowT: 0.14, cornerR: 0.11, cornerF: 0.11, tumble: 0.12, front: 'round', rim: 'steel', doors: 2, openDoors: 1 },
+  'Fiat 500e':          { L: 3.63, W: 1.68, H: 1.53, wb: 2.32, bowN: 0.34, bowT: 0.24, cornerR: 0.3, cornerF: 0.34, cowl: 0.12, ws: 0.82, gate: 0.36, gateDrop: 0.06, nose: 0.8, hCowl: 0.98, haunch: 0.012, front: 'round', rim: 'multi', doors: 2 },
   'MG4':                { L: 4.29, W: 1.84, H: 1.50, wb: 2.71, nose: 0.68, hCowl: 0.98, gate: 0.52, gateDrop: 0.09, front: 'slim', rim: 'twin5' },
   'VW ID.3':            { L: 4.26, W: 1.81, H: 1.57, wb: 2.77, fo: 0.82, cowl: 0.12, ws: 0.9, nose: 0.82, hCowl: 1.05, front: 'bar', rim: 'aero', blackPillars: 1 },
   'Tesla Model 3':      { L: 4.72, W: 1.85, H: 1.44, wb: 2.88, nose: 0.64, hCowl: 0.95, bowN: 0.3, front: 'slim', rim: 'aero', glassRoof: 1, flush: 1 },
@@ -167,7 +167,7 @@ function plateMat(i) { if (!plates[i]) plates[i] = decal(plateTex(i), { roughnes
 export function buildCar(spec, opt = {}) {
   const type = BODY[spec.b] ? spec.b : 'sedan', x = spec.x || [], has = f => x.includes(f);
   const tk = tweakOf(opt.name), tw = Object.assign({}, tk);
-  for (const k of ['front', 'rim', 'doors', 'solid', 'steel', 'flush', 'glassRoof', 'floating', 'blackPillars', 'red', 'upright', 'windows']) delete tw[k];
+  for (const k of ['openDoors', 'front', 'rim', 'doors', 'solid', 'steel', 'flush', 'glassRoof', 'floating', 'blackPillars', 'red', 'upright', 'windows']) delete tw[k];
   if (spec.w && !tk.W) tw.W = BODY[type].W * (0.86 + 0.14 * spec.w) * (spec.w < 0.9 ? 0.2 + 0.8 * spec.w / 0.9 : 1);
   if (has('duck')) tw.duck = 1;
   const S = shapeOf(type, tw), B = S.B, lod = opt.lod || 0, hero = !lod;
@@ -309,8 +309,18 @@ export function buildCar(spec, opt = {}) {
       for (const sd of [-1, 1]) iv.push(patch((a, b, o) => sf.fasciaN(true, sd * (0.66 + 0.24 * a), S.zf0 + 0.06 + (0.12 - 0.05 * a) * b, o), 4, 2, 0.003, sd > 0));
       add(mergeGeos(iv), M.plastic);
     }
+    // --- Topolino: ovien tilalla avoimet aukot, joiden poikki kulkee köysi ---
+    if (tk.openDoors) {
+      const X0 = S.ra + S.Ra + 0.03, X1 = S.fa - S.Ra - 0.02, op = [], rope = [];
+      for (const side of [-1, 1]) {
+        op.push(patch((a, b, o) => sf.sideAtZ(X0 + (X1 - X0) * a, B.gc + 0.24 + (B.belt + 0.02 - B.gc - 0.24) * b, side, o), 6, 4, 0.004, side < 0));
+        const pts = []; for (let k = 0; k <= 8; k++) { const X = X0 + 0.02 + (X1 - X0 - 0.04) * k / 8; sf.sideAtZ(X, B.belt - 0.12 - 0.05 * Math.sin(Math.PI * k / 8), side, V); pts.push(new THREE.Vector3(V.x + side * 0.02, V.y, V.z)); }
+        rope.push(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, 0.012, 5));
+      }
+      add(mergeGeos(op), M.under); add(mergeGeos(rope), M.ropeM || (M.ropeM = std({ color: 0xe8c32a, roughness: 0.8 })));
+    }
     // --- ovenkahvat: uppokahvat tai vetokahvat ---
-    const hz = B.belt - 0.085, hx = [gb.pillarB + 0.06];
+    const hz = B.belt - 0.085, hx = tk.openDoors ? [] : [gb.pillarB + 0.06];
     if (doors === 4 && type !== 'truck') hx.push(S.ra + S.Ra + 0.13);
     const hg = [];
     for (const side of [-1, 1]) for (const X of hx) {
