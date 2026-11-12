@@ -185,7 +185,7 @@ const Drive = (() => {
     st.veh = v;
     { const b = document.getElementById('pad-auto'); if (b) b.hidden = !apOK(); }
     if (!apOK()) st.auto = false;
-    else if (!st.apHint || (prev && prev.name !== v.name)) { st.apHint = true; toast('Tesla Avustettu Ajo (entinen FSD): T tai ↑ kytkee.', 6); }
+    else if (!st.apHint || (prev && prev.name !== v.name)) { st.apHint = true; toast('Tesla Avustettu Ajo: T tai ↑ kytkee.', 6); }
   }
 
   // ---------- energia (alpha 17) ----------
