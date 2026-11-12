@@ -139,11 +139,21 @@ export class Dyn {
     const o = { d, group: null, kind: d.k, static: true };
     switch (d.k) {
       case 'auto': case 'vasta': {
-        const m = this.models[Math.floor(Math.random() * this.models.length)];
-        const spec = Object.assign({}, m[1], { c: d.col });
-        delete spec.r;
-        const car = buildCar(spec, { name: m[0], lod: 1, plate: Math.floor(Math.random() * 12) });
+        // noin joka kahdeksas on bussi tai kuorma-auto (vain näkymässä; simulaatio kohtelee niitä kuten muitakin autoja)
+        const r = this.force && this.force.length ? this.force.shift() : Math.random(); // force: testejä varten
+        let car;
+        if (r < 0.06) car = buildCar({ b: 'bus', c: ['#C8C24A', '#1E5AA8', '#E8E8E4'][Math.floor(Math.random() * 3)], tl: 'wide' }, { name: 'Bussi', lod: 1, plate: Math.floor(Math.random() * 12) });
+        else if (r < 0.12) car = buildCar({ b: 'van', c: ['#ECECEC', '#B03A2E', '#2F6DB5', '#3A3F44'][Math.floor(Math.random() * 4)], tl: 'vertical' }, { name: 'Kuorma-auto', lod: 1, type: 'b', plate: Math.floor(Math.random() * 12) });
+        else {
+          const m = this.models[Math.floor(Math.random() * this.models.length)];
+          const spec = Object.assign({}, m[1], { c: d.col });
+          delete spec.r;
+          car = buildCar(spec, { name: m[0], lod: 1, plate: Math.floor(Math.random() * 12) });
+        }
         o.car = car; o.group = car.group; o.static = false; o.len = car.S.L;
+        // simulaation osumaraja on mitoitettu henkilöautolle (keskipisteet 4,4 m): pitkä ajoneuvo siirretään eteenpäin,
+        // jolloin osuma tulee sen takapuskurin (tai vastaantulijan keulan) kohdalla
+        o.shift = Math.max(0, (car.S.L - 4.6) / 2);
         if (d.k === 'vasta') { // vastaantulijan ajovalojen hehku
           for (const sx of [-1, 1]) { const s = new THREE.Sprite(M.glow); s.position.set(sx * car.S.W * 0.36, car.S.B.nose - 0.1, car.mid - car.S.L - 0.05); s.scale.setScalar(1.1); car.group.add(s); (o.glows = o.glows || []).push(s); }
         } else for (const sx of [-1, 1]) { const s = new THREE.Sprite(M.glowR); s.position.set(sx * car.S.W * 0.36, car.S.B.belt - 0.05, car.mid + 0.05); s.scale.setScalar(0.5); car.group.add(s); (o.glows = o.glows || []).push(s); }
@@ -285,7 +295,7 @@ export class Dyn {
       if (o.fade) this.fadeStep(o, dt);
       const f = d.z / SEG;
       if (o.car) {
-        const P = this.place(o.group, f, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true);
+        const P = this.place(o.group, f + (o.shift || 0), d.x, d.k === 'vasta' ? Math.PI : 0, 0, true);
         o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1);
         o.car.update({ dt, speed: Math.abs(d.v) / SEG });
         this.glow(o, (d.z - pz) / SEG, night);
@@ -312,7 +322,7 @@ export class Dyn {
     }
     for (let i = this.ghosts.length - 1; i >= 0; i--) {
       const o = this.ghosts[i], d = o.d; o.t += dt;
-      if (o.car) { d.z += d.v * dt; const P = this.place(o.group, d.z / SEG, d.x, d.k === 'vasta' ? Math.PI : 0, 0, true); o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1); o.car.update({ dt, speed: Math.abs(d.v) / SEG }); this.glow(o, (d.z - pz) / SEG, night); }
+      if (o.car) { d.z += d.v * dt; const P = this.place(o.group, d.z / SEG + (o.shift || 0), d.x, d.k === 'vasta' ? Math.PI : 0, 0, true); o.group.rotation.x = Math.atan(P.slope) * (d.k === 'vasta' ? -1 : 1); o.car.update({ dt, speed: Math.abs(d.v) / SEG }); this.glow(o, (d.z - pz) / SEG, night); }
       const rel = (d.z - pz) / SEG;
       if (rel < -45 || rel > 400 || o.t > 12) { this.remove(o); this.ghosts.splice(i, 1); }
     }

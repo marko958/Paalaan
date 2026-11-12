@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { hash2 } from './assets.js';
 import { CH, HALF, SEGM, groundY, zoneOf, verge } from './world.js';
+import { buildCar } from './cars.js';
 
 const M4 = new THREE.Matrix4(), Q4 = new THREE.Quaternion(), V3 = new THREE.Vector3(), S3 = new THREE.Vector3(), E3 = new THREE.Euler(), C3 = new THREE.Color();
 const PT = { x: 0, y: 0, z: 0, th: 0, slope: 0 };
@@ -57,6 +58,7 @@ export function buildScenery(c, ctx) {
     m.rotation.y = -PT.th + yaw; m.castShadow = true; m.receiveShadow = true;
     group.add(m); return m;
   };
+  let parked = 0;
   const leafCol = h => { const v = T.leafVar; return [1 + (h - 0.5) * v * 0.6, 1 - (h - 0.35) * v, 1 - h * v * 0.6]; };
 
   for (let i = i0; i < i0 + CH; i++) {
@@ -94,6 +96,17 @@ export function buildScenery(c, ctx) {
         const m = single(pr, i + 0.5, o.x, yaw, 0.25);
         const sn = new THREE.Mesh((o.k === 'mökki' ? P.mokkiSnow : P.latoSnow).geo, P.snowM);
         sn.position.copy(m.position); sn.rotation.copy(m.rotation); group.add(sn); snowObjs.push(sn);
+        // pysäköity auto mökin vieressä (ei matalalla laatutasolla): talon kanssa samassa sivusuunnassa, pihalla tien suuntaisesti
+        if (o.k === 'mökki' && Q.carLod === 0 && parked < 1 && h2 < 0.55 && !hidden(i + 8.6, o.x)) {
+          const MODELS = sim.MODELS, mm = MODELS[Math.floor(h * MODELS.length)], cols = ['#A8ADB4', '#1F2633', '#7A1F24', '#ECECEC', '#2F6DB5', '#3A3F44'];
+          const spec = Object.assign({}, mm[1], { c: cols[Math.floor(h2 * 997) % cols.length] }); delete spec.r;
+          const pc = buildCar(spec, { name: mm[0], lod: 1, plate: Math.floor(h * 1000) % 12 });
+          track.at(i + 8.6, o.x, PT); // talon (±3,3 m) ja kuistin vieressä, mökin jalanjäljen ulkopuolella
+          pc.group.position.set(PT.x - anchor.x, groundY(track, i + 8.6, o.x) - anchor.y + 0.02, PT.z - anchor.z);
+          pc.group.rotation.y = -PT.th + (h2 < 0.27 ? 0 : Math.PI);
+          pc.group.traverse(n => { if (n.isMesh && n.geometry && !n.geometry.userData.shared) n.userData.own = true; });
+          group.add(pc.group); parked++;
+        }
       }
     }
     // --- täytemetsä: vyöhykkeen mukaan, vasta alueella johon ei voi ajaa ---
