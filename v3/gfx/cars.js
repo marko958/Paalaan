@@ -74,6 +74,19 @@ const tweakOf = name => { if (!name) return {}; let best = ''; for (const k in T
 
 // ---------- materiaalit ----------
 export const CU = { dirt: { value: 0 }, wet: { value: 0 }, dirtCol: { value: new THREE.Color(0.42, 0.4, 0.37) } }; // yhteiset: talven lika ja suola, sateen kiilto
+// Roiskekuvio auton omista koordinaateista: renkaista taakse ja ylös suuntautuvia raitoja ja pisaroita.
+// Talvella raitojen reunoille kuivuu vaaleampaa suolaa (ks. paintMat). Ei tarvitse tekstuuria eikä uv-koordinaatteja.
+const SPLASH = `
+float sh1(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float sn1(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(sh1(i), sh1(i + vec2(1, 0)), f.x), mix(sh1(i + vec2(0, 1)), sh1(i + vec2(1, 1)), f.x), f.y); }
+float splash(vec3 p) {
+  // raidat kallistuvat taaksepäin (auton z kasvaa taaksepäin), pisarat pieniä täpliä
+  vec2 q = vec2(p.z * 3.2 - p.y * 2.4, p.y * 9.0 + p.x * 1.3);
+  float streak = sn1(vec2(q.x * 2.6, q.y * 0.35)) * 0.65 + sn1(q * 1.7) * 0.35;
+  float dots = smoothstep(0.9, 0.97, sn1(vec2(p.z, p.y) * 46.0 + p.x * 7.0)) * smoothstep(0.85, 0.45, p.y);
+  return clamp(streak * 1.2 - 0.15 + dots * 0.3, 0.0, 1.0);
+}`;
 const paintCache = new Map();
 let drops = null, flakes = null;
 // Autonmaali: pohjaväri, metallihohto ja kirkaslakka. Lika ja suola sekoitetaan helmoihin kärkiattribuutista.
@@ -91,9 +104,9 @@ export function paintMat(hex, kind = 'metal') {
   m.userData.dropScale = m.clearcoatNormalScale;
   m.onBeforeCompile = sh => {
     sh.uniforms.uDirt = CU.dirt; sh.uniforms.uDirtCol = CU.dirtCol; sh.uniforms.uWet = CU.wet;
-    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aDirt;\nvarying float vDirt;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirt = aDirt;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDirt;\nuniform float uDirt, uWet;\nuniform vec3 uDirtCol;\nfloat gDirt = 0.0;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\n gDirt = clamp(vDirt * uDirt * 1.25 + (uDirt - 0.5) * 0.25 * vDirt, 0.0, 0.92);\n diffuseColor.rgb = mix(diffuseColor.rgb, uDirtCol, gDirt);\n diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.55, 1.0, vDirt);')
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aDirt;\nvarying float vDirt;\nvarying vec3 vLoc;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvDirt = aDirt; vLoc = position;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vDirt;\nvarying vec3 vLoc;\nuniform float uDirt, uWet;\nuniform vec3 uDirtCol;\nfloat gDirt = 0.0;\n' + SPLASH)
+      .replace('#include <map_fragment>', '#include <map_fragment>\n float sp = splash(vLoc);\n float hm = smoothstep(1.0, 0.32, vLoc.y); // lika keskittyy helmoihin ja pyörien taakse\n gDirt = clamp(vDirt * uDirt * 1.3 * hm * (0.3 + 1.0 * sp), 0.0, 0.9);\n diffuseColor.rgb = mix(diffuseColor.rgb, mix(uDirtCol, uDirtCol * 1.15 + 0.05, smoothstep(0.75, 0.95, sp) * step(0.5, uDirt)), gDirt);\n diffuseColor.rgb *= 1.0 - 0.22 * smoothstep(0.55, 1.0, vDirt);')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix(roughnessFactor, 0.95, gDirt);')
       .replace('#include <lights_physical_fragment>', '#include <lights_physical_fragment>\n#ifdef USE_CLEARCOAT\n material.clearcoat *= 1.0 - gDirt; material.clearcoatRoughness = mix(material.clearcoatRoughness, 0.012, uWet);\n#endif');
   };
