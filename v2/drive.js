@@ -513,8 +513,8 @@ const Drive = (() => {
   // ---------- törmäykset tienvarteen ----------
   // puolikas leveys tien puolikkaina; kyltillä kaksi tolppaa
   // runkojen ja seinien puolikkaat leveydet piirretyn kuvan mukaan (1 = tien puolikas = 2000 yksikköä)
-  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09, pylväs:0.03, lamppu:0.03 };
-  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan', pylväs:'sähköpylvääseen', lamppu:'katuvalopylvääseen' };
+  const HIT = { kuusi:0.1, koivu:0.05, tolppa:0.03, mökki:0.6, lato:0.8, raja:0.03, valvonta:0.03, kamera:0.09, pylväs:0.03, lamppu:0.03, lohkare:0.2 };
+  const WHERE = { kuusi:'kuuseen', koivu:'koivuun', tolppa:'reunapaaluun', mökki:'mökin seinään', lato:'latoon', kyltti:'liikennemerkkiin', raja:'liikennemerkkiin', valvonta:'liikennemerkkiin', kamera:'kameratolppaan', pylväs:'sähköpylvääseen', lamppu:'katuvalopylvääseen', lohkare:'kivenlohkareeseen' };
   const CAR_HW = 0.11; // auto on 72 px leveä, tien puolikas pelaajan kohdalla 320 px
   function hits(o) {
     if (o.k === 'kyltti') return [0, 0.52].some(dx => Math.abs(o.x + dx - st.x) < 0.03 + CAR_HW);
@@ -982,7 +982,7 @@ const Drive = (() => {
     if (GP.haze >= 0) rect(b, 0, base + 2, W, H - base - 2, veil(GP.haze, 8));
   }
 
-  // tien varren koristeet: pensaat, kivet, lupiinit, heinäpaalit, sähkölinja, katuvalot ja aurausviitat. Sähköpylvääseen ja katuvaloon voi törmätä, pensas naarmuttaa; muiden läpi pääsee.
+  // tien varren koristeet: pensaat, kivet, lupiinit, heinäpaalit, sähkölinja, katuvalot ja aurausviitat. Sähköpylvääseen, katuvaloon ja kivenlohkareeseen voi törmätä, pensas naarmuttaa; paalien, kukkien ja aurausviittojen läpi pääsee vahingoitta.
   function decorOf(seg) {
     if (seg.decor) return seg.decor;
     const n = seg.i, d = seg.decor = [], kind = seg.kind, sd = rr(n, 50) < 0.5 ? -1 : 1;
