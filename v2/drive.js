@@ -368,6 +368,7 @@ const Drive = (() => {
     if (st.paused) { // paneelista takaisin tielle
       st.paused = false; st.keys = {};
       if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
+    st.vx = 0; st.sa = 0;
       document.body.classList.remove('paused');
       refreshVehicle(); st.last = performance.now();
     }
@@ -684,36 +685,63 @@ const Drive = (() => {
   }
 
   // ---------- päivitys ----------
-  function update(dt) {
+  // ---------- ajofysiikka (alpha 35) ----------
+  // Pito g: 1 = kuiva asfaltti. Se rajaa jarrutusta, liikkeellelähtöä ja ohjauksen tehoa, ja määrää, kuinka nopeasti
+  // auto tottelee rattia: liukkaalla sivuttaisliike jatkuu vielä, kun ratti on jo suorassa.
+  function grip() {
+    const v = st.veh;
+    if (v.bus) return 1;
+    const sea = season();
+    let g = sea.snow ? 0.75 : weather().kind === 'sade' ? 0.9 : 1;
+    if (S.summer > 0 && (sea.snow || sea.bare)) g = Math.min(g, sea.snow ? 0.55 : 0.6); // kesärenkaat talvikelillä
+    if (v.car && v.car.mixed) g = Math.min(g, 0.6);                                      // rengashotellin sekoittamat kiekot
+    return g;
+  }
+  const toward = (a, b, step) => (a < b ? Math.min(b, a + step) : Math.max(b, a - step));
+  function physics(dt) {
     const v = st.veh, keys = st.keys;
     const maxU = v.vmax * KMH;
     const z0 = st.pos + PZ;
-    const pseg = segAt(z0);
+    const pseg = st.testSeg || segAt(z0); // testSeg: testit ajavat keinotekoisella tiellä
     const onRamp = st.ramp && pseg.i >= st.ramp.start && pseg.i <= st.ramp.end;
     const rightEdge = onRamp ? 1 + RAMP_W : 1;
     const off = st.x < -1 || st.x > rightEdge;
-
-    // huono pito: kesärenkaat talvikelillä tai rengashotellin sekoittamat kiekot
-    const slick = !v.bus && ((S.summer > 0 && (season().snow || season().bare)) || !!(v.car && v.car.mixed));
     const icy = !v.bus && st.ice > 0; if (st.ice > 0) st.ice -= dt;
+    const g0 = grip(), g = g0 * (icy ? 0.3 : 1) * (off ? 0.8 : 1);
+    st.grip = g;
+
+    // pituussuunta: automaattikaasu, jarru, mäki ja piennar
+    const slope = v.bus ? 0 : Math.max(-0.4, Math.min(0.4, (pseg.p2.world.y - pseg.p1.world.y) / SEG));
+    const towK = !v.bus && !v.tsa && towing() ? 0.85 : 1;
     if (v.bus) st.speed += (Math.min(maxU, 80 * KMH) - st.speed) * Math.min(1, dt * 0.8);
-    else if (keys.brake) st.speed -= (slick ? 46 : 70) * (icy ? 0.3 : 1) * KMH * dt;
-    else st.speed += v.acc * KMH * dt * (1 - 0.6 * st.speed / maxU);
-    if (off && st.speed > 45 * KMH) { st.speed -= 90 * KMH * dt; st.shake = Math.max(st.shake, 0.08); }
-    st.speed = Math.max(0, Math.min(maxU, st.speed));
+    else if (keys.brake) st.speed -= 70 * (0.2 + 0.8 * g0) * (icy ? 0.3 : 1) * (off ? 0.8 : 1) * towK * KMH * dt;
+    else st.speed += Math.min(v.acc, 30 * g) * KMH * dt * (1 - 0.6 * st.speed / maxU);
+    if (!v.bus && st.speed > 0) st.speed -= slope * 12 * KMH * dt;                        // ylämäki syö vauhtia, alamäki antaa
+    if (off && st.speed > (season().snow ? 30 : 45) * KMH) { st.speed -= (season().snow ? 120 : 90) * KMH * dt; st.shake = Math.max(st.shake, 0.08); }
+    st.speed = Math.max(0, Math.min(maxU * (1 + 0.15 * Math.max(0, -slope)), st.speed));
 
+    // sivusuunta: ratti kääntyy portaattomasti, auto seuraa pidon sallimalla viiveellä, kaarre työntää ulos
     const sp = st.speed / (160 * KMH);
-    const steer = dt * 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0)) * (slick ? 0.65 : 1) * (icy ? 0.3 : 1);
-    if (icy) st.x += dt * 0.35 * sp * Math.sin(performance.now() / 300); // takapää elää
-    if (keys.left) st.x -= steer;
-    if (keys.right) st.x += steer;
-    if (v.minor) st.x += dt * 0.05 * sp; // korjaamaton vika vetää sivulle
-    if (v.car && v.car.mixed) st.x += dt * 0.1 * sp * Math.sin(performance.now() / 650); // kolme leveää ja yksi kapea: auto vaeltaa
-    st.x -= steer * sp * pseg.curve * (slick ? 0.46 : 0.32);
-    st.x = Math.max(-2.6, Math.min(2.8, st.x));
+    const want = st.speed > 0 ? (keys.right ? 1 : 0) - (keys.left ? 1 : 0) : 0;
+    st.sa = toward(st.sa || 0, want, dt * (want ? 8 : 14));
+    const A = 2.4 * Math.min(1.2, Math.max(sp, st.speed > 0 ? 0.35 : 0));                // ohjauksen teho: tien puolikasta sekunnissa
+    const fa = (0.3 + 0.7 * g0) * (icy ? 0.35 : 1);
+    const target = st.sa * A * fa;
+    st.vx = target + ((st.vx || 0) - target) * Math.exp(-(1 + 23 * g * g) * dt);
+    st.slip = A > 0 ? Math.abs(target - st.vx) / A : 0;                                  // 0 = pitää, lähellä 1 = luistaa
+    let dx = st.vx - A * sp * pseg.curve * 0.32;
+    if (icy) dx += 0.35 * sp * Math.sin(T * 3.3);                                        // takapää elää
+    if (v.minor) dx += 0.05 * sp;                                                        // korjaamaton vika vetää sivulle
+    if (v.car && v.car.mixed) dx += 0.1 * sp * Math.sin(T * 1.5);                        // kolme leveää ja yksi kapea: auto vaeltaa
+    st.x += dx * dt;
+    if (st.x < -2.6) { st.x = -2.6; st.vx = 0; } else if (st.x > 2.8) { st.x = 2.8; st.vx = 0; }
     st.skyOff += pseg.curve * sp * dt * 6;
-
     st.pos += st.speed * dt;
+  }
+
+  function update(dt) {
+    const v = st.veh, z0 = st.pos + PZ, pseg = segAt(z0);
+    physics(dt);
     const z1 = st.pos + PZ;
     ensure(Math.floor(z1 / SEG));
 
@@ -1229,10 +1257,10 @@ const Drive = (() => {
     const v = st.veh, night = sea.dark > 0.3;
     const bounce = st.speed > 0 ? (Math.random() < 0.5 ? 0 : 1) * (st.speed / (v.vmax * KMH)) : 0;
     const sh = st.shake > 0 ? (Math.random() - 0.5) * 6 : 0;
-    const want = st.speed > 0 ? (st.keys.left ? -1 : 0) + (st.keys.right ? 1 : 0) : 0;
-    st.steerV = (st.steerV || 0) + (want - (st.steerV || 0)) * Math.min(1, dt * 9);
-    const steer = Math.abs(st.steerV) < 0.08 ? 0 : st.steerV;
-    const cx = Math.round(W / 2 + sh), by = Math.round(H - 6 - bounce);
+    const sv = Math.max(-1, Math.min(1, (st.sa || 0) + ((st.slip || 0) > 0.35 ? Math.sign(st.vx) * 0.5 : 0))); // luistossa perä kiertää
+    const steer = Math.abs(sv) < 0.08 ? 0 : sv;
+    const dive = st.keys.brake && st.speed > 20 * KMH ? 1 : 0;
+    const cx = Math.round(W / 2 + sh), by = Math.round(H - 6 - bounce) + dive;
     const opt = { brake: !!st.keys.brake, night: sea.dark, steer, mb: v.mb, snow: sea.snow, dim: 0, anim: Math.floor(st.pos / 45), box: v.box, taxi: !v.bus && !st.trip && !v.tsa && S.taxi && gigKinds().includes('taxi') };
     if (v.bus) { Cars.rear(og, { b:'bus', c:'#ECECEC', line:'84' }, cx, by, 0.9, opt); return; }
     const tow = !v.tsa && towing();
@@ -1353,6 +1381,7 @@ const Drive = (() => {
     st.raf = requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - st.last) / 1000); st.last = now; st.dt = dt;
     if (!st.paused && !st.userPause) {
+      T = now / 1000;
       update(st.quick ? dt * 0.4 : dt); // pikavalinnan ajan peli hidastuu
       if (!st.active) return;
       if (!st.paused) quickUpdate(dt);
@@ -1405,7 +1434,7 @@ const Drive = (() => {
     st.active = true; st.paused = false; st.userPause = false;
     st.speed = 0; st.monthT = 0; st.ramp = null; st.dyn = []; st.toasts = []; st.keys = {}; st.gig = null; st.gigT = 3;
     st.quick = null; st.boardKm = 15; st.lotDone = false; st.ice = 0; st.iceWarn = false; st.wx = null; st.fx = [];
-    st.x = 0.5;
+    st.x = 0.5; st.vx = 0; st.sa = 0;
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
@@ -1425,6 +1454,7 @@ const Drive = (() => {
     if (S.vippi > 3000) { stop(); return repossess(); }
     st.paused = false; st.keys = {};
     if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
+    st.vx = 0; st.sa = 0;
     document.body.classList.remove('paused');
     refreshVehicle();
     if (S.trip && !st.trip) tripBegin();
@@ -1441,6 +1471,6 @@ const Drive = (() => {
     start, resume, stop, rangeOf, hold, quick,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
-    _st: st, _vehicle: vehicle, _render: render, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
+    _st: st, _vehicle: vehicle, _render: render, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
   };
 })();
