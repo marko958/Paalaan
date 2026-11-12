@@ -61,6 +61,9 @@ function init() {
   lamps.spot = new THREE.SpotLight(0xfff1dc, 0, 120, 0.5, 0.8, 1.35);
   lamps.spot.position.set(0, 0, 0); lamps.spot.target.position.set(0, -0.62, -30);
   lamps.group.add(lamps.spot, lamps.spot.target);
+  // täytevalo pimeällä: heikko viileä valo auton takana ja yläpuolella, jotta oma auto ei ole musta siluetti
+  lamps.fill = new THREE.PointLight(0xc4d2ff, 0, 13, 2);
+  scene.add(lamps.fill);
   track = new Track(sim);
   initSky(renderer);
   loadManifest().then(() => {
@@ -275,6 +278,14 @@ function frame(dt) {
     car.obj.update({ dt, speed, brake: !!st.keys.brake && !st.veh.bus, steer: st.steerIn || 0, lat, night: env.nightWant || 0, charge: !!(st.chg && !st.chg.broken && !(st.chg.q > 0)), cargo, rough: (st.x < -1 || st.x > 1) && !onRamp(f, st.x) ? 2.5 : 0 }); }
   dyn.update(dt, st.pos + sim.PZ, car.pos, P.th, env.nightWant || 0, st.flash);
   PR.camFlash.emissiveIntensity = st.flash > 0.55 ? st.flash * 10 : 0; // vain kameran salama (0.8), ei törmäyksen välähdys (0.5)
+  if (lamps.fill) {
+    const n = env.nightWant || 0, bx = -Math.sin(P.th), bz = Math.cos(P.th);
+    // valo auton yläpuolella hieman perän puolella: valaisee katon, kyljet ja perän, mutta heijastus lasista ei osu kameraan
+    // valo auton takana viistosti sivulla (kuin kuunvalo): valaisee perän ja kyljen, mutta peilautuu takalasista sivuun eikä kameraan
+    const rx = Math.cos(P.th), rz = Math.sin(P.th), back = car.obj.mid + 3.2;
+    lamps.fill.position.set(car.pos.x + bx * back - rx * 3.6, car.pos.y + car.obj.S.H + 0.9, car.pos.z + bz * back - rz * 3.6);
+    lamps.fill.intensity = n > 0.6 ? 10 : n > 0.3 ? 5 : 0;
+  }
   if (lamps.spot) lamps.spot.intensity = (env.nightWant || 0) > 0.3 ? 420 * (env.nightWant > 0.6 ? 1 : 0.6) : 0;
 
   // kamera: takaa ja yläviistosta, pehmeä seuranta, pieni kallistus mutkassa, tärähdys törmäyksessä
