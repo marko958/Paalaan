@@ -130,9 +130,10 @@ const Drive = (() => {
 
   const winterLimits = () => [9, 10, 11, 0, 1, 2].includes((S.m - 1) % 12); // talvinopeusrajoitukset loka–maalis
   // peräkärry perässä, kun muuttokeikat ovat päällä eikä pakua ole
-  const towing = () => st.trip ? !!st.trip.trailer : !!(S.gigs && !vanOK() && trailerOK());
+  const towing = () => st.rally ? false : st.trip ? !!st.trip.trailer : !!(S.gigs && !vanOK() && trailerOK());
   const autobahn = () => !!(st.trip && st.trip.road === 'autobahn');
   const limitOf = lim => {
+    if (st.rally) return Infinity;
     const l = autobahn() ? (lim === 'H' ? Infinity : lim === 80 ? 120 : 80) : lim === 'H' ? (winterLimits() ? 80 : 100) : lim;
     return towing() ? Math.min(80, l) : l; };
   const limTxt = l => l === Infinity ? '—' : String(l);
@@ -478,7 +479,7 @@ const Drive = (() => {
     st.lotDone = true;
   }
   function lotUpdate(z1) {
-    if (!st.lotDone && !st.trip && st.monthT > 7 && st.monthT < MONTH_S - RAMP_LEAD_S - 7) lotSpawn();
+    if (!st.lotDone && !st.trip && !st.rally && st.monthT > 7 && st.monthT < MONTH_S - RAMP_LEAD_S - 7) lotSpawn();
     const o = st.dyn.find(d => d.lot && !d.used); if (!o) return;
     const cur = Math.floor(z1 / SEG);
     if (cur > o.at + STOP_WIN) { o.used = true; return; }
@@ -570,7 +571,7 @@ const Drive = (() => {
   const muuttoOK = d => !!d && (C(d.c).fl.includes('V') || (!!S.trailer && towOK(d) && licOK(d)));
   function gigKinds() {
     const d = drivenCar();
-    if (S.tsa || !d || st.trip) return [];
+    if (S.tsa || !d || st.trip || st.rally) return [];
     const k = [];
     if (S.wolt) k.push('wolt');
     if (S.taxi && taxiOK(d)) k.push('taxi');
@@ -715,10 +716,62 @@ const Drive = (() => {
     if (v.bus) return 1;
     const sea = season();
     let g = sea.snow ? 0.75 : weather().kind === 'sade' ? 0.9 : 1;
+    if (st.rally && !sea.snow) g = Math.min(g, 0.85); // sora
     if (S.summer > 0 && (sea.snow || sea.bare)) g = Math.min(g, sea.snow ? 0.55 : 0.6); // kesärenkaat talvikelillä
     if (v.car && v.car.mixed) g = Math.min(g, 0.6);                                      // rengashotellin sekoittamat kiekot
     return g;
   }
+  // ---------- rallisprintti (alpha 51) ----------
+  // Yksi erikoiskoe soratiellä: mutkat ovat jyrkempiä ja tie kapeampi, ei liikennettä, rajoituksia eikä kameroita.
+  // Aika ratkaisee palkinnon (engine.js: rallyDone), ulosajo keskeyttää.
+  const RALLY_LEN = 1500, RALLY_K = 1.6, RALLY_W = 0.62;
+  const RALLY_HIDE = ['raja', 'valvonta', 'kamera', 'tolppa', 'lamppu', 'viitta'];
+  const curveK = () => (st.rally ? RALLY_K : 1);
+  // Luokan tavoiteaika: simuloidaan hyvä ajo tällä autolla ja tällä kelillä samalla erikoiskokeella. Simulaatio ajaa
+  // ihannelinjaa, jarruttaa ajoissa mutkiin ja jättää pidosta 15 % varaa. Näin hitaalla autolla on oma reilu luokkansa.
+  const RALLY_START = 520;
+  const rallyGrip = () => { const sea = season(); let g = sea.snow ? 0.75 : 0.85; if (S.summer > 0 && (sea.snow || sea.bare)) g = Math.min(g, sea.snow ? 0.55 : 0.6); return g; };
+  function rallySpeedLimit(i, g, margin) { // suurin nopeus segmentin i kohdalla, jolla edessä oleviin mutkiin ehtii jarruttaa
+    const fa = 0.3 + 0.7 * g, dec = 70 * (0.2 + 0.8 * g) * KMH;
+    let lim = Infinity;
+    for (let k = 0; k < 60; k++) {
+      const c = Math.abs(segAt((i + k) * SEG).curve) * RALLY_K; if (c < 0.1) continue;
+      const vk = margin * fa / (0.32 * c) * 160 * KMH;
+      lim = Math.min(lim, Math.sqrt(vk * vk + 2 * dec * k * SEG));
+    }
+    return lim;
+  }
+  function rallyPar() {
+    const v = vehicle(), g = rallyGrip(), maxU = v.vmax * KMH, dt = 1 / 30, end = (RALLY_START + RALLY_LEN) * SEG;
+    let u = 0, t = 0, pos = RALLY_START * SEG;
+    while (pos < end && t < 900) {
+      const seg = segAt(pos + PZ), lim = rallySpeedLimit(seg.i, g, 0.85);
+      if (u > lim) u -= 70 * (0.2 + 0.8 * g) * KMH * dt; else u += Math.min(v.acc, 30 * g) * KMH * dt * (1 - 0.6 * u / maxU);
+      u -= Math.max(-0.4, Math.min(0.4, (seg.p2.world.y - seg.p1.world.y) / SEG)) * 12 * KMH * dt;
+      u = Math.max(5 * KMH, Math.min(maxU, u)); pos += u * dt; t += dt;
+    }
+    return t;
+  }
+  const fmtT = t => `${Math.floor(t / 60)}.${String(Math.floor(t % 60)).padStart(2, '0')},${Math.floor(t * 10 % 10)}`;
+  function rallyBegin() {
+    const R = S.rally; st.rally = R;
+    st.pos = (RALLY_START - 4) * SEG; ensure(RALLY_START + RALLY_LEN); // erikoiskoe on aina sama tienpätkä
+    R.t = 0; R.count = 3.6; R.start = RALLY_START; R.end = R.start + RALLY_LEN;
+    st.dyn = []; st.gig = null; st.ramp = null; st.chg = null; st.nextSt = 1e9; st.speed = 0; st.x = 0; st.auto = false; st.toasts = []; st.hint = false;
+    st.dyn.push({ k:'kyltti', z:R.end * SEG, x:1.25, t:'MAALI', s:'' }, { k:'kyltti', z:(R.end - 200) * SEG, x:1.25, t:'MAALIIN 1 KM', s:'' });
+    refreshVehicle();
+    toast(`+ERIKOISKOE: ${Math.round(RALLY_LEN * 5 / 100) / 10} km soraa. Tavoiteaika ${fmtT(R.par)}. Ei rajoituksia.`, 6);
+  }
+  function rallyEnd(dnf) {
+    const R = st.rally; st.rally = null; S.rally = null;
+    st.dyn = []; st.kmTot = 0; scheduleStation(); st.speed = Math.min(st.speed, 40 * KMH);
+    Snd.play(dnf ? 'minus' : 'cash');
+    Q.unshift(() => rallyDone(R, dnf));
+    st.paused = true;
+    setTimeout(() => { if (st.active) openEvents(); }, 400);
+  }
+  const rallyHud = () => { const R = st.rally, left = Math.max(0, (R.end - Math.floor((st.pos + PZ) / SEG)) * 5); return `EK ${fmtT(R.t)} / ${fmtT(R.par)} · MAALIIN ${left >= 1000 ? (left / 1000).toFixed(1).replace('.', ',') + ' KM' : left + ' M'}`; };
+
   // ---------- Tesla Avustettu Ajo (alpha 40) ----------
   // Pitää kaistan, rajoituksen ja välin edellä ajavaan, mutta tekee satunnaisesti virheitä: ajautuu vastaantulijoiden kaistalle
   // tai pientareelle, haamujarruttaa tai lukee rajoituksen väärin. Kuopat ja kivet se yrittää kiertää ja peuralle jarruttaa,
@@ -729,6 +782,7 @@ const Drive = (() => {
   function apOff(msg) { if (!st.auto) return; st.auto = false; st.apErr = null; Snd.play('minus'); if (msg) toast(msg, 4); }
   function apToggle() {
     if (!st.active || st.paused || !st.veh || st.veh.bus) return;
+    if (st.rally) return toast('Avustettu ajo ei toimi erikoiskokeella.', 3);
     if (!apOK()) return toast('Tässä autossa ei ole avustettua ajoa.', 3);
     if (st.auto) return apOff('Avustettu ajo pois.');
     if (st.speed < 20 * KMH) return toast('Avustettu ajo kytkeytyy vasta vauhdissa.', 3);
@@ -783,8 +837,9 @@ const Drive = (() => {
     const z0 = st.pos + PZ;
     const pseg = st.testSeg || segAt(z0); // testSeg: testit ajavat keinotekoisella tiellä
     const onRamp = st.ramp && pseg.i >= st.ramp.start && pseg.i <= st.ramp.end;
-    const rightEdge = onRamp ? 1 + RAMP_W : 1;
-    const off = st.x < -1 || st.x > rightEdge;
+    const edge = st.rally ? RALLY_W : 1, rightEdge = onRamp ? 1 + RAMP_W : edge;
+    const off = st.x < -edge || st.x > rightEdge;
+    const curve = pseg.curve * curveK();
     const icy = !v.bus && st.ice > 0; if (st.ice > 0) st.ice -= dt;
     if (st.scrCd > 0) st.scrCd -= dt;
     const g0 = grip(), g = g0 * (icy ? 0.3 : 1) * (off ? 0.8 : 1);
@@ -820,19 +875,20 @@ const Drive = (() => {
     const target = st.sa * A * fa;
     st.vx = target + ((st.vx || 0) - target) * Math.exp(-(1 + 23 * g * g) * dt);
     st.slip = A > 0 ? Math.abs(target - st.vx) / A : 0;                                  // 0 = pitää, lähellä 1 = luistaa
-    let dx = st.vx - A * sp * pseg.curve * 0.32;
+    let dx = st.vx - A * sp * curve * 0.32;
     if (icy) dx += 0.35 * sp * Math.sin(T * 3.3);                                        // takapää elää
     if (v.minor) dx += 0.05 * sp;                                                        // korjaamaton vika vetää sivulle
     if (v.car && v.car.mixed) dx += 0.1 * sp * Math.sin(T * 1.5);                        // kolme leveää ja yksi kapea: auto vaeltaa
     st.x += dx * dt;
     if (st.testHold !== undefined) st.x = st.testHold; // testit: pidä auto sivusuunnassa paikallaan
     if (st.x < -2.6) { st.x = -2.6; st.vx = 0; } else if (st.x > 2.8) { st.x = 2.8; st.vx = 0; }
-    st.skyOff += pseg.curve * sp * dt * 6;
+    st.skyOff += curve * sp * dt * 6;
     st.pos += st.speed * dt;
   }
 
   function update(dt) {
     const v = st.veh, z0 = st.pos + PZ, pseg = segAt(z0);
+    if (st.rally) { const R = st.rally; if (R.count > 0) { R.count -= dt; st.speed = 0; st.keys.brake = false; return; } R.t += dt; }
     physics(dt);
     const z1 = st.pos + PZ;
     ensure(Math.floor(z1 / SEG));
@@ -849,17 +905,18 @@ const Drive = (() => {
       if (e <= 0) return outOfEnergy(E);
     }
     if (st.trip) { tripUpdate(dt, km); if (!st.active || st.paused) return; }
+    if (st.rally && Math.floor(z1 / SEG) >= st.rally.end) return rallyEnd(false);
 
     // peurat
     const sea = season();
-    if (!v.bus && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
+    if (!v.bus && !st.rally && Math.random() < dt * sea.deerPerMonth / MONTH_S) spawnDeer();
     if (!v.bus && Math.random() < dt * sea.poroPerMonth / MONTH_S) spawnPoro();
-    if (!v.bus && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard();
-    if (!v.bus && Math.random() < dt * weather().ice / MONTH_S) spawnIce();
-    boardUpdate(km);
+    if (!v.bus && !st.rally && Math.random() < dt * sea.holesPerMonth / MONTH_S) spawnHazard(); // erikoiskoe on tarkastettu: ei kuoppia eikä kiviä
+    if (!v.bus && !st.rally && Math.random() < dt * weather().ice / MONTH_S) spawnIce();
+    if (!st.rally) boardUpdate(km);
     const busy = pseg.lim === 50 || pseg.lim === 60 ? 1.6 : 1; // taajamassa enemmän liikennettä
-    if (Math.random() < dt * 0.12 * busy) spawnTraffic(false);
-    if (Math.random() < dt * 0.22 * busy) spawnTraffic(true);
+    if (!st.rally && Math.random() < dt * 0.12 * busy) spawnTraffic(false);
+    if (!st.rally && Math.random() < dt * 0.22 * busy) spawnTraffic(true);
     for (const d of st.dyn.slice()) {
       if (d.k === 'auto' || d.k === 'vasta') {
         d.z += d.v * dt;
@@ -881,11 +938,12 @@ const Drive = (() => {
     }
 
     if (!v.bus) {
-      for (let i = Math.floor(z0 / SEG); i < Math.floor(z1 / SEG); i++) if (segs[i].sprites.some(o => o.k === 'kamera')) camera(segs[i]);
+      for (let i = Math.floor(z0 / SEG); i < Math.floor(z1 / SEG); i++) if (!st.rally && segs[i].sprites.some(o => o.k === 'kamera')) camera(segs[i]);
       for (let i = Math.floor(z0 / SEG); i <= Math.floor(z1 / SEG); i++) {
         const seg = segs[i];
-        for (const o of seg.sprites) if (!rampHides(seg, o) && hits(o)) { crash(o); return; }
+        for (const o of seg.sprites) if (!rampHides(seg, o) && !(st.rally && RALLY_HIDE.includes(o.k)) && hits(o)) { crash(o); return; }
         for (const o of decorVisible(seg)) {
+          if (st.rally && RALLY_HIDE.includes(o.k)) continue;
           if (o.k === 'pensas') { if (Math.abs(o.x - st.x) < 0.14 + CAR_HW) scratch(); }
           else if (hits(o)) { crash(o); return; }
         }
@@ -896,7 +954,7 @@ const Drive = (() => {
     if (!v.bus) gigUpdate(dt, z1);
     stationUpdate(dt, z1);
     if (!v.bus) { lotUpdate(z1); if (!st.active || st.paused) return; }
-    if (st.trip) return; // matkalla kuukausi ei vaihdu eikä liittymää tule
+    if (st.trip || st.rally) return; // matkalla ja erikoiskokeella kuukausi ei vaihdu eikä liittymää tule
 
     // kuukausi ja liittymä
     st.monthT += dt;
@@ -941,6 +999,7 @@ const Drive = (() => {
     if (sea.snow) { P.rA = K.lgrey; P.rB = mix(PC.lgrey, PC.white, 4); P.rut = K.grey; P.sh = K.white; } // lumella tasaiset pinnat: rasteri rakeistuisi pimeässä
     else if (wet) { P.rA = mix(PC.dgrey, PC.grey, 5); P.rB = mix(PC.dgrey, PC.grey, 2); P.rut = mix(PC.dgrey, PC.lblue, 5); P.sh = mix(PC.grey, PC.dgrey, 8); }
     else { P.rA = K.grey; P.rB = mix(PC.grey, PC.dgrey, 4); P.rut = mix(PC.grey, PC.dgrey, 9); P.sh = mix(PC.grey, PC.lgrey, 8); }
+    if (st.rally && !sea.snow) { P.rA = mix(PC.orange, PC.lgrey, 9); P.rB = mix(PC.orange, PC.lgrey, 6); P.rut = mix(PC.orange, PC.brown, 6); P.sh = mix(PC.green, PC.orange, 8); } // sora
     P.haze = sea.dark > 0.6 ? -1 : sea.snow ? PC.white : sea.dark > 0 ? PC.lred : weather().kind ? PC.lgrey : PC.cyan;
     return P;
   }
@@ -975,7 +1034,7 @@ const Drive = (() => {
     const a = seg.p1.screen, b = seg.p2.screen, alt = Math.floor(seg.i / 3) % 2, P = GP, field = seg.kind === 'pelto';
     rect(g, 0, y0, W, y1 - y0, field ? P.fA : alt ? P.gB : P.gA);
     if (field) { furrows(a, b, y0, y1, P.fB); S2(a, b, y0, y1, -1.55, 1.55, alt ? P.gB : P.gA); }
-    if (seg.lake) { // järvi metsän takana: kesällä sininen, talvella jäässä
+    if (seg.lake && !st.rally) { // järvi metsän takana: kesällä sininen, talvella jäässä
       const sd = seg.lake, q = sea.snow ? (alt ? mix(PC.white, PC.cyan, 5) : mix(PC.white, PC.cyan, 8)) : alt ? mix(PC.blue, PC.lblue, 7) : mix(PC.blue, PC.lblue, 3);
       if (sd > 0) { S2(a, b, y0, y1, LAKE_X, 80, q); S2(a, b, y0, y1, LAKE_X - 0.18, LAKE_X, sea.snow ? K.lgrey : mix(PC.green, PC.black, 9)); }
       else { S2(a, b, y0, y1, -80, -LAKE_X, q); S2(a, b, y0, y1, -LAKE_X, -LAKE_X + 0.18, sea.snow ? K.lgrey : mix(PC.green, PC.black, 9)); }
@@ -993,7 +1052,8 @@ const Drive = (() => {
     S2(a, b, y0, y1, -1, 1, road, true);
     if (wide) for (const f of [-0.73, -0.27, 0.27, 0.73]) S2(a, b, y0, y1, f - 0.075, f + 0.075, P.rut);
     if (onR && alt) S2(a, b, y0, y1, 0.96, 1.0, K.white);
-    if (!sea.snow) {
+    if (st.rally) { /* soratiellä ei ole viivoja */ }
+    else if (!sea.snow) {
       S2(a, b, y0, y1, -0.97, -0.93, K.white, wide);
       if (!onR) S2(a, b, y0, y1, 0.93, 0.97, K.white, wide);
       if (Math.abs(seg.curve) >= 3) { S2(a, b, y0, y1, -0.045, -0.012, K.white, wide); S2(a, b, y0, y1, 0.012, 0.045, K.white); } // sulkuviiva mutkassa
@@ -1339,9 +1399,9 @@ const Drive = (() => {
       if (!seg || seg.p1.camera.z <= CAMD || seg.clip <= 0) continue;
       const sc = seg.p1.screen, s = sc.scale * W / 2;
       if (s * 3000 < 0.6) continue;
-      let list = st.ramp ? seg.sprites.filter(o => !rampHides(seg, o)) : seg.sprites;
+      let list = st.rally ? seg.sprites.filter(o => !RALLY_HIDE.includes(o.k)) : st.ramp ? seg.sprites.filter(o => !rampHides(seg, o)) : seg.sprites;
       const dec = decorVisible(seg);
-      if (dec.length) list = list.concat(dec);
+      if (dec.length) list = list.concat(st.rally ? dec.filter(o => !RALLY_HIDE.includes(o.k)) : dec);
       if (sea.snow && seg.i % 3 === 0) list = list.concat(st.ramp ? PENK.filter(o => !rampHides(seg, o)) : PENK);
       if (byIdx[seg.i]) list = list.concat(byIdx[seg.i]);
       if (!list.length) continue;
@@ -1432,16 +1492,16 @@ const Drive = (() => {
     rect(scr, 0, H - 16, W, 16, K.black);
     const kmh = Math.round(st.speed / KMH), lim = limitOf(segAt(st.pos + PZ).lim);
     let col = 0;
-    if (!st.veh.bus) { const l = limTxt(lim); t8(' ', 0, 23, PC.white, PC.red); t8(l, 1, 23, PC.black, PC.white); t8(' ', 1 + l.length, 23, PC.white, PC.red); col = l.length + 3; } // rajoitusmerkki: punaiset reunat
+    if (!st.veh.bus && !st.rally) { const l = limTxt(lim); t8(' ', 0, 23, PC.white, PC.red); t8(l, 1, 23, PC.black, PC.white); t8(' ', 1 + l.length, 23, PC.white, PC.red); col = l.length + 3; } // rajoitusmerkki: punaiset reunat
     const sp = `${kmh} KM/H`; t8(sp, col, 23, kmh > lim ? PC.lred : PC.white, -1); col += sp.length + 1;
     if (st.auto) t8('AVUSTETTU AJO', 27, 23, Math.floor(T * 2) % 2 ? PC.lgreen : PC.green, -1);
     else { let nm = st.veh.name + (st.veh.tsa ? ' (TSA)' : ''); if (nm.length > 40 - col) nm = nm.slice(0, 40 - col); t8(nm, 40 - nm.length, 23, PC.lgrey, -1); }
-    const en = energyHud().replace(/ %/g, '%').replace(/ · /g, ' '), keli = keliTxt().replace(' °C', '°C').replace(/ · /g, ' '), temp = keli.split(' ')[0];
+    const en = (st.rally ? energyHud().replace(/ · ASEMA.*/, '') : energyHud()).replace(/ %/g, '%').replace(/ · /g, ' '), keli = keliTxt().replace(' °C', '°C').replace(/ · /g, ' '), temp = keli.split(' ')[0];
     t8(en, 0, 24, PC.cyan, -1);
     { const k = en.length + 1 + keli.length <= 40 ? keli : en.length + 1 + temp.length <= 40 ? temp : ''; if (k) t8(k, 40 - k.length, 24, PC.lgreen, -1); }
     // viestit pelikuvan yläreunaan: keikka tai matka, autoliike, kaksi uusinta ilmoitusta
     let y = PAN_TOP + 2;
-    const gh = st.trip ? tripHud() : gigHud();
+    const gh = st.rally ? rallyHud() : st.trip ? tripHud() : gigHud();
     if (gh) y = msgBox(Gfx.wrap8(gh, 38), y, PC.cyan);
     { const lot = st.dyn.find(d => d.lot && !d.used);
       if (lot) { const d = lot.at - Math.floor((st.pos + PZ) / SEG); if (d < 150 && d >= -STOP_WIN) y = msgBox(Gfx.wrap8(d > STOP_WIN ? `AUTOLIIKE ${gpsDown() ? 'TULOSSA' : d * 5 + ' M'} · PYSÄHDY PIHAAN OIKEAAN REUNAAN` : 'AUTOLIIKE · PYSÄHDY TÄHÄN', 38), y, PC.cyan); } }
@@ -1454,7 +1514,8 @@ const Drive = (() => {
       const r = d <= -RAMP_LEN ? '' : gpsDown() ? (d < 25 ? 'LIITTYMÄ → OIKEALLE = VALIKKO' : '') : d > 0 ? `LIITTYMÄ ${d * 5} M → OIKEALLE = VALIKKO` : 'LIITTYMÄ → OIKEALLE = VALIKKO';
       if (r) msgBox([r], 118, PC.yellow);
     }
-    if (st.hint) msgBox(['← → OHJAA · ↓ JARRU · P TAUKO'], 96, PC.white);
+    if (st.rally && st.rally.count > 0) { const c = st.rally.count, tx = c > 0.6 ? String(Math.ceil(c - 0.6)) : 'AJA!'; rect(scr, 160 - tx.length * 8 - 4, 76, tx.length * 16 + 8, 20, K.black); Gfx.text8(scr, tx, 160 - tx.length * 8, 78, c > 0.6 ? PC.yellow : PC.lgreen, -1, 2); }
+    else if (st.hint) msgBox(['← → OHJAA · ↓ JARRU · P TAUKO'], 96, PC.white);
     if (st.userPause) { rect(scr, 0, PAN_TOP, W, H - CROP, veil(PC.black, 8)); msgBox(['TAUKO · P JATKAA'], 84, PC.yellow); }
     hudSet('quick', quickHtml(), 'innerHTML'); // sama sisältö koko pikavalinnan ajan, joten napit eivät vaihdu kesken painalluksen
     hudSet('quickD', st.quick && !st.paused ? 'block' : 'none', 'display');
@@ -1473,13 +1534,15 @@ const Drive = (() => {
     const camY = CAMH + ps.p1.world.y + (ps.p2.world.y - ps.p1.world.y) * pp;
     drawSky(sea);
     Gfx.clear(g);
-    let maxRow = H, x = 0, dx = -(base.curve * basePct);
+    const cK = curveK();
+    let maxRow = H, x = 0, dx = -(base.curve * cK * basePct);
     for (let n = 0; n < DRAW; n++) {
       const seg = segs[baseIdx + n];
       seg.clip = maxRow;
       project(seg.p1, st.x * ROAD - x, camY, st.pos);
       project(seg.p2, st.x * ROAD - x - dx, camY, st.pos);
-      x += dx; dx += seg.curve;
+      x += dx; dx += seg.curve * cK;
+      if (st.rally) { seg.p1.screen.w *= RALLY_W; seg.p2.screen.w *= RALLY_W; } // kapea soratie
       if (seg.p1.camera.z <= CAMD) continue;
       const yb = Math.min(maxRow, Math.ceil(seg.p1.screen.y - 0.5)), yt = Math.max(0, Math.ceil(seg.p2.screen.y - 0.5));
       if (yt >= yb) continue;
@@ -1558,7 +1621,9 @@ const Drive = (() => {
     S.cars.forEach(c => { c.energy = 1; }); if (S.tsa) S.tsa.energy = 1; // kotona ladattu ja tankattu
     st.chg = null; st.kmTot = 0; st.eWarn = 0; scheduleStation();
     st.veh = null; refreshVehicle();
-    if (S.trip) tripBegin();
+    st.rally = null;
+    if (S.rally) rallyBegin();
+    else if (S.trip) tripBegin();
     else { const sea = season();
       if (S.summer > 0 && (sea.snow || sea.temp <= 0)) toast('!Kesärenkaat ja ' + (sea.snow ? 'lunta tiellä' : 'pakkasta') + ': jarrutusmatka pitenee, ja auto liukuu mutkissa.', 6);
       else if (weather().ice) toast(`Keli ${keliTxt().replace(' · LIUKASTA', '')}: tie on liukas. Varo mustaa jäätä.`, 5); }
@@ -1572,6 +1637,7 @@ const Drive = (() => {
     if (!st.active || S.over) return;
     if (S.cash < 0) { if (invTotal() > 0) return deficitPrompt(); fixNeg(); }
     if (S.vippi > 3000) { stop(); return repossess(); }
+    if (st.rally && st.tow) { st.tow = false; return rallyEnd(true); } // ulosajo keskeyttää erikoiskokeen
     st.paused = false; st.keys = {};
     if (st.tow) { st.tow = false; st.x = Math.max(-0.85, Math.min(0.85, st.x)); }
     st.vx = 0; st.sa = 0; st.auto = false; st.apErr = null;
@@ -1588,7 +1654,7 @@ const Drive = (() => {
     document.body.classList.remove('driving', 'paused');
   }
   return {
-    start, resume, stop, rangeOf, hold, quick,
+    start, resume, stop, rangeOf, hold, quick, rallyPar, fmtT, _rallyLim: rallySpeedLimit, _rallyGrip: rallyGrip, rallyKm: Math.round(RALLY_LEN * 5 / 100) / 10,
     get active() { return st.active; },
     blockKeys: () => st.active && !st.paused,
     _st: st, _vehicle: vehicle, _render: render, _ap: apToggle, _decor: decorOf, _physics: physics, _refresh: refreshVehicle, _KMH: KMH, _seg: i => { ensure(i); return segs[i]; }, // testejä varten
