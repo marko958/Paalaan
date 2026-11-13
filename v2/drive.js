@@ -721,7 +721,8 @@ const Drive = (() => {
   }
   // ---------- Tesla Avustettu Ajo (alpha 40) ----------
   // Pitää kaistan, rajoituksen ja välin edellä ajavaan, mutta tekee satunnaisesti virheitä: ajautuu vastaantulijoiden kaistalle
-  // tai pientareelle, haamujarruttaa tai lukee rajoituksen väärin. Peuroja, kuoppia ja liittymää se ei huomaa lainkaan.
+  // tai pientareelle, haamujarruttaa tai lukee rajoituksen väärin. Kuopat ja kivet se yrittää kiertää ja peuralle jarruttaa,
+  // mutta kaikkia se ei huomaa. Mustaa jäätä ja liittymää se ei huomaa lainkaan.
   // Kuljettaja ottaa ohjat ohjaamalla tai jarruttamalla.
   const AP_CARS = /^Tesla (?!Model S 85)/; // kaikki Teslat paitsi vanha Model S 85
   const apOK = () => !!st.veh && !st.veh.bus && AP_CARS.test(st.veh.name);
@@ -745,7 +746,25 @@ const Drive = (() => {
       ST().apErr = (ST().apErr || 0) + 1;
     }
     const e = st.apErr ? st.apErr.k : '', drift = e === 'left' || e === 'right';
-    const tx = e === 'left' ? -0.6 : e === 'right' ? 1.6 : 0.5;
+    let tx = e === 'left' ? -0.6 : e === 'right' ? 1.6 : 0.5, panic = false;
+    // alpha 48: esteet. Kuopan tai kiven se yrittää kiertää ja peuralle jarruttaa, mutta ei huomaa kaikkia:
+    // jokaisesta esteestä arvotaan kerran, näkeekö auto sen. Mustaa jäätä ja liittymää se ei huomaa koskaan.
+    if (!drift) for (const d of st.dyn) {
+      const hz = d.k === 'kuoppa' || d.k === 'kivi', deer = d.k === 'peura' || d.k === 'poro';
+      if (!hz && !deer) continue;
+      const gap = d.z - (st.pos + PZ);
+      if (gap <= 0 || gap > 10 * SEG + st.speed * (deer ? 2.2 : 1.6)) continue;
+      if (d.ap === undefined) d.ap = Math.random() < (deer ? 0.65 : 0.8) / (hard > 1 ? 1.35 : 1);
+      if (!d.ap) continue;
+      if (deer) { if (Math.abs(d.x - st.x) < 0.9) panic = true; continue; }
+      const need = (d.k === 'kuoppa' ? 0.18 : 0.13) + CAR_HW + 0.1;
+      if (Math.abs(d.x - tx) >= need) continue;
+      // kierretään siltä puolelta, joka on lähempänä omaa kaistaa; vastaantulijoiden kaistalle vain, jos se on tyhjä
+      const cand = [d.x + need, d.x - need].sort((a, b) => Math.abs(a - 0.5) - Math.abs(b - 0.5));
+      const free = x => x <= 0.88 && x >= -0.85 && (x > 0.12 || !st.dyn.some(o => o.k === 'vasta' && o.z > st.pos && o.z - st.pos < 70 * SEG));
+      const pickX = cand.find(free);
+      if (pickX === undefined) panic = true; else tx = pickX;
+    }
     const A = 2.4 * Math.min(1.2, Math.max(sp, 0.35));
     const lim = drift ? 0.28 : 1;                                             // virheessä auto ajautuu rauhallisesti, ei riuhtaise
     const want = Math.max(-1, Math.min(1, Math.max(-lim, Math.min(lim, 3.5 * (tx - st.x) - 0.6 * ((st.vx || 0) - A * sp * pseg.curve * 0.32))) + sp * pseg.curve * 0.32 / fa));
@@ -755,7 +774,7 @@ const Drive = (() => {
       const gap = d.z - (st.pos + PZ);
       if (gap > 0 && gap < 6 * SEG + st.speed * 1.4) tgt = Math.min(tgt, Math.max(0, d.v - (gap < 6 * SEG ? 10 * KMH : 0)));
     }
-    return { want, brake: e === 'phantom' || st.speed > tgt + 8 * KMH ? 2 : st.speed > tgt + KMH ? 1 : 0, hold: st.speed > tgt - KMH };
+    return { want, brake: e === 'phantom' || panic || st.speed > tgt + 8 * KMH ? 2 : st.speed > tgt + KMH ? 1 : 0, hold: st.speed > tgt - KMH };
   }
   const toward = (a, b, step) => (a < b ? Math.min(b, a + step) : Math.max(b, a - step));
   function physics(dt) {
