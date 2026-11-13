@@ -14,12 +14,12 @@
     -webkit-font-smoothing:none; font-smooth:never; -webkit-text-size-adjust:100%; }
   body { font-size:1rem; padding:1em 0 2em; }
   .screen { position:relative; width:40em; margin:0 auto; min-height:25em; background:var(--screen); padding-bottom:1em; }
-  .status { border:.125em solid var(--cyan); color:var(--cyan); padding:.375em .875em; margin-bottom:1em; white-space:pre-wrap; }
+  .status { border:.125em solid var(--cyan); color:var(--cyan); padding:.375em .875em; margin-bottom:0; white-space:pre-wrap; }
   .status .row { display:flex; justify-content:space-between; flex-wrap:wrap; gap:0 1em; }
   .status div { padding:.125em 0; line-height:1.25; }
   .jail { color:var(--red); animation:blink 1s steps(2) infinite; }
   @keyframes blink { 50% { visibility:hidden } }
-  #panel { padding:0 1em; }
+  #panel { padding:1em 1em 0; }
   h1 { font-size:1em; font-weight:normal; color:var(--hi); margin:0 0 1em; }
   /* rivitetyn tekstin riviväli on 10 pikseliä, jotta ääkkösten pisteet eivät osu ylempään riviin */
   .lines p { margin:0 0 .5em; white-space:pre-wrap; overflow-wrap:break-word; line-height:1.25; }
@@ -28,6 +28,8 @@
   /* valinta on käänteisvärinen rivi; kursorinäppäimillä valittu rivi on valkoinen */
   button { font:inherit; text-transform:inherit; text-align:left; color:var(--screen); background:var(--dim); border:0; border-radius:0; padding:.875em 1em; cursor:pointer; line-height:1.25; }
   button:hover, button:focus-visible, button.sel { background:var(--hi); outline:none; }
+  /* hiirellä ja näppäimistöllä rivit voivat olla matalampia kuin kosketusnäytöllä */
+  @media (hover:hover) and (pointer:fine) { .choices button { padding:.5em 1em; } .choices { gap:.375em; } }
   button:disabled { background:transparent; color:var(--dim); cursor:default; }
   button .k { margin-right:1em; }
   /* keltainen oletusvalinta pysyy keltaisena, kursori näkyy valkoisena kehyksenä */
@@ -82,7 +84,7 @@
   </div>
   <div class="foot">
     <p>READY.</p><p><span class="cursor">&nbsp;</span></p>
-    <p>2.0 alpha 42 (13.11. klo 06.58) · Valinta: numero tai nuolet · Enter: keltainen tai Jatka · 0 tai Esc: takaisin</p>
+    <p>2.0 alpha 43 (13.11. klo 09.10) · Valinta: numero tai nuolet · Enter: keltainen tai Jatka · 0 tai Esc: takaisin</p>
     <p><a href="../">Klassinen 1.0</a> · <a href="autot.html">Autogalleria</a></p>
     <p>Peli tallentaa tilansa, ennätykset ja ääniasetuksen vain tähän selaimeen. Mitään ei lähetetä minnekään.</p>
   </div>
@@ -91,18 +93,20 @@
 <script>
 (function () {
   function fit() {
-    var w = document.documentElement.clientWidth, d = window.devicePixelRatio || 1;
+    var w = document.documentElement.clientWidth, h = window.innerHeight, d = window.devicePixelRatio || 1;
     var fs = Math.floor(w / (w < 520 ? 41 : 42) * d) / d;
+    // leveällä näytöllä ruudun pitää mahtua myös korkeussuunnassa: vähintään 66 riviä näkyviin
+    if (w >= 520) fs = Math.min(fs, h / 66);
     if (d < 1.5 && fs >= 16) fs = Math.floor(fs / 8) * 8;
-    document.documentElement.style.fontSize = Math.max(8, Math.min(24, fs)) + 'px';
+    document.documentElement.style.fontSize = Math.max(w >= 520 ? Math.min(16, Math.floor(w / 42)) : 8, Math.min(24, fs)) + 'px';
   }
   fit(); window.addEventListener('resize', fit);
 })();
 </script>
-<script src="sound.js?v=42"></script>
-<script src="gfx.js?v=42"></script>
-<script src="cars.js?v=42"></script>
-<script src="drive.js?v=42"></script>
-<script src="engine.js?v=42"></script>
+<script src="sound.js?v=43"></script>
+<script src="gfx.js?v=43"></script>
+<script src="cars.js?v=43"></script>
+<script src="drive.js?v=43"></script>
+<script src="engine.js?v=43"></script>
 </body>
 </html>
