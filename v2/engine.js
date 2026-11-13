@@ -71,6 +71,7 @@ const CARS = [
  ['Ford Focus Electric 2014',4500,'e',160,.14,'S','Latausportin lukko ja latauslaite hajosivat',1300],
  ['Elcat Cityvan 1997',3000,'e',110,.03,'SV','Lyijyakusto loppu: 12 akkua vaihtoon',1800],
  ['Fiat Topolino 2024',8000,'e',70,.12,'S','Oviaukon köysi katkesi, ja sade tuli sisään',250],
+ ['Honda e 2021',17000,'e',150,.13,'S','Peilikameran näyttö pimeni: sivupeilejä ei ole',1100], // uudet autot aina listan loppuun: tallennukset viittaavat järjestysnumeroon
 ];
 // vanhat sähköautot (ei Teslat), Elcat ja Topolino eivät saa etäpäivityksiä, joten päivitys ei voi jumittaa niitä
 const noOTA = k => k.type === 'e' && (/^(Elcat|Fiat Topolino)/.test(k.name) || (!k.fl.includes('T') && !/^Jaguar/.test(k.name) && +((k.name.match(/\b(19|20)\d\d\b/) || ['9999'])[0]) <= 2020));
@@ -112,7 +113,7 @@ const DRIVABLE = new Set([
 // ---------- AKUN HINNAT (pelilukuja) ----------
 const BATT = [
  ['Nissan Leaf',6000],['Renault Zoe',0],['VW e-Golf',9000],['BMW i3',9000],['Hyundai Ioniq 2019',8000],['Kia e-Soul',12000],['Peugeot e-208',10000],
- ['Dacia Spring',6000],['Fiat 500e',9000],['MG4',9000],['VW ID.3',12000],['Tesla Model 3',14000],['Tesla Model Y',15000],['Kia e-Niro',13000],
+ ['Dacia Spring',6000],['Fiat 500e',9000],['Honda e',11000],['MG4',9000],['VW ID.3',12000],['Tesla Model 3',14000],['Tesla Model Y',15000],['Kia e-Niro',13000],
  ['Hyundai Kona',14000],['Skoda Enyaq',15000],['VW ID.4',15000],['Hyundai Ioniq 5',18000],['Kia EV6 GT',22000],['Kia EV6',18000],['Polestar 2',7000],
  ['Ford Mustang Mach-E',20000],['BYD Atto 3',10000],['Volvo XC40',16000],['Audi Q4',18000],['BMW i4 M60',25000],['Porsche Taycan Turbo S',80000],
  ['Porsche Taycan',80000],['Audi RS e-tron GT',60000],['Audi e-tron GT',60000],['BMW iX',30000],['Jaguar I-Pace',25000],['Mercedes EQS SUV',40000],
@@ -229,7 +230,7 @@ const val = car => {
 const working = () => S.cars.filter(c => !c.broken && !(c.reg > S.m)); // reg: harmaatuonti odottaa rekisteröintiä
 const vanOK = () => S.cars.find(c => C(c.c).fl.includes('V') && !c.broken);
 // 2.0: peräkärry. Vetokoukutonta autoa ei voi käyttää kärryn kanssa.
-const NO_TOW = ['Fiat Topolino','Renault Fluence','Ford Focus Electric','Dacia Spring','Fiat 500e','BMW i3','Renault Zoe','Nissan Leaf','Hyundai Ioniq 2019','Toyota Prius','Porsche Taycan','Audi e-tron GT','Audi RS e-tron GT','Lucid Air','Rolls-Royce Spectre'];
+const NO_TOW = ['Honda e','Fiat Topolino','Renault Fluence','Ford Focus Electric','Dacia Spring','Fiat 500e','BMW i3','Renault Zoe','Nissan Leaf','Hyundai Ioniq 2019','Toyota Prius','Porsche Taycan','Audi e-tron GT','Audi RS e-tron GT','Lucid Air','Rolls-Royce Spectre'];
 // alpha 17: vetomassat [nimen alku, suurin perävaunu kg, auton kokonaismassa kg] (pelilukuja, suuntaa antavia)
 const TOW = [
  ['Ford Mondeo',1500,1950],['Opel Astra',1200,1750],['Toyota Avensis',1600,1950],['Volvo V70',1800,2200],['VW Passat',2000,2150],['Audi A6',2100,2350],['BMW 530d',2000,2400],['Mitsubishi Outlander',1500,2300],

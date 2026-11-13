@@ -72,6 +72,7 @@ const Cars = (() => {
     ['Renault Fluence',   { b:'sedan', c:'#D8D8D8', tl:'wide', hl:'slim', g:'slot', x:['chrome'] }],
     ['Ford Focus Electric', { b:'hatch', c:'#2F6DB5', tl:'vertical', hl:'slim', g:'sf', x:['spoiler'] }],
     ['Elcat',             { b:'van', w:0.84, c:'#F28C28', tl:'vertical', hl:'round', g:'slot', x:['panelvan', 'small'] }],
+    ['Honda e',           { b:'mini', w:0.86, c:'#E3D23A', r:'#151515', tl:'round', hl:'round', g:'panel', x:['rearpanel'] }],
   ];
   const GENERIC = { e: { b:'hatch', c:'#959595', tl:'corner', hl:'slim' }, b: { b:'sedan', c:'#959595', tl:'corner', hl:'slim', g:'slot', x:['exh1'] } };
   function spec(name, type) {
@@ -253,6 +254,7 @@ const Cars = (() => {
     if (fine) { R(-hw - 3, top + 1, 4, 3, P.lo, true); R(hw - 1, top + 1, 4, 3, P.lo, true); }   // peilit
     // takavalot
     const ly = top - 7;
+    if (has('rearpanel')) R(-hw + 3, ly - 2.5, W0 - 6, 7.5, K.black);   // musta paneeli, jossa pyöreät valot
     switch (sp.tl) {
       case 'bar':      if (o.brake || night) R(-hw + 1, ly - 1.5, W0 - 2, 5, V(C.lred, o.brake ? 8 : 4), true);
                        R(-hw + 2, ly, W0 - 4, 2, lens); R(-hw + 1, ly - 1, 8, 4, lens); R(hw - 9, ly - 1, 8, 4, lens);
@@ -270,7 +272,7 @@ const Cars = (() => {
     // lisäjarruvalo, pyyhkijä, rekkari, pakoputket
     R(-4 + cs, roofY - rt - 2, 8, 1, o.brake ? E(C.lred) : K.red, true);
     if (fine && B.dk === 0 && sp.b !== 'topo' && !has('blackhatch')) for (let i = 0; i < 5; i++) R(-1 + i * 1.4, gy0 + 1 + i, 1.4, 1, K.black, true);
-    plate(R, cl + 6, k);
+    plate(R, has('rearpanel') ? cl + 1 : cl + 6, k);
     if (has('exh1')) R(-hw + 14, cl - 1, 5, 2, K.lgrey, true);
     if (has('exh2')) { R(-hw + 13, cl - 1, 5, 2, K.lgrey, true); R(hw - 18, cl - 1, 5, 2, K.lgrey, true); }
     if (has('diff')) { R(-16, cl, 32, 4, K.black, true); for (let i = -2; i <= 2; i++) R(i * 6 - 0.5, cl, 1, 4, K.dgrey, true); }
