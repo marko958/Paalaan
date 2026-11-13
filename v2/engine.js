@@ -987,6 +987,14 @@ function omen(k) {
   say(OMENS[k][0], lines);
 }
 // 2.0: o = {title, txt, total}: ajotilan ulosajot ja kovat kolarit (total = pakollinen lunastus)
+// alpha 45: kun kolhu sattuu kesken ajon, syy on tiellä eikä parkkipaikalla
+function roadDing(name) {
+  const m = (S.m - 1) % 12, winter = [11, 0, 1, 2].includes(m);
+  const any = arr => arr[Math.floor(Math.random() * arr.length)]; // ei RND: päivän haasteen satunnaisjono pysyy samana
+  return `${name}: ` + any(winter
+    ? ['vastaan tulleen rekan katolta irtosi jäälohkare, ja se osui konepeltiin.', 'aura-auto heitti lumen mukana jäänkappaleen kylkeen.', 'edellä ajavan lokasuojasta irtosi jääpaakku suoraan puskuriin.']
+    : ['rekan renkaasta irtosi kumiriekale, ja se löi lommon kylkeen.', 'vastaantulijan peräkärrystä lensi lauta, ja se osui oveen.', 'ohittava auto nosti pientareelta kiven, ja se teki lommon konepeltiin.']);
+}
 function damageEvent(k, o) {
   o = o || {};
   if (S.tsa && !o.car) return tsaDamage(k, o);
@@ -997,7 +1005,7 @@ function damageEvent(k, o) {
   const fatti = kk.name.startsWith('Audi e-tron 55'); // fätti: tutkia enemmän kuin lentokentällä
   const omav = fatti && k==='peura' ? 2000 : k==='peura' ? (lux?800:500) : (lux?500:300);
   const t = o.title || (k==='peura' ? 'PEURA!' : 'KOLHU');
-  const txt = o.txt || (k==='peura' ? `Peura loikkasi ${kk.name}n keulaan.` : (S.parking ? `${kk.name}: joku pysäköi kolmen paikan keskelle kahden paikan väliin ja avasi oven silti kylkeen.` : `${kk.name}: parkkipaikalla joku avasi oven kylkeen.`));
+  const txt = o.txt || (k==='peura' ? `Peura loikkasi ${kk.name}n keulaan.` : (Drive.active ? roadDing(kk.name) : S.parking ? `${kk.name}: joku pysäköi kolmen paikan keskelle kahden paikan väliin ja avasi oven silti kylkeen.` : `${kk.name}: parkkipaikalla joku avasi oven kylkeen.`));
   const ch = [
     [`Vakuutus: omavastuu ${eur(omav)}`, ()=>{ payOrVippi(omav); say(t,['Korjattu kunnolla. Arvo säilyi.']); }],
     [`Mikrobetoni (${eur(k==='peura'?60:40)}): arvo −${k==='peura'?25:20} %`, ()=>{ S.cash -= (k==='peura'?60:40); car.base *= (k==='peura'?0.75:0.8); car.mb++; fixNeg(); say(t,['Mikrobetonia, hiekkapaperia ja spraymaalia. Melkein huomaamaton.', mbWarn(car)]); }],
@@ -1437,7 +1445,7 @@ function tsaDamage(k, o) {
   o = o || {};
   const T = S.tsa, name = C(T.c).name;
   const t = o.title || (k==='peura' ? 'PEURA!' : 'KOLHU');
-  const txt = o.txt || (k==='peura' ? `Peura loikkasi työsuhdeauton (${name}) keulaan.` : `${name}: joku avasi oven työsuhdeauton kylkeen.`);
+  const txt = o.txt || (k==='peura' ? `Peura loikkasi työsuhdeauton (${name}) keulaan.` : (Drive.active ? roadDing(name) : `${name}: joku avasi oven työsuhdeauton kylkeen.`));
   const dsl = T.kind==='vapaa' ? 0 : (k==='peura' ? 120 : 60); // käyttöetu: vara-Scalan dieselit omasta pussista
   scr(t, [txt, T.kind==='vapaa' ? 'Vapaassa autoedussa firma maksaa omavastuun ja kaikki ajokulut, jos ilmoitat vahingosta.' : 'Käyttöedussa firma maksaa omavastuun, mutta ajokulut ovat sinun: korjauksen ajan tankkaat vara-auton itse.', '!Pomo on mulkero, joka miettii jo lomautuksia. Jokainen ilmoitettu kolhu nostaa lomautusriskiä.'], [
     [dsl ? `Ilmoita työnantajalle (käyttöetu: vara-auton dieselit ${eur(dsl)})` : 'Ilmoita työnantajalle (vapaa autoetu: firma maksaa kaiken)', ()=>{ payOrVippi(dsl + 48); S.boss++; say(t, ['Korjattiin firman sopimuskorjaamolla. Firma maksoi omavastuun.', '+Korjauksen ajaksi saat leasingyhtiöltä ilmaiseksi vara-autoksi Skoda Scalan.', dsl ? `!Käyttöetu: Scalan dieselit maksat itse, ${eur(dsl)}.` : '', '!Tästä ei kyllä selvitä ryyppäämättä: Coopin kaljat 48 €' + (dsl ? '.' : ', vaikka autosta ei kuluja tullutkaan.'), '!Pomo kirjasi vahingon ylös ja mulkaisi. Seuraavissa yt-neuvotteluissa sinulla on yksi miinus lisää.'].filter(Boolean)); }],
