@@ -72,7 +72,7 @@ const Cars = (() => {
     ['Renault Fluence',   { b:'sedan', c:'#D8D8D8', tl:'wide', hl:'slim', g:'slot', x:['chrome'] }],
     ['Ford Focus Electric', { b:'hatch', c:'#2F6DB5', tl:'vertical', hl:'slim', g:'sf', x:['spoiler'] }],
     ['Elcat',             { b:'van', w:0.84, c:'#F28C28', tl:'vertical', hl:'round', g:'slot', x:['panelvan', 'small'] }],
-    ['Honda e',           { b:'mini', w:0.86, c:'#E3D23A', r:'#151515', tl:'round', hl:'round', g:'panel', x:['rearpanel'] }],
+    ['Honda e',           { b:'mini', w:0.86, c:'#E3D23A', r:'#151515', tl:'circle', hl:'circle', g:'panelbig', x:['rearpanel'] }],
   ];
   const GENERIC = { e: { b:'hatch', c:'#959595', tl:'corner', hl:'slim' }, b: { b:'sedan', c:'#959595', tl:'corner', hl:'slim', g:'slot', x:['exh1'] } };
   function spec(name, type) {
@@ -158,6 +158,9 @@ const Cars = (() => {
       R(-hw + 2, yy, tw - 2, 1, K.dgrey, true); R(hw - tw, yy, tw - 2, 1, K.dgrey, true);
     }
   }
+  // ympyrä riveittäin (halkaisija 4, 6, 8 tai 10 yksikköä)
+  const CIRC = { 4:[2, 4, 4, 2], 6:[2, 4, 6, 6, 4, 2], 8:[4, 6, 8, 8, 8, 8, 6, 4], 10:[4, 8, 8, 10, 10, 10, 10, 8, 8, 4] };
+  const circ = (R, cx, cy, d, q) => CIRC[d].forEach((w, i) => R(cx - w / 2, cy + d / 2 - i - 1, w, 1, q));
   const shadow = (R, hw, V) => R(-hw - 2, -2, hw * 2 + 4, 4, veil(C.black, 8));
 
   // ---------- takakuva ----------
@@ -254,7 +257,7 @@ const Cars = (() => {
     if (fine) { R(-hw - 3, top + 1, 4, 3, P.lo, true); R(hw - 1, top + 1, 4, 3, P.lo, true); }   // peilit
     // takavalot
     const ly = top - 7;
-    if (has('rearpanel')) R(-hw + 3, ly - 2.5, W0 - 6, 7.5, K.black);   // musta paneeli, jossa pyöreät valot
+    if (has('rearpanel')) R(-hw + 3, ly - 3, W0 - 6, 8, K.black);   // musta paneeli, jossa pyöreät valot
     switch (sp.tl) {
       case 'bar':      if (o.brake || night) R(-hw + 1, ly - 1.5, W0 - 2, 5, V(C.lred, o.brake ? 8 : 4), true);
                        R(-hw + 2, ly, W0 - 4, 2, lens); R(-hw + 1, ly - 1, 8, 4, lens); R(hw - 9, ly - 1, 8, 4, lens);
@@ -263,6 +266,9 @@ const Cars = (() => {
       case 'pixel':    for (let i = 0; i < 6; i++) { const px = 2 + (i % 3) * 4, py = ly - 2 + (i > 2 ? 3.5 : 0); R(-hw + px, py, 3, 2.5, lens); R(hw - px - 3, py, 3, 2.5, lens); }
                        R(-hw + 14, ly - 0.5, W0 - 28, 2, K.black, true); break;
       case 'vertical': { const tall = has('tall-lights'); pair(1, ly - 4, 4, 13); if (tall) { lamp(-hw * B.bw + 0.5, top + 1, 3, B.cab - rt - 3); lamp(hw * B.bw - 3.5, top + 1, 3, B.cab - rt - 3); } break; }
+      case 'circle':   for (const sx of [-1, 1]) { const lx = sx * (hw - 7.5), cy = ly + 1; // täysin pyöreät valot mustassa paneelissa
+                         if (o.brake || night) R(lx - 4.5, cy - 4.5, 9, 9, V(o.brake ? C.lred : C.red, o.brake ? 8 : 4), true);
+                         circ(R, lx, cy, 6, lens); if (k >= 0.6) R(lx - 1, cy - 1, 2, 2, o.brake ? E(C.white) : K.black, true); } break;
       case 'round':    pair(2, ly - 2, 5, 7); pair(3, ly - 3, 3, 9); if (fine) { R(-hw + 3.5, ly, 2, 3, E(o.brake ? C.white : C.lred), true); R(hw - 5.5, ly, 2, 3, E(o.brake ? C.white : C.lred), true); } break;
       case 'tri':      for (let i = 0; i < 3; i++) { lamp(-hw + 2 + i * 3.5, ly - 3, 2, 8); lamp(hw - 4 - i * 3.5, ly - 3, 2, 8); } break;
       case 'claw':     for (let i = 0; i < 3; i++) { R(-hw + 2 + i * 4, ly - 2 + i * 0.5, 2, 6, lens); R(hw - 4 - i * 4, ly - 2 + i * 0.5, 2, 6, lens); } R(-hw + 14, ly, W0 - 28, 2, K.black, true); break;
@@ -372,9 +378,13 @@ const Cars = (() => {
       case 'sf':      T(cl + 2, -9, 9, nose - 2, -13, 13, K.black); if (fine) { R(-13, nose - 3, 26, 1, K.lgrey, true); R(-10, cl + 6, 20, 1, K.dgrey, true); } break;
       case 'rr':      R(-10, cl + 3, 20, nose - cl - 3, K.lgrey); for (let i = -4; i <= 4; i++) R(i * 2.2 - 0.5, cl + 4, 1, nose - cl - 5, i % 2 ? K.white : K.grey, true); R(-10, nose - 1, 20, 1, K.white, true); break;
       case 'panel':   R(-hw + 4, hy - 1, W0 - 8, 5, K.black); break;
+      case 'panelbig': R(-hw + 3, hy - 4, W0 - 6, 10, K.black); break;
     }
     // etuvalot
     switch (sp.hl) {
+      case 'circle': for (const sx of [-1, 1]) { const lx = sx * (hw - 9), cy = hy + 1; // täysin pyöreät valot
+                       if (night) R(lx - 6, cy - 6, 12, 12, V(C.yellow, 7), true);
+                       circ(R, lx, cy, 8, lens); if (k >= 0.6) circ(R, lx, cy, 4, night ? E(C.yellow) : K.lgrey); } break;
       case 'round':  pair(3, hy - 2, 8, 6); pair(4, hy - 3, 6, 8); break;
       case 'quad':   pair(2, hy - 1, 6, 5); pair(10, hy - 1, 6, 5); break;
       case 'split':  pair(2, hy + 3, 15, 1.5); pair(4, hy - 4, 9, 4); break;
