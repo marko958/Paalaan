@@ -727,10 +727,12 @@ const Drive = (() => {
   const apOK = () => !!st.veh && !st.veh.bus && AP_CARS.test(st.veh.name);
   function apOff(msg) { if (!st.auto) return; st.auto = false; st.apErr = null; Snd.play('minus'); if (msg) toast(msg, 4); }
   function apToggle() {
-    if (!st.active || st.paused || !apOK()) return;
+    if (!st.active || st.paused || !st.veh || st.veh.bus) return;
+    if (!apOK()) return toast('Tässä autossa ei ole avustettua ajoa.', 3);
     if (st.auto) return apOff('Avustettu ajo pois.');
     if (st.speed < 20 * KMH) return toast('Avustettu ajo kytkeytyy vasta vauhdissa.', 3);
     st.auto = true; st.apErr = null; st.apT = 10 + Math.random() * 20; Snd.play('plus');
+    st.keys = {}; // pohjassa oleva ohjaus- tai jarrunäppäin ei heti ota ohjia takaisin: vasta uusi painallus ottaa
     toast('+Avustettu Ajo päällä. Seuraa tietä: auto tekee virheitä. Ohjaus tai jarru ottaa ohjat.', 6);
   }
   function autopilot(dt, pseg, fa, sp) {
@@ -1507,7 +1509,7 @@ const Drive = (() => {
     document.addEventListener('keydown', e => {
       if (!st.active || st.paused) return;
       if (st.quick && /^[1-9]$/.test(e.key)) { quickPick(+e.key - 1); e.preventDefault(); return; }
-      if (KEYMAP[e.key]) { st.keys[KEYMAP[e.key]] = true; e.preventDefault(); }
+      if (KEYMAP[e.key]) { if (!e.repeat) { st.keys[KEYMAP[e.key]] = true; if (st.auto) apOff('!Otit ohjat. Avustettu ajo pois (T tai ↑ kytkee takaisin).'); } e.preventDefault(); } // lyhytkin painallus ottaa ohjat
       else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') { st.userPause = !st.userPause; e.preventDefault(); }
       else if (e.key === 'ArrowUp' || e.key === 't' || e.key === 'T' || e.key === 'w' || e.key === 'W') { if (!e.repeat) apToggle(); e.preventDefault(); }
     });
