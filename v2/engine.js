@@ -746,8 +746,38 @@ function gigMenu() {
     lines.push(!S.trailer ? 'Muutto- ja romukeikat vaativat pakettiauton tai peräkärryn (Kalusto).' : `!${romu ? 'Romukeikat' : 'Muuttokeikat'} eivät onnistu: ${!d ? 'ei toimivaa autoa' : !towOK(d) ? C(d.c).name + ': ei vetokoukkua' : `yhdistelmä ${comboKg(d).toLocaleString('fi-FI')} kg vaatii ${licNeed(d)}-ajokortin`}.`);
     ch.push([romu ? 'Romukeikat (ei mahdollista)' : 'Muuttokeikat (ei mahdollista)', ()=>{}, true]);
   }
+  // alpha 51: rallisprintti, kerran kuussa
+  lines.push(`Rallisprintti: yksi erikoiskoe soralla, osallistuminen ${eur(RALLY_FEE)}. Palkinto ajan mukaan.`);
+  ch.push([S.rallyM === S.m ? 'Rallisprintti (ajettu tässä kuussa)' : 'Rallisprintti', rallyInfo, S.rallyM === S.m || !!S.tsa || !d || S.m >= LAST]);
+  if (S.tsa) lines.push('!Työsuhdeautolla ei saa kilpailla.');
   ch.push(['Takaisin', workMenu]);
   scr('KEIKAT', lines, ch);
+}
+const RALLY_FEE = 150, RALLY_PRIZE = [1200, 600, 250];
+// palkinnot kasvavat luokan nopeuden mukaan: hitaimmassa luokassa täysillä ajaminen ei ole vielä taitoa
+const rallyPrizes = () => { const f = Math.max(0.3, Math.min(1.5, Drive._vehicle().vmax / 125)); return RALLY_PRIZE.map(p => Math.round(p * f / 50) * 50); };
+function rallyInfo() {
+  const d = drivenCar(); if (!d) return gigMenu();
+  const par = Drive.rallyPar(), PZ = rallyPrizes();
+  scr('RALLISPRINTTI', [`Erikoiskoe ${String(Drive.rallyKm).replace('.', ',')} km mutkaista soratietä. Ei liikennettä, rajoituksia eikä kameroita.`,
+    `${C(d.c).name} ajaa omassa luokassaan. Luokan tavoiteaika on ${Drive.fmtT(par)}.`,
+    `+Alle tavoiteajan: luokkavoitto ${eur(PZ[0])}. Enintään 6 % yli: palkintosija ${eur(PZ[1])}. Enintään 15 % yli: pistesija ${eur(PZ[2])}.`,
+    '!Ulosajo keskeyttää kisan, ja vauriot hoidat kuten muutkin kolarit. Sora kuluttaa autoa joka tapauksessa (arvo −1 %).',
+    `Kassassa ${eur(S.cash)}.`],
+    [[`Ilmoittaudu ja aja (${eur(RALLY_FEE)})`, ()=>{ payOrVippi(RALLY_FEE); S.rallyM = S.m; S.rally = {par, prizes: PZ}; Drive.start(); }], ['Peru', gigMenu]]);
+}
+// ajotila kutsuu, kun erikoiskoe päättyy maaliin tai ulosajoon
+function rallyDone(R, dnf) {
+  const back = () => { Drive.stop(); menu(); };
+  const car = drivenCar();
+  if (car) car.base *= 0.99;
+  ST().rally = (ST().rally || 0) + 1;
+  if (dnf) return scr('KESKEYTYS', ['!Ulosajo erikoiskokeella. Tulosluetteloon tuli merkintä keskeytti.', 'Osallistumismaksua ei palauteta.', car ? 'Sora ja kivet kuluttivat autoa: arvo −1 %.' : ''], [['Jatka', back]]);
+  const r = R.t / R.par, i = r <= 1 ? 0 : r <= 1.06 ? 1 : r <= 1.15 ? 2 : -1, prize = i >= 0 ? (R.prizes || RALLY_PRIZE)[i] : 0;
+  S.cash += prize;
+  scr('RALLISPRINTTI: MAALI', [`Aikasi ${Drive.fmtT(R.t)}, luokan tavoiteaika ${Drive.fmtT(R.par)}.`,
+    i === 0 ? `+LUOKKAVOITTO! Palkinto ${eur(prize)} ja pokaali, joka ei mahdu hyllyyn.` : i === 1 ? `+Palkintosija: ${eur(prize)}. Kuuluttaja lausui nimesi väärin.` : i === 2 ? `+Pistesija: ${eur(prize)}. Bensarahat tuli takaisin.` : 'Ei palkintoa. Yleisö taputti kohteliaasti.',
+    'Sora ja kivet kuluttivat autoa: arvo −1 %.'], [['Jatka', back]]);
 }
 function gearMenu() {
   const ch = [], lines = [`Ajokortti ${S.lic || 'B'}.`];
