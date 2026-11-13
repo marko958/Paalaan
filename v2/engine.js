@@ -753,7 +753,9 @@ function gigMenu() {
   ch.push(['Takaisin', workMenu]);
   scr('KEIKAT', lines, ch);
 }
-const RALLY_FEE = 150, RALLY_PRIZE = [1200, 600, 250];
+// alpha 52: iso pääpalkinto vaatii lähes täydellisen ajon, pikkupalkintoja saa helpommin.
+// RALLY_TIER = suurin sallittu aika suhteessa tavoiteaikaan kullekin palkinnolle
+const RALLY_FEE = 150, RALLY_PRIZE = [4000, 500, 250, 150], RALLY_TIER = [0.98, 1.04, 1.12, 1.25];
 // palkinnot kasvavat luokan nopeuden mukaan: hitaimmassa luokassa täysillä ajaminen ei ole vielä taitoa
 const rallyPrizes = () => { const f = Math.max(0.3, Math.min(1.5, Drive._vehicle().vmax / 125)); return RALLY_PRIZE.map(p => Math.round(p * f / 50) * 50); };
 function rallyInfo() {
@@ -761,7 +763,8 @@ function rallyInfo() {
   const par = Drive.rallyPar(), PZ = rallyPrizes();
   scr('RALLISPRINTTI', [`Erikoiskoe ${String(Drive.rallyKm).replace('.', ',')} km mutkaista soratietä. Ei liikennettä, rajoituksia eikä kameroita.`,
     `${C(d.c).name} ajaa omassa luokassaan. Luokan tavoiteaika on ${Drive.fmtT(par)}.`,
-    `+Alle tavoiteajan: luokkavoitto ${eur(PZ[0])}. Enintään 6 % yli: palkintosija ${eur(PZ[1])}. Enintään 15 % yli: pistesija ${eur(PZ[2])}.`,
+    `+PÄÄPALKINTO ${eur(PZ[0])}: aika vähintään 2 % alle tavoiteajan (enintään ${Drive.fmtT(par * RALLY_TIER[0])}). Vaatii lähes virheettömän ajon.`,
+    `+Palkintosija ${eur(PZ[1])}: enintään ${Drive.fmtT(par * RALLY_TIER[1])}. Pistesija ${eur(PZ[2])}: enintään ${Drive.fmtT(par * RALLY_TIER[2])}. Maaliin ajaneen palkinto ${eur(PZ[3])}: enintään ${Drive.fmtT(par * RALLY_TIER[3])}.`,
     '!Ulosajo keskeyttää kisan, ja vauriot hoidat kuten muutkin kolarit. Sora kuluttaa autoa joka tapauksessa (arvo −1 %).',
     `Kassassa ${eur(S.cash)}.`],
     [[`Ilmoittaudu ja aja (${eur(RALLY_FEE)})`, ()=>{ payOrVippi(RALLY_FEE); S.rallyM = S.m; S.rally = {par, prizes: PZ}; Drive.start(); }], ['Peru', gigMenu]]);
@@ -773,10 +776,15 @@ function rallyDone(R, dnf) {
   if (car) car.base *= 0.99;
   ST().rally = (ST().rally || 0) + 1;
   if (dnf) return scr('KESKEYTYS', ['!Ulosajo erikoiskokeella. Tulosluetteloon tuli merkintä keskeytti.', 'Osallistumismaksua ei palauteta.', car ? 'Sora ja kivet kuluttivat autoa: arvo −1 %.' : ''], [['Jatka', back]]);
-  const r = R.t / R.par, i = r <= 1 ? 0 : r <= 1.06 ? 1 : r <= 1.15 ? 2 : -1, prize = i >= 0 ? (R.prizes || RALLY_PRIZE)[i] : 0;
+  const r = R.t / R.par, i = RALLY_TIER.findIndex(t => r <= t), prize = i >= 0 ? (R.prizes || RALLY_PRIZE)[i] : 0;
   S.cash += prize;
+  const miss = i !== 0 ? ` Pääpalkinnosta jäit ${Drive.fmtT(Math.max(0, R.t - R.par * RALLY_TIER[0]))}.` : '';
   scr('RALLISPRINTTI: MAALI', [`Aikasi ${Drive.fmtT(R.t)}, luokan tavoiteaika ${Drive.fmtT(R.par)}.`,
-    i === 0 ? `+LUOKKAVOITTO! Palkinto ${eur(prize)} ja pokaali, joka ei mahdu hyllyyn.` : i === 1 ? `+Palkintosija: ${eur(prize)}. Kuuluttaja lausui nimesi väärin.` : i === 2 ? `+Pistesija: ${eur(prize)}. Bensarahat tuli takaisin.` : 'Ei palkintoa. Yleisö taputti kohteliaasti.',
+    i === 0 ? `+PÄÄPALKINTO! ${eur(prize)}, pokaali, joka ei mahdu hyllyyn, ja paikallislehden etusivu.`
+      : i === 1 ? `+Palkintosija: ${eur(prize)}. Kuuluttaja lausui nimesi väärin.${miss}`
+      : i === 2 ? `+Pistesija: ${eur(prize)}.${miss}`
+      : i === 3 ? `+Maaliin ajaneen palkinto: ${eur(prize)}.${prize >= RALLY_FEE ? ' Osallistumismaksu tuli takaisin.' : ''}${miss}`
+      : `Ei palkintoa. Yleisö taputti kohteliaasti.${miss}`,
     'Sora ja kivet kuluttivat autoa: arvo −1 %.'], [['Jatka', back]]);
 }
 function gearMenu() {
