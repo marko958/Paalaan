@@ -723,7 +723,7 @@ const Drive = (() => {
   // Pitää kaistan, rajoituksen ja välin edellä ajavaan, mutta tekee satunnaisesti virheitä: ajautuu vastaantulijoiden kaistalle
   // tai pientareelle, haamujarruttaa tai lukee rajoituksen väärin. Peuroja, kuoppia ja liittymää se ei huomaa lainkaan.
   // Kuljettaja ottaa ohjat ohjaamalla tai jarruttamalla.
-  const AP_CARS = /^Tesla (Model 3|Model S Plaid|Cybertruck)/;
+  const AP_CARS = /^Tesla (?!Model S 85)/; // kaikki Teslat paitsi vanha Model S 85
   const apOK = () => !!st.veh && !st.veh.bus && AP_CARS.test(st.veh.name);
   function apOff(msg) { if (!st.auto) return; st.auto = false; st.apErr = null; Snd.play('minus'); if (msg) toast(msg, 4); }
   function apToggle() {
