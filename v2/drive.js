@@ -917,7 +917,7 @@ const Drive = (() => {
     else if (m === 8) { P.fA = mix(PC.yellow, PC.orange, 6); P.fB = K.orange; }
     else { P.fA = mix(PC.orange, PC.brown, 6); P.fB = K.brown; }
     // tie: lumipolanne, märkä tai kuiva asfaltti; rut = renkaiden urat
-    if (sea.snow) { P.rA = mix(PC.white, PC.lgrey, 8); P.rB = mix(PC.lgrey, PC.white, 6); P.rut = mix(PC.lgrey, PC.grey, 7); P.sh = K.white; }
+    if (sea.snow) { P.rA = K.lgrey; P.rB = mix(PC.lgrey, PC.white, 4); P.rut = K.grey; P.sh = K.white; } // lumella tasaiset pinnat: rasteri rakeistuisi pimeässä
     else if (wet) { P.rA = mix(PC.dgrey, PC.grey, 5); P.rB = mix(PC.dgrey, PC.grey, 2); P.rut = mix(PC.dgrey, PC.lblue, 5); P.sh = mix(PC.grey, PC.dgrey, 8); }
     else { P.rA = K.grey; P.rB = mix(PC.grey, PC.dgrey, 4); P.rut = mix(PC.grey, PC.dgrey, 9); P.sh = mix(PC.grey, PC.lgrey, 8); }
     P.haze = sea.dark > 0.6 ? -1 : sea.snow ? PC.white : sea.dark > 0 ? PC.lred : weather().kind ? PC.lgrey : PC.cyan;

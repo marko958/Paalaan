@@ -19,11 +19,12 @@ const Gfx = (() => {
   const nearest = (r, g, b) => { let bi = 0, bd = Infinity; for (let i = 0; i < 16; i++) { const d = dist(r, g, b, RGB[i]); if (d < bd) { bd = d; bi = i; } } return bi; };
 
   // pimeän portaat: RAMP[taso * 16 + väri]; taso 0 = päivänvalo, 4 = lähes musta. Sävy taittuu siniseen kuin kuutamossa.
+  // Usein yhteen rasteroidut värit (valkoinen ja vaaleanharmaa lumessa) päätyvät pimeässä samaan väriin, jotta lumi ei rakeistu.
   const RAMP_SRC = {
-    0: [0, 0, 0, 0, 0],    1: [1, 15, 12, 11, 6],  2: [2, 9, 9, 0, 0],    3: [3, 14, 6, 6, 0],
+    0: [0, 0, 0, 0, 0],    1: [1, 15, 12, 11, 0],  2: [2, 9, 9, 0, 0],    3: [3, 14, 6, 6, 0],
     4: [4, 11, 6, 0, 0],   5: [5, 11, 6, 0, 0],    6: [6, 6, 0, 0, 0],    7: [7, 8, 9, 9, 0],
     8: [8, 9, 9, 0, 0],    9: [9, 9, 0, 0, 0],     10: [10, 2, 9, 0, 0],  11: [11, 6, 0, 0, 0],
-    12: [12, 11, 6, 0, 0], 13: [13, 5, 11, 6, 0],  14: [14, 6, 6, 0, 0],  15: [15, 12, 11, 6, 0],
+    12: [12, 11, 6, 0, 0], 13: [13, 5, 11, 6, 0],  14: [14, 6, 6, 0, 0],  15: [15, 12, 11, 11, 0],
   };
   const RAMP = new Uint8Array(5 * 16);
   for (let l = 0; l < 5; l++) for (let i = 0; i < 16; i++) RAMP[l * 16 + i] = RAMP_SRC[i][l];
@@ -290,7 +291,8 @@ const Gfx = (() => {
         const v = wb[i];
         if (v === NONE) ob[i] = bb[i] & 15;
         else if (v & EMIT || !dark) ob[i] = v & 15;
-        else { let l = (k * (255 - light[i]) + BAYF[by | (x & 3)]) | 0; if (l > 4) l = 4; ob[i] = RAMP[l * 16 + v]; }
+        else { // rasteri vain portaiden rajoilla: valon vyöhykkeet ovat tasaisia, eikä koko keila rakeistu
+          let l = (k * (255 - light[i]) + 0.5 + (BAYF[by | (x & 3)] - 0.5) * 0.4) | 0; if (l > 4) l = 4; ob[i] = RAMP[l * 16 + v]; }
       }
     }
   }
