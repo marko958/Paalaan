@@ -310,7 +310,7 @@ function jobMenu() {
     S.jobList.forEach(id => { const X = JOBS[id], r = jobReq(id);
       ch.push([`${X.name} · ${eur(X.inc)}/kk${id === 'accucar' && !S.sfs ? ' · koulutus 300 €' : ''}${r ? ' · ' + r : ''}`, ()=>jobDetail(id), !!r]); });
   }
-  ch.push(['Takaisin', menu]);
+  ch.push(['Takaisin', workMenu]);
   scr('TYÖPAIKAT', lines, ch);
 }
 function jobDetail(id) {
@@ -684,15 +684,12 @@ function menu() {
   if (S.cash < 0 && invTotal() > 0) return deficitPrompt();
   if (S.cash < 0) { fixNeg(); if (S.vippi > 3000) return repossess(); }
   const ch = [];
-  ch.push(['Autoliike (osta tai vaihda)', dealer]);
-  ch.push([S.auctionDone ? 'Huutokaupat.com (käyty tässä kuussa)' : 'Huutokaupat.com', auction, S.auctionDone]);
-  if (S.cars.length) ch.push(['Myy auto', sellMenu]);
-  if (S.cars.some(c=>c.broken || c.minor || c.mixed)) ch.push(['Korjaamo', repairMenu]);
-  ch.push([S.parking ? 'Luovu kolmesta autopaikasta' : 'Vuokraa kolme autopaikkaa (105 €/kk)', toggleParking]);
-  if (S.tsa) ch.push(['Luovu työsuhdeautosta (500 € sopimussakko)', ()=>{ payOrVippi(500); tsaReturn('LUOVUIT AUTOSTA', 'Palautit työsuhdeauton kesken sopimuksen. Sopimussakko 500 €.', false); }]);
-  ch.push([`Työpaikat (${job().name})`, jobMenu]);
-  ch.push(['Sivutulot ja sijoitukset', sideMenu]);
-  ch.push(['Omat autot ja lainat', info]);
+  // alpha 42: päävalikossa on aina samat viisi riviä samoilla numeroilla
+  const fix = S.cars.some(c => c.broken) ? ' · RIKKI' : S.cars.some(c => c.minor || c.mixed) ? ' · VIKOJA' : '';
+  ch.push(['Autoliike', dealer]);
+  ch.push([S.auctionDone ? 'Huutokaupat.com (käyty)' : 'Huutokaupat.com', auction, S.auctionDone]);
+  ch.push(['Omat autot' + fix, garage]);
+  ch.push(['Työ ja sivutulot', workMenu]);
   ch.push([S.m>=LAST ? 'PAALAAN! (pelin loppu)' : 'PAALAAN! (tien päälle)', paalaan]);
   const lines = [];
   if (S.camp) lines.push(`+KAMPANJA: ${C(S.camp.id).name}, ylihyvitys ${eur(S.camp.amt)} vaihtoautosta (voimassa ${KK[(S.camp.until-1)%12]}kuun loppuun)`);
@@ -716,27 +713,101 @@ function menu() {
 }
 // ---------- SIVUTULOT ----------
 const taxiOK = car => car && C(car.c).type==='e' && !C(car.c).fl.includes('S') && !C(car.c).fl.includes('V') && C(car.c).price >= 15000;
-function sideMenu() {
-  const d = drivenCar(), ch = [];
-  ch.push([S.wolt ? 'Lopeta Wolt-keikat' : 'Ruokalähetiksi (noudot ja toimitukset ajaessa, 60–120 €/toimitus)', ()=>{ S.wolt = !S.wolt; if (S.wolt) S.taxi = false;
-    sayTo('RUOKALÄHETTI', [S.wolt ? '+Ruokaa kuljettamaan. Tien varressa näkyy ravintoloita: pysähdy kohdalle oikeaan reunaan, niin tilaus tulee kyytiin. Vie se perille ennen kuin se jäähtyy.' : 'Lopetit ruokalähettinä.', S.wolt ? '!Jos kolaroit matkalla, keitto kaatuu eikä toimituksesta makseta. Auto ja renkaat kuluvat.' : ''], sideMenu); }, !S.wolt && !d]);
-  ch.push([S.taxi ? 'Lopeta taksin ajo' : S.taxiLic ? 'Aja taksia (asiakkaat viittovat tien varressa, 150–400 €/kyyti)' : 'Hanki taksilupa (800 €) ja aja taksia', ()=>{
-    if (!S.taxi && !S.taxiLic) { payOrVippi(800); S.taxiLic = true; }
+// alpha 42: Sivutulot on jaettu kolmeen ryhmään. Valintarivit ovat lyhyitä, ja selitykset ovat ruudun tekstissä.
+function ask(title, lines, yes, f, back) { scr(title, lines, [[yes, f], ['Peru', back]]); }
+function workMenu() {
+  const on = [S.wolt && 'Wolt', S.taxi && 'taksi', S.gigs && 'kärry- tai pakukeikat'].filter(Boolean);
+  scr('TYÖ JA SIVUTULOT', [`Työ: ${job().name}, autobudjetti ${eur(S.income)}/kk.`, on.length ? `+Keikat päällä: ${on.join(', ')}.` : 'Ei keikkoja päällä.', `Kassassa ${eur(S.cash)}.`], [
+    ['Työpaikat', jobMenu],
+    ['Keikat: Wolt, taksi, muutot', gigMenu],
+    ['Kalusto: peräkärry ja ajokortti', gearMenu],
+    ['Raha: flippaus, sijoitukset, kimppa', moneyMenu],
+    ['Takaisin', menu],
+  ]);
+}
+function gigMenu() {
+  const d = drivenCar(), ch = [], lines = ['Keikat ajetaan tien päällä: kohteet näkyvät tien varressa.'];
+  lines.push('Wolt: noudot ja toimitukset, 60–120 €/toimitus.');
+  ch.push([S.wolt ? 'Lopeta Wolt-keikat' : 'Aloita Wolt-keikat', ()=>{ S.wolt = !S.wolt; if (S.wolt) S.taxi = false;
+    sayTo('RUOKALÄHETTI', [S.wolt ? '+Ruokaa kuljettamaan. Tien varressa näkyy ravintoloita: pysähdy kohdalle oikeaan reunaan, niin tilaus tulee kyytiin. Vie se perille ennen kuin se jäähtyy.' : 'Lopetit ruokalähettinä.', S.wolt ? '!Jos kolaroit matkalla, keitto kaatuu eikä toimituksesta makseta. Auto ja renkaat kuluvat.' : ''], gigMenu); }, !S.wolt && !d]);
+  lines.push(`Taksi: 150–400 €/kyyti. Vaatii taksiluvan (800 €${S.taxiLic ? ', on jo' : ''}) ja vähintään 15 000 €:n sähköauton.`);
+  const taxiGo = ()=>{
     S.taxi = !S.taxi; if (S.taxi) S.wolt = false;
-    sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Asiakkaat viittovat tien varressa: pysähdy kohdalle ja vie heidät perille.' : 'Taksivalo talliin.', S.taxi ? '!Tähdet tulevat ajotavasta: ulosajot ja tieltä suistumiset vievät tähtiä, ja huonoilla tähdillä kyytejä tulee harvemmin. Akku ja renkaat kuluvat, ja vikoja tulee useammin.' : ''], sideMenu); }, !S.taxi && !taxiOK(d)]);
-  if (!S.taxi && !taxiOK(d)) ch[ch.length-1][0] += ' (vaatii vähintään 15 000 €:n sähköauton)';
-  if (!S.trailer) ch.push(['Osta peräkärry Huutokaupat.comista (muutto- tai romukeikkoja varten)', trailerBuy]);
-  else ch.push([`Myy ${TT().name.toLowerCase()} (noin ${eur(trailerValue())})`, trailerSell]);
+    sayTo('TAKSI', [S.taxi ? '+Taksivalo katolle. Asiakkaat viittovat tien varressa: pysähdy kohdalle ja vie heidät perille.' : 'Taksivalo talliin.', S.taxi ? '!Tähdet tulevat ajotavasta: ulosajot ja tieltä suistumiset vievät tähtiä, ja huonoilla tähdillä kyytejä tulee harvemmin. Akku ja renkaat kuluvat, ja vikoja tulee useammin.' : ''], gigMenu); };
+  if (S.taxi || S.taxiLic) ch.push([S.taxi ? 'Lopeta taksin ajo' : 'Aloita taksin ajo', taxiGo, !S.taxi && !taxiOK(d)]);
+  else ch.push(['Hanki taksilupa (800 €)', ()=>ask('TAKSILUPA', ['Taksilupa maksaa 800 €, eikä rahaa saa takaisin.', `Kassassa ${eur(S.cash)}.`], 'Osta lupa ja aloita (800 €)', ()=>{ payOrVippi(800); S.taxiLic = true; taxiGo(); }, gigMenu), !taxiOK(d)]);
+  if (!S.taxi && !taxiOK(d)) lines.push('!Nykyinen auto ei kelpaa taksiksi.');
   const romu = !vanOK() && S.trailer && TT() === TRAILERS.auto;
-  if (S.trailer && !vanOK() && !trailerOK() && !S.gigs) ch.push([`${romu ? 'Romukeikat autotrailerilla' : 'Pimeät muuttokeikat peräkärryllä'} (${!d ? 'ei toimivaa autoa' : !towOK(d) ? C(d.c).name + ': ei vetokoukkua' : `yhdistelmä ${comboKg(d).toLocaleString('fi-FI')} kg: vaatii ${licNeed(d)}-ajokortin`})`, ()=>{}, true]);
-  if (vanOK() || trailerOK() || S.gigs) ch.push([S.gigs ? (romu ? 'Lopeta romukeikat' : 'Lopeta pimeät muuttokeikat') : vanOK() ? 'Pimeät muuttokeikat pakulla (asiakkaat tien varressa, 150–400 €/keikka)' : romu ? 'Romukeikat autotrailerilla (romut purkamolle, 150–300 €/keikka, laillinen)' : `Pimeät muuttokeikat peräkärryllä (${TT() === TRAILERS.jarru ? '150–320' : '100–220'} €/keikka, isompi kuorma maksaa enemmän)`, ()=>gigsToggle(sideMenu)]);
-  if (S.lic !== 'BE') ch.push([S.lic === 'B' ? 'Ajokortti: B96-koulutus 300 € (yhdistelmä enintään 4 250 kg)' : 'Ajokortti: BE-kortti 900 € (raskaat yhdistelmät)', ()=>{ const c = S.lic === 'B' ? 300 : 900; payOrVippi(c); S.lic = S.lic === 'B' ? 'B96' : 'BE';
-    sayTo('AJOKORTTI', [`+${S.lic === 'B96' ? 'B96-koulutus käyty: seitsemän tuntia, kahvia ja peruutusta kärryn kanssa.' : 'BE-kortti taskussa. Ajokoe meni läpi toisella yrityksellä.'}`, `Nyt saat ajaa yhdistelmää, jonka kokonaismassa on enintään ${S.lic === 'B96' ? '4 250 kg' : 'yli 4 250 kg'}.`], sideMenu); }]);
-  ch.push([S.flip ? `Flippikohde: ${S.flip.name} (myynnissä, ${S.flip.left} kk)` : 'Flippaa huutokauppakohde', flipStart, !!S.flip]);
-  ch.push([`Sijoitukset (TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)})`, invest]);
-  ch.push([S.kimppa ? 'Eroa kimppa-Eurojackpotista' : 'Liity kimppa-Eurojackpotiin (15 €/kk)', toggleKimppa]);
+  if (vanOK() || trailerOK() || S.gigs) {
+    lines.push(vanOK() ? 'Pimeät muuttokeikat pakulla: 150–400 €/keikka.' : romu ? 'Romukeikat autotrailerilla: romut purkamolle, 150–300 €/keikka, laillista.' : `Pimeät muuttokeikat peräkärryllä: ${TT() === TRAILERS.jarru ? '150–320' : '100–220'} €/keikka, isompi kuorma maksaa enemmän.`);
+    ch.push([S.gigs ? (romu ? 'Lopeta romukeikat' : 'Lopeta muuttokeikat') : romu ? 'Aloita romukeikat' : 'Aloita muuttokeikat', ()=>gigsToggle(gigMenu)]);
+  } else {
+    lines.push(!S.trailer ? 'Muutto- ja romukeikat vaativat pakettiauton tai peräkärryn (Kalusto).' : `!${romu ? 'Romukeikat' : 'Muuttokeikat'} eivät onnistu: ${!d ? 'ei toimivaa autoa' : !towOK(d) ? C(d.c).name + ': ei vetokoukkua' : `yhdistelmä ${comboKg(d).toLocaleString('fi-FI')} kg vaatii ${licNeed(d)}-ajokortin`}.`);
+    ch.push([romu ? 'Romukeikat (ei mahdollista)' : 'Muuttokeikat (ei mahdollista)', ()=>{}, true]);
+  }
+  ch.push(['Takaisin', workMenu]);
+  scr('KEIKAT', lines, ch);
+}
+function gearMenu() {
+  const ch = [], lines = [`Ajokortti ${S.lic || 'B'}.`];
+  if (!S.trailer) { lines.push('Peräkärryllä voi ajaa muutto- tai romukeikkoja. Kärryt ostetaan Huutokaupat.comista.'); ch.push(['Osta peräkärry', trailerBuy]); }
+  else { lines.push(`${TT().name}: ${S.trailer.d.toLowerCase()}, arvo noin ${eur(trailerValue())}.`); ch.push([`Myy ${TT().name.toLowerCase()} (noin ${eur(trailerValue())})`, trailerSell]); }
+  if (S.lic !== 'BE') {
+    lines.push(S.lic === 'B' ? 'B96-koulutus: yhdistelmän kokonaismassa enintään 4 250 kg.' : 'BE-kortti: raskaat yhdistelmät.');
+    ch.push([S.lic === 'B' ? 'B96-koulutus (300 €)' : 'BE-kortti (900 €)', ()=>{ const c = S.lic === 'B' ? 300 : 900; payOrVippi(c); S.lic = S.lic === 'B' ? 'B96' : 'BE';
+    sayTo('AJOKORTTI', [`+${S.lic === 'B96' ? 'B96-koulutus käyty: seitsemän tuntia, kahvia ja peruutusta kärryn kanssa.' : 'BE-kortti taskussa. Ajokoe meni läpi toisella yrityksellä.'}`, `Nyt saat ajaa yhdistelmää, jonka kokonaismassa on enintään ${S.lic === 'B96' ? '4 250 kg' : 'yli 4 250 kg'}.`], gearMenu); }]);
+  }
+  ch.push(['Takaisin', workMenu]);
+  scr('KALUSTO', lines, ch);
+}
+function moneyMenu() {
+  scr('RAHA', [`Kassassa ${eur(S.cash)}.`, `Sijoitukset: TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)}.`, S.flip ? `Flippikohde ${S.flip.name} on myynnissä, ${S.flip.left} kk jäljellä.` : 'Flippaus: osta huutokaupasta, kunnosta ja myy voitolla. Tai tappiolla.',
+    S.kimppa ? 'Olet mukana kimppa-Eurojackpotissa (15 €/kk).' : 'Kimppa-Eurojackpot maksaa 15 €/kk.'], [
+    [S.flip ? 'Flippi käynnissä' : 'Flippaa huutokauppakohde', flipStart, !!S.flip],
+    ['Sijoitukset', invest],
+    [S.kimppa ? 'Eroa kimpasta' : 'Liity kimppaan (15 €/kk)', toggleKimppa],
+    ['Takaisin', workMenu],
+  ]);
+}
+// ---------- OMAT AUTOT ----------
+function carLines(car) {
+  const k = C(car.c), lines = [];
+  lines.push(`${k.name}${car.mb?' [MB×'+car.mb+']':''}${car.broken?' [RIKKI '+eur(car.broken)+']':''}${car.minor?' [pikkuvikoja '+eur(car.minor)+']':''}${car.sale?' [myynnissä]':''}`);
+  lines.push(`Arvo ${eur(val(car))}, laina ${car.loan?eur(car.loan.bal):'0 €'}`);
+  if (car.loan) lines.push(`Erä ${eur(car.loan.pay)}/kk, ${car.loan.n} kk jäljellä, korko ${pct(car.loan.r*1200)}${car.loan.B?', jämäri '+eur(car.loan.B):''}`);
+  lines.push(`Kulut ${eur(k.run)}/kk, arvonlasku ~${Math.round(k.dep*100)} %/v${sohTxt(car)}`, `Takuu: ${warrTxt(car)}`);
+  { const t = towSpec(car); lines.push(`${car.rims2 ? 'Kahdet renkaat vanteilla' : 'Yhdet vanteet'}${car.mixed ? ' (KIEKOT SEKAISIN)' : ''} · ${t.kg ? 'vetomassa ' + t.kg.toLocaleString('fi-FI') + ' kg' : 'ei vetokoukkua'}${car.dpf ? ' · DPF TUKOSSA' : ''}`); }
+  return lines;
+}
+function garage() {
+  const lines = [], ch = [];
+  S.cars.forEach(car => {
+    lines.push(`${C(car.c).name}: arvo ${eur(val(car))}, laina ${eur(car.loan?car.loan.bal:0)}`);
+    ch.push([`${C(car.c).name}${car.broken?' · RIKKI':car.minor||car.mixed?' · VIKOJA':''}${car.sale?' · MYYNNISSÄ':''}`, ()=>carMenu(car)]);
+  });
+  if (!S.cars.length) lines.push('Ei omia autoja.');
+  else lines.push('Valitse auto: tiedot, korjaus ja myynti.');
+  if (S.tsa) ch.push([`Työsuhdeauto ${C(S.tsa.c).name}`, tsaMenu]);
+  lines.push(S.parking ? 'Kolme autopaikkaa vuokralla (105 €/kk): ovikolhuja tulee harvemmin.' : 'Kolme vierekkäistä autopaikkaa (105 €/kk) suojaa ovikolhuilta.');
+  ch.push([S.parking ? 'Luovu autopaikoista' : 'Vuokraa autopaikat (105 €/kk)', toggleParking]);
+  ch.push(['Lainat ja muut tiedot', info]);
   ch.push(['Takaisin', menu]);
-  scr('SIVUTULOT', ['Lisätuloja ja riskejä. Sinulla on kassassa ' + eur(S.cash) + '.'], ch);
+  scr('OMAT AUTOT', lines, ch);
+}
+function carMenu(car) {
+  if (!S.cars.includes(car)) return garage();
+  const ch = repairOpts(car);
+  ch.push([car.sale ? 'Myynnissä (ilmoitus jätetty)' : 'Myy auto', ()=>sellCar(car), !!car.sale]);
+  ch.push(['Takaisin', garage]);
+  scr(C(car.c).name.toUpperCase(), carLines(car), ch);
+}
+function tsaMenu() {
+  const T = S.tsa; if (!T) return garage();
+  scr('TYÖSUHDEAUTO', [`${C(T.c).name}${T.mb?' [MB×'+T.mb+']':''}`, `${T.kind}etu ${eur(T.cost)}/kk, sopimusta jäljellä ${T.left} kk.`, 'Omat autot ovat seisonnassa niin kauan kuin työsuhdeauto on käytössä.'], [
+    ['Luovu työsuhdeautosta (sakko 500 €)', ()=>ask('LUOVU TYÖSUHDEAUTOSTA?', ['!Sopimussakko on 500 €, eikä autoa saa takaisin.', `Sopimusta on jäljellä ${T.left} kk.`], 'Luovu ja maksa 500 €',
+      ()=>{ payOrVippi(500); tsaReturn('LUOVUIT AUTOSTA', 'Palautit työsuhdeauton kesken sopimuksen. Sopimussakko 500 €.', false); }, tsaMenu)],
+    ['Takaisin', garage],
+  ]);
 }
 // muutto- tai romukeikat päälle tai pois (Sivutulot-valikosta tai heti kärryn tai pakun oston jälkeen)
 function gigsToggle(back) {
@@ -766,31 +837,33 @@ function trailerBuy() {
   if (d && towOK(d)) { const t = towSpec(d); lines.push(`${C(d.c).name}: suurin perävaunu ${t.kg.toLocaleString('fi-FI')} kg, auton kokonaismassa ${t.mass.toLocaleString('fi-FI')} kg. Ajokortti ${S.lic || 'B'}: yhdistelmä enintään ${S.lic === 'BE' ? 'rajaton' : LIC[S.lic || 'B'].toLocaleString('fi-FI') + ' kg'}.`); }
   else lines.push(`!Ajossa olevassa autossa (${d ? C(d.c).name : 'ei autoa'}) ei ole vetokoukkua. Kärryllä ajetaan vain autolla, jossa koukku on.`);
   lines.push('Kärryn kanssa ajetaan enintään 80 km/h. Isompi kärry tuo isompia keikkoja, mutta vaatii vetokykyä ja ehkä isomman kortin.');
-  scr('PERÄKÄRRY', lines, offers.map(o => { const T = TRAILERS[o.kind], need = d && towOK(d) ? (towSpec(d).mass + T.max <= LIC.B ? '' : towSpec(d).mass + T.max <= LIC.B96 ? ' · vaatii B96' : ' · vaatii BE') : '';
-    return [`${T.name} (${T.d}): ${o.d.toLowerCase()} · ${eur(o.price)}${need}`, ()=>{ payOrVippi(o.price); S.trailer = {paid:o.price, wear:0, d:o.d, kind:o.kind};
-      sayTo('PERÄKÄRRY', [`+${T.name} pihassa: ${o.d.toLowerCase()}.`, o.kind === 'auto' ? 'Purkamo maksaa romukeikoista laillisesti tilille.' : 'Kärrykeikat tuovat pakua vähemmän, mutta kärry on halpa.'], ()=>gigsOffer(sideMenu)); }]; }).concat([['Takaisin', sideMenu]]));
+  const tch = offers.map(o => { const T = TRAILERS[o.kind], need = d && towOK(d) ? (towSpec(d).mass + T.max <= LIC.B ? '' : towSpec(d).mass + T.max <= LIC.B96 ? ' · vaatii B96' : ' · vaatii BE') : '';
+    lines.push(`${T.name}: ${T.d}. ${o.d}.`);
+    return [`${T.name} ${eur(o.price)}${need}`, ()=>{ payOrVippi(o.price); S.trailer = {paid:o.price, wear:0, d:o.d, kind:o.kind};
+      sayTo('PERÄKÄRRY', [`+${T.name} pihassa: ${o.d.toLowerCase()}.`, o.kind === 'auto' ? 'Purkamo maksaa romukeikoista laillisesti tilille.' : 'Kärrykeikat tuovat pakua vähemmän, mutta kärry on halpa.'], ()=>gigsOffer(gearMenu)); }]; }).concat([['Takaisin', gearMenu]]);
+  scr('PERÄKÄRRY', lines, tch);
 }
 function trailerSell() {
   const v = trailerValue(); S.cash += v; S.trailer = null;
   if (S.gigs && !vanOK()) S.gigs = false;
-  sayTo('PERÄKÄRRY', [`Myit peräkärryn ${eur(v)}:lla Marketplacessa. Ostaja kysyi kolme kertaa, onko se vielä myynnissä.`], sideMenu);
+  sayTo('PERÄKÄRRY', [`Myit peräkärryn ${eur(v)}:lla Marketplacessa. Ostaja kysyi kolme kertaa, onko se vielä myynnissä.`], gearMenu);
 }
 function flipStart() {
   const pool = CARS.map((_,i)=>i).filter(i=>C(i).price<=9000 && !C(i).fl.includes('N'));
   const id = pick(pool), V = listPrice(id, genSoh(id));
   const price = r100(V * rnd(0.45, 0.75));
   const hidden = RND() < 0.3;
-  const go = (fix) => { if (S.cash < price + fix) return sayTo('FLIPPAUS', ['!Kassa ei riitä. Flippaus tehdään käteisellä.'], sideMenu);
+  const go = (fix) => { if (S.cash < price + fix) return sayTo('FLIPPAUS', ['!Kassa ei riitä. Flippaus tehdään käteisellä.'], moneyMenu);
     S.cash -= price + fix;
     let sale = V * (fix ? rnd(0.95, 1.18) : rnd(0.7, 1.0));
     const lines = [`+${C(id).name} ostettu ${eur(price)}${fix?`, korjattu ${eur(fix)}`:''}. Ilmoitus nettiin.`];
     if (hidden) { sale *= 0.55; lines.push('!Pesussa paljastui ruostereikä, jota kuvissa ei näkynyt. Myyntihinta romahtaa.'); }
     S.flip = {name: C(id).name, sale: r100(sale), left: ri(1,3), cost: price+fix};
-    sayTo('FLIPPAUS', lines, sideMenu); };
+    sayTo('FLIPPAUS', lines, moneyMenu); };
   scr('FLIPPAUS', [`Huutokaupassa: ${C(id).name}. Markkina-arvo noin ${eur(V)}.`, `Saisit sen noin hintaan ${eur(price)}. Käteiskauppa, ei mahdu autopaikkoihin: seisoo naapurin pihassa.`], [
     [`Osta ja kunnosta (300 €)`, ()=>go(300), S.cash < price+300],
     ['Osta ja myy sellaisenaan', ()=>go(0), S.cash < price],
-    ['Ei tällä kertaa', sideMenu],
+    ['Ei tällä kertaa', moneyMenu],
   ]);
 }
 function invest() {
@@ -799,7 +872,7 @@ function invest() {
     [500,2000].forEach(a => ch.push([`Osta ${n} ${eur(a)}`, ()=>{ S.cash -= a; S.inv[k] += a; sayTo('SIJOITUS', [`${n}: sijoitit ${eur(a)}. Salkussa nyt ${eur(S.inv[k])}.`], invest); }, S.cash < a]));
     ch.push([`Myy kaikki ${n} (${eur(S.inv[k])})`, ()=>{ S.cash += S.inv[k]; const v = S.inv[k]; S.inv[k] = 0; sayTo('SIJOITUS', [`+${n} myyty, kassaan ${eur(v)}.`], invest); }, S.inv[k] <= 0]);
   });
-  ch.push(['Takaisin', sideMenu]);
+  ch.push(['Takaisin', moneyMenu]);
   scr('SIJOITUKSET', ['Tesla-osake heiluu, Dogecoin heiluu enemmän. Elonin twiitit liikuttavat kumpaakin.', `Salkku: TSLA ${eur(S.inv.tsla)}, DOGE ${eur(S.inv.doge)}`], ch);
 }
 // 2.0: kuukaudet vaihtuvat ajaessa (drive.js)
@@ -807,24 +880,17 @@ function paalaan() { if (S.m>=LAST) return endGame(); Drive.start(); }
 
 function toggleKimppa() {
   S.kimppa = !S.kimppa;
-  sayTo('KIMPPA', [S.kimppa ? 'Olet mukana Sähköautomiesten kimpassa. Tällä kertaa se osuu.' : 'Erosit kimpasta. Juuri tällä viikolla se varmaan osuu.'], sideMenu);
+  sayTo('KIMPPA', [S.kimppa ? 'Olet mukana Sähköautomiesten kimpassa. Tällä kertaa se osuu.' : 'Erosit kimpasta. Juuri tällä viikolla se varmaan osuu.'], moneyMenu);
 }
 
 function toggleParking() {
   S.parking = !S.parking;
-  say('AUTOPAIKAT', [S.parking ? 'Vuokrasit kolme vierekkäistä autopaikkaa 105 €/kk. Pysäköit keskimmäiseen, eikä kukaan avaa ovea kylkeesi. Melkein.' : 'Luovuit autopaikoista. Ovet aukeavat taas vapaasti kylkeesi.']);
+  sayTo('AUTOPAIKAT', [S.parking ? 'Vuokrasit kolme vierekkäistä autopaikkaa 105 €/kk. Pysäköit keskimmäiseen, eikä kukaan avaa ovea kylkeesi. Melkein.' : 'Luovuit autopaikoista. Ovet aukeavat taas vapaasti kylkeesi.'], garage);
 }
 
 function info() {
   const lines = [];
-  S.cars.forEach(car => {
-    const k = C(car.c);
-    lines.push(`${k.name}${car.mb?' [MB×'+car.mb+']':''}${car.broken?' [RIKKI '+eur(car.broken)+']':''}${car.minor?' [pikkuvikoja '+eur(car.minor)+']':''}${car.sale?' [myynnissä]':''}`);
-    lines.push(`  Arvo ${eur(val(car))}, laina ${car.loan?eur(car.loan.bal):'0 €'}`);
-    if (car.loan) lines.push(`  Erä ${eur(car.loan.pay)}/kk, ${car.loan.n} kk jäljellä, korko ${pct(car.loan.r*1200)}${car.loan.B?', jämäri '+eur(car.loan.B):''}`);
-    lines.push(`  Kulut ${eur(k.run)}/kk, arvonlasku ~${Math.round(k.dep*100)} %/v${sohTxt(car)}`, `  Takuu: ${warrTxt(car)}`);
-    { const t = towSpec(car); lines.push(`  ${car.rims2 ? 'Kahdet renkaat vanteilla' : 'Yhdet vanteet'}${car.mixed ? ' (KIEKOT SEKAISIN)' : ''} · ${t.kg ? 'vetomassa ' + t.kg.toLocaleString('fi-FI') + ' kg' : 'ei vetokoukkua'}${car.dpf ? ' · DPF TUKOSSA' : car.dpfDel ? ' · DPF poistettu' : ''}${car.reg > S.m ? ' · odottaa rekisteröintiä' : ''}`); }
-  });
+  S.cars.forEach(car => { lines.push(...carLines(car).map((l, n) => n ? '  ' + l : l)); });
   if (S.tsa) { const T = S.tsa; lines.push(`TYÖSUHDEAUTO: ${C(T.c).name}${T.mb?' [MB×'+T.mb+']':''}`, `  ${T.kind}etu ${eur(T.cost)}/kk, sopimusta jäljellä ${T.left} kk`, `  Salattuja vaurioita ${T.dmg.length} kpl${T.mb?', mikrobetonipaikkoja '+T.mb:''} (tarkastaja huomaa noin 3/4)`); }
   if (!S.cars.length && !S.tsa) lines.push('Ei autoja.');
   if (S.trailer) lines.push(`${TT().name}: ${S.trailer.d.toLowerCase()}, arvo noin ${eur(trailerValue())}`);
@@ -834,7 +900,7 @@ function info() {
   lines.push(`Kimppaan maksettu ${eur(S.kimppaPaid)}, voitettu ${eur(S.kimppaWon)}`);
   lines.push(`Työ: ${job().name}, autobudjetti ${eur(S.income)}/kk${onTrial() ? ', koeaika ' + (S.trial - S.m) + ' kk' : ''}`);
   lines.push(`Tavoite: ${TARGETS[S.target].name}${ownsTarget()?' (PIHASSA!)':''}`);
-  say('OMAT AUTOT', lines);
+  sayTo('LAINAT JA TIEDOT', lines, garage);
 }
 
 // ---------- TAPAHTUMAT ----------
@@ -1641,11 +1707,6 @@ function auctionPay(A, total, loan) {
 }
 
 // ---------- MYYNTI ----------
-function sellMenu() {
-  const ch = S.cars.map(car => [`${C(car.c).name}${sohTxt(car)}: arvo ${eur(val(car))}, laina ${eur(car.loan?car.loan.bal:0)}${car.sale?' (myynnissä)':''}`, ()=>sellCar(car), !!car.sale]);
-  ch.push(['Takaisin', menu]);
-  scr('MYY AUTO', ['Mikä auto myydään?'], ch);
-}
 function sellCar(car) {
   const v = val(car), av = r100(v * (car.broken ? 0.7 : 0.82) * Math.pow(0.9, car.mb));
   const L = car.loan ? car.loan.bal : 0;
@@ -1653,7 +1714,7 @@ function sellCar(car) {
     [`Autovex heti: ${eur(av)}${av<L?' (ei kata lainaa)':''}`, ()=>settle(car, av, 'Autovex')],
     ...(S.scrap && S.scrap.kind === 'valtio' && isOldIce(car) ? [[`Romuta: valtion romutuspalkkio 2 000 € + romuraha 100 €`, ()=>{ S.scrap = null; settle(car, 2100, 'Romutuspalkkio ja purkamo'); }]] : []),
     [`Yksityismyynti: noin ${eur(r100(v*0.97*Math.pow(0.88, car.mb)))}, kestää 1–3 kk`, ()=>{ car.sale = ri(1,3); say('MYYNTI', ['Ilmoitus jätetty. Erät juoksevat sillä välin.', car.mb?'!MB-merkintä näkyy kuvissa. Ostajat tinkivät.':'']); }, !!car.broken],
-    ['Takaisin', sellMenu],
+    ['Takaisin', ()=>carMenu(car)],
   ];
   scr('MYY AUTO', [`${C(car.c).name}`, `Laina ${eur(L)}`], ch);
 }
@@ -1677,13 +1738,14 @@ function privateSaleDone(car) {
 }
 
 // ---------- KORJAAMO ----------
-function repairMenu() {
-  const ch = S.cars.filter(c=>c.broken).map(car => [`${C(car.c).name}: ${eur(car.broken)} (ei ajokunnossa)`, ()=>repairChoice(car, 'KORJAAMO', `${C(car.c).name}, korjaus ${eur(car.broken)}`)]);
-  S.cars.filter(c=>c.mixed).forEach(car => { ch.push([`${C(car.c).name}: kiekot sekaisin, hae oikeat rengashotellilta (0 €, työpäivä jää kesken)`, ()=>{ car.mixed = false; S.late = (S.late||0) + 1; say('RENGASHOTELLI', ['Hotellin pojat vaihtoivat oikeat kiekot ja pahoittelivat: "Ne olivat samassa hyllyssä."', '!Lähdit kesken työpäivän, ja pomo huomasi.']); }]);
+function repairOpts(only) {
+  const cars = only ? [only] : S.cars;
+  const ch = cars.filter(c=>c.broken).map(car => [`${C(car.c).name}: ${eur(car.broken)} (ei ajokunnossa)`, ()=>repairChoice(car, 'KORJAAMO', `${C(car.c).name}, korjaus ${eur(car.broken)}`)]);
+  cars.filter(c=>c.mixed).forEach(car => { ch.push([`${C(car.c).name}: kiekot sekaisin, hae oikeat rengashotellilta (0 €, työpäivä jää kesken)`, ()=>{ car.mixed = false; S.late = (S.late||0) + 1; say('RENGASHOTELLI', ['Hotellin pojat vaihtoivat oikeat kiekot ja pahoittelivat: "Ne olivat samassa hyllyssä."', '!Lähdit kesken työpäivän, ja pomo huomasi.']); }]);
     ch.push([`${C(car.c).name}: osta naamakirjasta kolme kapeampaa (${eur(r100(rimsCost(C(car.c))*0.25))})`, ()=>{ payOrVippi(r100(rimsCost(C(car.c))*0.25)); car.mixed = false; say('NAAMAKIRJA', ['+Joku Tampereella oli saanut kolme kapeampaa. Vaihdoitte kiekot huoltoaseman pihalla.']); }]); });
-  S.cars.filter(c=>c.minor).forEach(car => ch.push([`${C(car.c).name}: korjaamattomat pikkuviat ${eur(car.minor)}`, ()=>{ payOrVippi(car.minor); car.minor = 0; say('KORJAAMO', ['Pikkuviat korjattu. Myyntihinta palautui.']); }]));
-  ch.push(['Takaisin', menu]);
-  scr('KORJAAMO', ['Mikä korjataan?'], ch);
+  cars.filter(c=>c.minor).forEach(car => ch.push([`${C(car.c).name}: korjaamattomat pikkuviat ${eur(car.minor)}`, ()=>{ payOrVippi(car.minor); car.minor = 0; say('KORJAAMO', ['Pikkuviat korjattu. Myyntihinta palautui.']); }]));
+  if (only) { const nm = C(only.c).name + ': '; ch.forEach(c => { if (c[0].startsWith(nm)) c[0] = 'Korjaa: ' + c[0].slice(nm.length); }); } // auton omassa valikossa nimeä ei toisteta
+  return ch;
 }
 
 // ---------- LOPPU ----------
@@ -1756,7 +1818,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
     const st = status(), el = $('status');
     if (!st) { el.hidden = true; return; }
     el.hidden = false;
-    const r = st.ratio, N = 20, fill = Math.min(N, Math.round(Math.min(r,2)/2*N));
+    const r = st.ratio, N = 10, fill = Math.min(N, Math.round(Math.min(r,2)/2*N));
     let bar = ''; for (let i=0;i<N;i++) bar += (i<fill ? '█' : (i===N/2 ? '|' : '·'));
     const jail = st.l > st.v && st.l > 0;
     const cars = st.cars.map(c => `${esc(c.name)}${c.mb?' [MB]':''}${c.dent?' [LOMMO]':''}${c.broken?' [RIKKI]':''}`).join(' + ') || 'ei autoa';
@@ -1764,7 +1826,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
       `<div class="row"><span>KK ${st.month}/84</span><span>KASSA ${eur(st.cash)}</span><span>TULO ${eur(st.income)}</span></div>`+
       `<div class="row"><span>ERÄT ${eur(st.pay)}/kk</span><span>${st.vippi>0?'<span class="jail">VIPPI '+eur(st.vippi)+'</span>':'VIPPI 0 €'}</span></div>`+
       `<div class="row"><span>ARVO ${eur(st.v)}</span><span>LAINAT ${eur(st.l)}</span></div>`+
-      `<div class="row"><span class="bar">[${bar}]</span><span>${st.l>0?Math.round(r*100)+' %':'VELATON'} ${jail?'<span class="jail">VANKILA!</span>':''}</span></div>`+
+      `<div class="row"><span class="bar">VELKA/ARVO [${bar}]</span><span>${st.l>0?Math.round(r*100)+' %':'VELATON'} ${jail?'<span class="jail">VANKILA!</span>':''}</span></div>`+
       `<div>${cars}</div>`+
       `<div>TAVOITE: ${esc(st.target)}${st.own?' ★ PIHASSA':''}</div>`;
   }
@@ -1776,16 +1838,25 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
       const c = l[0]==='!' ? 'r' : l[0]==='+' ? 'g' : '';
       return `<p class="${c}">${esc(c ? l.slice(1) : l)}</p>`;
     }).join('');
-    const box = $('choices'); box.innerHTML = ''; current = s.choices; sel = -1;
+    const box = $('choices'); box.innerHTML = ''; current = s.choices;
+    // näppäimet: 1–9 ja sen jälkeen A, B, C…; viimeinen Takaisin, Peru tai Ei on aina 0 (myös Esc)
+    const N = s.choices.length, last = s.choices[N-1];
+    backI = N > 1 && last && /^(Takaisin|Peru|Ei\b)/.test(last.t) ? N-1 : -1;
+    // oletusvalinta Enterille ja välilyönnille: keltainen PAALAAN! tai ruudun ainoa valinta
+    defI = s.choices.findIndex(c => c.t.startsWith('PAALAAN') && !c.dis); if (defI < 0 && N === 1 && !s.choices[0].dis) defI = 0;
+    sel = defI;
+    keyOf = s.choices.map((c, i) => i === backI ? '0' : i < 9 ? String(i+1) : String.fromCharCode(56 + i)); // 9 → A
     s.choices.forEach((c,i) => {
       const b = document.createElement('button');
-      b.innerHTML = (i<9?`<span class="k">${i+1}</span>`:'') + esc(c.t);
+      b.innerHTML = `<span class="k">${keyOf[i]}</span>` + esc(c.t);
       if (c.t.startsWith('PAALAAN')) b.className = 'paa';
+      if (i === sel) b.classList.add('sel');
       b.disabled = c.dis;
       b.onclick = () => { if (!c.dis) { Snd.play('click'); c.f(); window.scrollTo(0,0); } };
       box.appendChild(b);
     });
   }});
+  let backI = -1, defI = -1, keyOf = [];
   // kursori: nuolet ylös ja alas siirtävät käänteisväristä valintariviä, Enter tai välilyönti valitsee
   let sel = -1;
   const btns = () => [...$('choices').children];
@@ -1793,8 +1864,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = { start, s
   const pick = i => { if (current[i] && !current[i].dis) { Snd.play('click'); sel = -1; current[i].f(); window.scrollTo(0,0); } };
   document.addEventListener('keydown', e => {
     if (Drive.blockKeys()) return;
-    const n = parseInt(e.key,10);
-    if (n>=1 && n<=9) return pick(n-1);
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Escape' || e.key === 'Backspace') { if (backI >= 0) { e.preventDefault(); pick(backI); } return; }
+    { const k = e.key.length === 1 ? e.key.toUpperCase() : '', i = keyOf.indexOf(k); if (i >= 0) return pick(i); }
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const d = e.key === 'ArrowDown' ? 1 : -1, N = current.length;
       if (!N) return;
